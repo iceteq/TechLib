@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Menu } from 'lucide-react';
 import { APP_NAME } from '../../lib/config';
+import { SearchBar } from './SearchBar';
 import styles from './AppShell.module.css';
 
 interface AppShellProps {
@@ -8,6 +9,8 @@ interface AppShellProps {
   children: ReactNode;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
+  search: string;
+  onSearchChange: (value: string) => void;
 }
 
 export function AppShell({
@@ -15,6 +18,8 @@ export function AppShell({
   children,
   sidebarOpen,
   onToggleSidebar,
+  search,
+  onSearchChange,
 }: AppShellProps) {
   return (
     <div className={styles.shell}>
@@ -31,6 +36,7 @@ export function AppShell({
           <span className={styles.brandMark} aria-hidden />
           <h1 className={styles.brandTitle}>{APP_NAME}</h1>
         </div>
+        <SearchBar value={search} onChange={onSearchChange} />
       </header>
 
       <div className={styles.body}>

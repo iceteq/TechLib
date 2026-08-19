@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  position: relative;
 }
 
 .selected {
@@ -19,6 +20,14 @@
   border: 1px solid var(--border);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.55);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.inputRowFocus {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .inputIcon {
@@ -45,6 +54,9 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  max-height: 220px;
+  overflow: auto;
+  z-index: 2;
 }
 
 .option {
@@ -59,7 +71,13 @@
   text-align: left;
 }
 
-.option:hover {
+.option:hover,
+.optionActive {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.hash {
+  color: var(--text-muted);
+  font-weight: 600;
 }

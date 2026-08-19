@@ -17,6 +17,12 @@
   border-bottom: 1px solid var(--border);
 }
 
+@media (max-width: 800px) {
+  .topbar {
+    flex-wrap: wrap;
+  }
+}
+
 .menuBtn {
   display: none;
   align-items: center;

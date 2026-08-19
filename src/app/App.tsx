@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '../features/shell/AppShell';
 import { Sidebar } from '../features/shell/Sidebar';
 import { NoteEditor } from '../features/notes/NoteEditor';
 import { NoteGrid } from '../features/notes/NoteGrid';
 import type { Label, NoteBackground, NoteWithUrls } from '../lib/types';
+import { filterNotes } from '../lib/searchNotes';
 import * as store from '../lib/notesStore';
 
 export default function App() {
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
   const [filterLabelId, setFilterLabelId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ready, setReady] = useState(false);
@@ -29,6 +31,15 @@ export default function App() {
       setReady(true);
     })();
   }, [refresh]);
+
+  const visibleNotes = useMemo(
+    () =>
+      filterNotes(notes, labels, {
+        labelId: filterLabelId,
+        search,
+      }),
+    [notes, labels, filterLabelId, search],
+  );
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
 
@@ -109,6 +120,8 @@ export default function App() {
     <AppShell
       sidebarOpen={sidebarOpen}
       onToggleSidebar={() => setSidebarOpen((open) => !open)}
+      search={search}
+      onSearchChange={setSearch}
       sidebar={
         <Sidebar
           labels={labels}
@@ -128,9 +141,10 @@ export default function App() {
         <p style={{ color: 'var(--text-muted)' }}>Loading notes…</p>
       ) : (
         <NoteGrid
-          notes={notes}
+          notes={visibleNotes}
           labels={labels}
           filterLabelId={filterLabelId}
+          search={search}
           onOpenNote={(id) => setActiveNoteId(id)}
           onCreateNote={() => void handleCreateNote()}
         />

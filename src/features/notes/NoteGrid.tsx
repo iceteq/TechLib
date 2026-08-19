@@ -7,6 +7,7 @@ interface NoteGridProps {
   notes: NoteWithUrls[];
   labels: Label[];
   filterLabelId: string | null;
+  search: string;
   onOpenNote: (noteId: string) => void;
   onCreateNote: () => void;
 }
@@ -15,14 +16,27 @@ export function NoteGrid({
   notes,
   labels,
   filterLabelId,
+  search,
   onOpenNote,
   onCreateNote,
 }: NoteGridProps) {
-  const filtered = filterLabelId
-    ? notes.filter((n) => n.labelIds.includes(filterLabelId))
-    : notes;
-
   const filterName = labels.find((l) => l.id === filterLabelId)?.name;
+  const hasSearch = search.trim().length > 0;
+
+  let emptyTitle = 'Start your first note';
+  let emptyText =
+    'Add a title, a couple of images, labels, and a color — Keep-style, image-first.';
+
+  if (hasSearch && filterLabelId) {
+    emptyTitle = 'No matching notes';
+    emptyText = `Nothing in #${filterName} matches “${search.trim()}”.`;
+  } else if (hasSearch) {
+    emptyTitle = 'No matching notes';
+    emptyText = `No notes match “${search.trim()}”. Try another title, description, or label.`;
+  } else if (filterLabelId) {
+    emptyTitle = 'No notes with this label';
+    emptyText = 'Open a note and add this label, or create a new one.';
+  }
 
   return (
     <section className={styles.section}>
@@ -32,9 +46,13 @@ export function NoteGrid({
             {filterLabelId ? `#${filterName}` : 'All notes'}
           </h2>
           <p className={styles.subheading}>
-            {filtered.length === 0
-              ? 'Nothing here yet'
-              : `${filtered.length} note${filtered.length === 1 ? '' : 's'}`}
+            {notes.length === 0
+              ? hasSearch || filterLabelId
+                ? 'No results'
+                : 'Nothing here yet'
+              : `${notes.length} note${notes.length === 1 ? '' : 's'}${
+                  hasSearch ? ' found' : ''
+                }`}
           </p>
         </div>
         <button type="button" className={styles.createBtn} onClick={onCreateNote}>
@@ -43,24 +61,20 @@ export function NoteGrid({
         </button>
       </div>
 
-      {filtered.length === 0 ? (
+      {notes.length === 0 ? (
         <div className={styles.empty}>
-          <p className={styles.emptyTitle}>
-            {filterLabelId ? 'No notes with this label' : 'Start your first note'}
-          </p>
-          <p className={styles.emptyText}>
-            {filterLabelId
-              ? 'Open a note and add this label, or create a new one.'
-              : 'Add a title, a couple of images, labels, and a color — Keep-style, image-first.'}
-          </p>
-          <button type="button" className={styles.createBtn} onClick={onCreateNote}>
-            <Plus size={18} />
-            Create note
-          </button>
+          <p className={styles.emptyTitle}>{emptyTitle}</p>
+          <p className={styles.emptyText}>{emptyText}</p>
+          {!hasSearch && (
+            <button type="button" className={styles.createBtn} onClick={onCreateNote}>
+              <Plus size={18} />
+              Create note
+            </button>
+          )}
         </div>
       ) : (
         <div className={styles.grid}>
-          {filtered.map((note) => (
+          {notes.map((note) => (
             <NoteCard
               key={note.id}
               note={note}

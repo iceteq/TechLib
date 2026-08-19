@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ImagePlus, Trash2, X } from 'lucide-react';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
 import type { Label, NoteBackground, NoteWithUrls } from '../../lib/types';
+import { ImageGallery } from '../images/ImageGallery';
 import { LabelPicker } from '../labels/LabelPicker';
 import styles from './NoteEditor.module.css';
 
@@ -34,7 +35,13 @@ export function NoteEditor({
   const [title, setTitle] = useState(note.title);
   const [description, setDescription] = useState(note.description);
   const fileRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   const bg = getBackground(note.background);
+  const isBlank =
+    !note.title.trim() &&
+    !note.description.trim() &&
+    note.images.length === 0 &&
+    note.labelIds.length === 0;
 
   useEffect(() => {
     setTitle(note.title);
@@ -42,35 +49,57 @@ export function NoteEditor({
   }, [note.id, note.title, note.description]);
 
   useEffect(() => {
+    titleRef.current?.focus();
+  }, [note.id]);
+
+  async function persistTitle(next = title) {
+    if (next === note.title) return;
+    await onSaveMeta({ title: next });
+  }
+
+  async function persistDescription(next = description) {
+    if (next === note.description) return;
+    await onSaveMeta({ description: next });
+  }
+
+  async function finish() {
+    await Promise.all([persistTitle(), persistDescription()]);
+    onClose();
+  }
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        void finish();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        void finish();
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  async function persistTitle() {
-    if (title === note.title) return;
-    await onSaveMeta({ title });
-  }
-
-  async function persistDescription() {
-    if (description === note.description) return;
-    await onSaveMeta({ description });
-  }
+    // Intentionally rebind when draft text changes so finish persists latest values.
+  });
 
   return (
-    <div className={styles.overlay} role="presentation" onClick={onClose}>
+    <div className={styles.overlay} role="presentation" onClick={() => void finish()}>
       <div
         className={styles.dialog}
         role="dialog"
         aria-modal="true"
-        aria-label="Edit note"
+        aria-label={isBlank ? 'Create note' : 'Edit note'}
         style={{ background: bg.surface, borderColor: bg.border }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.topActions}>
-          <button type="button" className={styles.iconBtn} onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={() => void finish()}
+            aria-label="Close"
+          >
             <X size={18} />
           </button>
           <button
@@ -83,26 +112,11 @@ export function NoteEditor({
           </button>
         </div>
 
-        {note.images.length > 0 && (
-          <div className={styles.gallery}>
-            {note.images.map((img) => (
-              <div key={img.id} className={styles.galleryItem}>
-                <img src={img.url} alt="" />
-                <button
-                  type="button"
-                  className={styles.removeImage}
-                  onClick={() => void onRemoveImage(img.id)}
-                  aria-label="Remove image"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <ImageGallery images={note.images} onRemove={(id) => void onRemoveImage(id)} />
 
         <div className={styles.fields}>
           <input
+            ref={titleRef}
             className={styles.title}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -172,7 +186,11 @@ export function NoteEditor({
             <ImagePlus size={16} />
             Add images
           </button>
-          <button type="button" className={styles.primaryBtn} onClick={onClose}>
+          <button
+            type="button"
+            className={styles.primaryBtn}
+            onClick={() => void finish()}
+          >
             Done
           </button>
         </div>
