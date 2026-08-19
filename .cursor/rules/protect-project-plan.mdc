@@ -1,0 +1,10 @@
+---
+description: PROJECT_PLAN.md is read-only for the agent
+alwaysApply: true
+---
+
+# Protect PROJECT_PLAN.md
+
+- You may **read** `PROJECT_PLAN.md` for context, planning, and reference.
+- You must **never** create, edit, overwrite, delete, rename, or move `PROJECT_PLAN.md`.
+- If a task would require changing that file, skip the edit and tell the user what change you would have made instead.
