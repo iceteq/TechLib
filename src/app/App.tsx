@@ -100,7 +100,11 @@ export default function App() {
   }
 
   async function handleCreateNote() {
-    const note = await store.createNote();
+    const note = await store.createNote({
+      disposition: filterDisposition ?? 'none',
+      category: filterCategory ?? 'none',
+      labelIds: filterLabelId ? [filterLabelId] : [],
+    });
     await refresh();
     setView('notes');
     setActiveNoteId(note.id);

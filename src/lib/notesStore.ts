@@ -3,6 +3,8 @@ import type {
   Label,
   Note,
   NoteBackground,
+  NoteCategory,
+  NoteDisposition,
   NoteWithUrls,
   Reaction,
   ReactionEmoji,
@@ -146,6 +148,9 @@ export async function createNote(input?: {
   title?: string;
   description?: string;
   background?: NoteBackground;
+  disposition?: NoteDisposition;
+  category?: NoteCategory;
+  labelIds?: string[];
 }): Promise<NoteWithUrls> {
   const db = await getDb();
   const now = Date.now();
@@ -154,14 +159,14 @@ export async function createNote(input?: {
     title: input?.title ?? '',
     description: input?.description ?? '',
     background: input?.background ?? 'default',
-    disposition: 'none',
-    category: 'none',
+    disposition: input?.disposition ?? 'none',
+    category: input?.category ?? 'none',
     specialCase: '',
     pinned: false,
     archived: false,
     createdAt: now,
     updatedAt: now,
-    labelIds: [],
+    labelIds: input?.labelIds ?? [],
     images: [],
   };
   await db.put('notes', note);
