@@ -53,6 +53,7 @@ function normalizeNote(note: Note): Note {
     ...note,
     pinned: Boolean(note.pinned),
     archived: Boolean(note.archived),
+    deletedAt: note.deletedAt ?? null,
     disposition: note.disposition ?? 'none',
     category: normalizeCategory(note.category),
     specialCase: note.specialCase ?? '',
@@ -133,7 +134,10 @@ function sortNotes(notes: NoteWithUrls[]): NoteWithUrls[] {
 export async function listNotes(): Promise<NoteWithUrls[]> {
   const db = await getDb();
   const notes = await db.getAll('notes');
-  const hydrated = await Promise.all(notes.map(hydrateNote));
+  const active = notes
+    .map(normalizeNote)
+    .filter((note) => note.deletedAt == null);
+  const hydrated = await Promise.all(active.map(hydrateNote));
   return sortNotes(hydrated);
 }
 
@@ -165,6 +169,7 @@ export async function createNote(input?: {
     specialCase: input?.specialCase ?? '',
     pinned: false,
     archived: false,
+    deletedAt: null,
     createdAt: now,
     updatedAt: now,
     labelIds: input?.labelIds ?? [],
@@ -204,12 +209,64 @@ export async function updateNote(
   return hydrateNote(next);
 }
 
+export async function softDeleteNotes(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  const now = Date.now();
+  for (const id of ids) {
+    const existing = await db.get('notes', id);
+    if (!existing) continue;
+    const normalized = normalizeNote(existing);
+    if (normalized.deletedAt != null) continue;
+    await db.put('notes', {
+      ...normalized,
+      deletedAt: now,
+      updatedAt: now,
+    });
+  }
+}
+
+export async function restoreNotes(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  const now = Date.now();
+  for (const id of ids) {
+    const existing = await db.get('notes', id);
+    if (!existing) continue;
+    const normalized = normalizeNote(existing);
+    if (normalized.deletedAt == null) continue;
+    await db.put('notes', {
+      ...normalized,
+      deletedAt: null,
+      updatedAt: now,
+    });
+  }
+}
+
+/** Hard-delete notes (and images/reactions). Used after undo window expires. */
+export async function purgeNotes(ids: string[]): Promise<void> {
+  for (const id of ids) {
+    await deleteNote(id);
+  }
+}
+
+/** Remove any soft-deleted notes left behind (e.g. after a crash). */
+export async function purgeSoftDeletedNotes(): Promise<void> {
+  const db = await getDb();
+  const notes = await db.getAll('notes');
+  for (const note of notes) {
+    if (normalizeNote(note).deletedAt != null) {
+      await deleteNote(note.id);
+    }
+  }
+}
+
 export async function deleteNote(id: string): Promise<void> {
   const db = await getDb();
   const note = await db.get('notes', id);
   if (!note) return;
 
-  for (const img of note.images) {
+  for (const img of note.images ?? []) {
     revokeUrl(img.id);
     await db.delete('imageBlobs', img.id);
   }

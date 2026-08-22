@@ -1,31 +1,29 @@
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
-import styles from './ImportUndoToast.module.css';
+import styles from './UndoToast.module.css';
 
-interface ImportUndoToastProps {
-  count: number;
+interface UndoToastProps {
+  message: string;
   onUndo: () => void;
   onDismiss: () => void;
   /** Auto-dismiss after this many ms. */
   durationMs?: number;
 }
 
-export function ImportUndoToast({
-  count,
+export function UndoToast({
+  message,
   onUndo,
   onDismiss,
   durationMs = 20000,
-}: ImportUndoToastProps) {
+}: UndoToastProps) {
   useEffect(() => {
     const timer = window.setTimeout(onDismiss, durationMs);
     return () => window.clearTimeout(timer);
-  }, [count, durationMs, onDismiss]);
+  }, [message, durationMs, onDismiss]);
 
   return (
     <div className={styles.toast} role="status" aria-live="polite">
-      <p className={styles.message}>
-        Imported {count} note{count === 1 ? '' : 's'}
-      </p>
+      <p className={styles.message}>{message}</p>
       <button type="button" className={styles.undo} onClick={onUndo}>
         Undo
       </button>

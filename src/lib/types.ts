@@ -42,6 +42,8 @@ export interface Note {
   specialCase: string;
   pinned: boolean;
   archived: boolean;
+  /** Soft-delete timestamp; null when active. */
+  deletedAt: number | null;
   createdAt: number;
   updatedAt: number;
   labelIds: string[];

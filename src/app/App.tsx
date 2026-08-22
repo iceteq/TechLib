@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from '../features/shell/AppShell';
 import { Sidebar } from '../features/shell/Sidebar';
 import { NoteEditor } from '../features/notes/NoteEditor';
 import { NoteGrid } from '../features/notes/NoteGrid';
 import { PasteNotesDialog } from '../features/notes/PasteNotesDialog';
-import { ImportUndoToast } from '../features/notes/ImportUndoToast';
+import { UndoToast } from '../features/notes/UndoToast';
 import type {
   Label,
   NoteBackground,
@@ -21,6 +21,10 @@ import {
 import { parsePastedNotes } from '../lib/parsePastedNotes';
 import * as store from '../lib/notesStore';
 
+type UndoAction =
+  | { kind: 'import'; ids: string[] }
+  | { kind: 'delete'; ids: string[] };
+
 export default function App() {
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
@@ -33,7 +37,8 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
-  const [lastImportIds, setLastImportIds] = useState<string[] | null>(null);
+  const [undoAction, setUndoAction] = useState<UndoAction | null>(null);
+  const undoActionRef = useRef<UndoAction | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -48,6 +53,7 @@ export default function App() {
 
   useEffect(() => {
     void (async () => {
+      await store.purgeSoftDeletedNotes();
       await refresh();
       setReady(true);
     })();
@@ -109,6 +115,19 @@ export default function App() {
     );
   }
 
+  async function commitPendingDelete(action: UndoAction | null) {
+    if (action?.kind === 'delete' && action.ids.length > 0) {
+      await store.purgeNotes(action.ids);
+    }
+  }
+
+  async function replaceUndoAction(next: UndoAction | null) {
+    const previous = undoActionRef.current;
+    undoActionRef.current = next;
+    setUndoAction(next);
+    await commitPendingDelete(previous);
+  }
+
   async function handleCloseEditor() {
     if (activeNote && isBlankNote(activeNote)) {
       await store.deleteNote(activeNote.id);
@@ -148,23 +167,45 @@ export default function App() {
     await refresh();
     setView('notes');
     setSidebarOpen(false);
-    setLastImportIds(createdIds.length > 0 ? createdIds : null);
+    if (createdIds.length > 0) {
+      await replaceUndoAction({ kind: 'import', ids: createdIds });
+    }
   }
 
-  const dismissLastImport = useCallback(() => {
-    setLastImportIds(null);
+  const dismissUndo = useCallback(() => {
+    const previous = undoActionRef.current;
+    undoActionRef.current = null;
+    setUndoAction(null);
+    void commitPendingDelete(previous);
   }, []);
 
-  async function handleUndoLastImport() {
-    if (!lastImportIds?.length) return;
-    const ids = lastImportIds;
-    setLastImportIds(null);
+  async function handleUndo() {
+    const action = undoActionRef.current;
+    if (!action?.ids.length) return;
+    undoActionRef.current = null;
+    setUndoAction(null);
+
+    if (action.kind === 'import') {
+      if (activeNoteId && action.ids.includes(activeNoteId)) {
+        setActiveNoteId(null);
+      }
+      await store.purgeNotes(action.ids);
+    } else {
+      await store.restoreNotes(action.ids);
+    }
+    await refresh();
+  }
+
+  async function softDeleteWithUndo(noteIds: string[]) {
+    const ids = [...new Set(noteIds)].filter(Boolean);
+    if (ids.length === 0) return;
+
     if (activeNoteId && ids.includes(activeNoteId)) {
       setActiveNoteId(null);
     }
-    for (const id of ids) {
-      await store.deleteNote(id);
-    }
+
+    await store.softDeleteNotes(ids);
+    await replaceUndoAction({ kind: 'delete', ids });
     await refresh();
   }
 
@@ -223,22 +264,11 @@ export default function App() {
 
   async function handleDelete() {
     if (!activeNoteId) return;
-    await store.deleteNote(activeNoteId);
-    setActiveNoteId(null);
-    await refresh();
+    await softDeleteWithUndo([activeNoteId]);
   }
 
   async function handleDeleteNotes(noteIds: string[]) {
-    if (activeNoteId && noteIds.includes(activeNoteId)) {
-      setActiveNoteId(null);
-    }
-    setLastImportIds((prev) =>
-      prev ? prev.filter((id) => !noteIds.includes(id)) : null,
-    );
-    for (const id of noteIds) {
-      await store.deleteNote(id);
-    }
-    await refresh();
+    await softDeleteWithUndo(noteIds);
   }
 
   async function handleUpdateNotes(
@@ -260,6 +290,17 @@ export default function App() {
     setLabels(await store.listLabels());
     return label;
   }
+
+  const undoMessage =
+    undoAction == null
+      ? ''
+      : undoAction.kind === 'import'
+        ? `Imported ${undoAction.ids.length} note${
+            undoAction.ids.length === 1 ? '' : 's'
+          }`
+        : `Deleted ${undoAction.ids.length} note${
+            undoAction.ids.length === 1 ? '' : 's'
+          }`;
 
   return (
     <AppShell
@@ -345,11 +386,11 @@ export default function App() {
         />
       )}
 
-      {lastImportIds && lastImportIds.length > 0 && (
-        <ImportUndoToast
-          count={lastImportIds.length}
-          onUndo={() => void handleUndoLastImport()}
-          onDismiss={dismissLastImport}
+      {undoAction && undoAction.ids.length > 0 && (
+        <UndoToast
+          message={undoMessage}
+          onUndo={() => void handleUndo()}
+          onDismiss={dismissUndo}
         />
       )}
 
