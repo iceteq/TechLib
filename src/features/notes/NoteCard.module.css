@@ -8,15 +8,47 @@
   cursor: pointer;
   transition:
     transform var(--transition),
-    box-shadow var(--transition);
+    box-shadow var(--transition),
+    outline-color var(--transition);
   break-inside: avoid;
   box-shadow: 0 1px 1px rgba(31, 35, 40, 0.04);
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+  touch-action: manipulation;
+  user-select: none;
 }
 
 .card:hover,
 .card:focus-visible {
   transform: translateY(-2px);
   box-shadow: var(--shadow);
+}
+
+.selected {
+  outline-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.check {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.55rem;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  border-radius: 999px;
+  background: rgba(31, 35, 40, 0.28);
+  color: white;
+  box-shadow: 0 1px 4px rgba(20, 24, 30, 0.25);
+}
+
+.checkOn {
+  border-color: var(--accent);
+  background: var(--accent);
 }
 
 .badges {

@@ -228,6 +228,19 @@ export default function App() {
     await refresh();
   }
 
+  async function handleDeleteNotes(noteIds: string[]) {
+    if (activeNoteId && noteIds.includes(activeNoteId)) {
+      setActiveNoteId(null);
+    }
+    setLastImportIds((prev) =>
+      prev ? prev.filter((id) => !noteIds.includes(id)) : null,
+    );
+    for (const id of noteIds) {
+      await store.deleteNote(id);
+    }
+    await refresh();
+  }
+
   async function handleCreateLabel(name: string) {
     const label = await store.createLabel(name);
     setLabels(await store.listLabels());
@@ -300,6 +313,7 @@ export default function App() {
           onOpenNote={(id) => setActiveNoteId(id)}
           onCreateNote={() => void handleCreateNote()}
           onPasteNotes={() => setPasteOpen(true)}
+          onDeleteNotes={handleDeleteNotes}
           onClearLabel={() => setFilterLabelId(null)}
           onClearDisposition={() => setFilterDisposition(null)}
           onClearCategory={() => setFilterCategory(null)}

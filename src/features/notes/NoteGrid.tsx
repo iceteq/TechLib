@@ -1,4 +1,5 @@
-import { ClipboardPaste, Plus, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { ClipboardPaste, Plus, Trash2, X } from 'lucide-react';
 import type {
   Label,
   NoteCategory,
@@ -22,6 +23,7 @@ interface NoteGridProps {
   onOpenNote: (noteId: string) => void;
   onCreateNote: () => void;
   onPasteNotes: () => void;
+  onDeleteNotes: (noteIds: string[]) => Promise<void>;
   onClearLabel: () => void;
   onClearDisposition: () => void;
   onClearCategory: () => void;
@@ -41,15 +43,76 @@ export function NoteGrid({
   onOpenNote,
   onCreateNote,
   onPasteNotes,
+  onDeleteNotes,
   onClearLabel,
   onClearDisposition,
   onClearCategory,
   onClearSpecialCases,
   onClearAllFilters,
 }: NoteGridProps) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const selecting = selectedIds.size > 0;
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  useEffect(() => {
+    clearSelection();
+  }, [view, filterLabelId, filterDisposition, filterCategory, specialCasesOnly, search, clearSelection]);
+
+  useEffect(() => {
+    if (!selecting) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') clearSelection();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selecting, clearSelection]);
+
+  // Drop selection for notes that disappeared from the current list.
+  useEffect(() => {
+    const visible = new Set(notes.map((n) => n.id));
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set([...prev].filter((id) => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [notes]);
+
+  function enterSelect(noteId: string) {
+    setSelectedIds(new Set([noteId]));
+  }
+
+  function toggleSelect(noteId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(noteId)) next.delete(noteId);
+      else next.add(noteId);
+      return next;
+    });
+  }
+
+  async function handleDelete() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const ok = window.confirm(
+      `Delete ${ids.length} note${ids.length === 1 ? '' : 's'}? This cannot be undone.`,
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await onDeleteNotes(ids);
+      clearSelection();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const filterName = labels.find((l) => l.id === filterLabelId)?.name;
   const hasSearch = search.trim().length > 0;
-  const canCreate = view === 'notes';
+  const canCreate = view === 'notes' && !selecting;
   const statusText = dispositionLabel(filterDisposition);
   const typeText = categoryLabel(filterCategory);
   const hasFilters = Boolean(
@@ -142,9 +205,38 @@ export function NoteGrid({
               key={note.id}
               note={note}
               labels={labels}
+              selecting={selecting}
+              selected={selectedIds.has(note.id)}
               onOpen={onOpenNote}
+              onToggleSelect={toggleSelect}
+              onEnterSelect={enterSelect}
             />
           ))}
+        </div>
+      )}
+
+      {selecting && (
+        <div className={styles.selectionBar} role="toolbar" aria-label="Selection">
+          <p className={styles.selectionCount}>
+            {selectedIds.size} selected
+          </p>
+          <button
+            type="button"
+            className={styles.selectionDelete}
+            onClick={() => void handleDelete()}
+            disabled={deleting}
+          >
+            <Trash2 size={16} />
+            {deleting ? 'Deleting…' : 'Delete'}
+          </button>
+          <button
+            type="button"
+            className={styles.selectionCancel}
+            onClick={clearSelection}
+            disabled={deleting}
+          >
+            Cancel
+          </button>
         </div>
       )}
 
