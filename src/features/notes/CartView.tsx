@@ -1,8 +1,8 @@
 import { Minus, Plus, Printer, ShoppingCart, Trash2, X } from 'lucide-react';
 import type { CartItem, Label, NoteWithUrls } from '../../lib/types';
+import { Barcode } from '../barcodes/Barcode';
 import { categoryIcon } from '../../lib/categoryIcons';
 import { categoryLabel, dispositionLabel } from '../../lib/searchNotes';
-import { Barcode } from '../barcodes/Barcode';
 import styles from './CartView.module.css';
 
 export type CartRow = {
@@ -80,111 +80,125 @@ export function CartView({
           <header className={`${styles.printHeader} ${styles.printOnly}`}>
             <h1 className={styles.printTitle}>TechLib cart</h1>
             <p className={styles.printMeta}>
-              {unitCount} item{unitCount === 1 ? '' : 's'} ·{' '}
-              {new Date().toLocaleDateString()}
+              {unitCount} item{unitCount === 1 ? '' : 's'} · {rows.length} line
+              {rows.length === 1 ? '' : 's'} · {new Date().toLocaleDateString()}
             </p>
           </header>
 
-          <ul className={styles.list}>
-            {rows.map(({ item, note }) => {
-              const Icon = categoryIcon(note?.category);
-              const status = note
-                ? dispositionLabel(note.disposition ?? null)
-                : null;
-              const type = note ? categoryLabel(note.category ?? null) : null;
-              const noteLabels = labels.filter((l) =>
-                (note?.labelIds ?? []).includes(l.id),
-              );
-              const special = (note?.specialCase ?? '').trim();
-              const title = note?.title.trim() || 'Missing note';
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th className={styles.colQty} scope="col">
+                    Qty
+                  </th>
+                  <th className={styles.colIcon} scope="col">
+                    <span className={styles.srOnly}>Type</span>
+                  </th>
+                  <th className={styles.colBarcode} scope="col">
+                    Barcode
+                  </th>
+                  <th className={styles.colStatus} scope="col">
+                    Status
+                  </th>
+                  <th className={styles.colType} scope="col">
+                    Type
+                  </th>
+                  <th className={styles.colLabels} scope="col">
+                    Labels
+                  </th>
+                  <th className={styles.colSpecial} scope="col">
+                    Special
+                  </th>
+                  <th className={`${styles.colActions} ${styles.noPrint}`} scope="col">
+                    <span className={styles.srOnly}>Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ item, note }) => {
+                  const Icon = categoryIcon(note?.category);
+                  const status = note
+                    ? dispositionLabel(note.disposition ?? null)
+                    : null;
+                  const type = note
+                    ? categoryLabel(note.category ?? null)
+                    : null;
+                  const noteLabels = labels.filter((l) =>
+                    (note?.labelIds ?? []).includes(l.id),
+                  );
+                  const special = (note?.specialCase ?? '').trim();
+                  const title = note?.title.trim() ?? '';
 
-              return (
-                <li key={item.noteId} className={styles.row}>
-                  <div className={styles.iconWrap} aria-hidden>
-                    <Icon size={22} strokeWidth={1.75} />
-                  </div>
-
-                  <div className={styles.main}>
-                    <div className={styles.titleRow}>
-                      <button
-                        type="button"
-                        className={styles.titleBtn}
-                        onClick={() => {
-                          if (note) onOpenNote(note.id);
-                        }}
-                        disabled={!note}
-                      >
-                        {title}
-                      </button>
-                      <span className={styles.qtyBadge} title="Quantity">
-                        ×{item.quantity}
-                      </span>
-                    </div>
-
-                    {note?.title.trim() && (
-                      <div className={styles.barcode}>
-                        <Barcode title={note.title} compact />
-                      </div>
-                    )}
-
-                    <div className={styles.meta}>
-                      {type && <span>{type}</span>}
-                      {status && <span>{status}</span>}
-                      {noteLabels.map((label) => (
-                        <span key={label.id}>#{label.name}</span>
-                      ))}
-                    </div>
-
-                    {special && (
-                      <p className={styles.specialCase}>
-                        <span className={styles.specialMark} aria-hidden>
-                          !
-                        </span>
-                        {special}
-                      </p>
-                    )}
-
-                    {!note && (
-                      <p className={styles.missing}>
-                        Note no longer exists — remove from cart.
-                      </p>
-                    )}
-                  </div>
-
-                  <div className={`${styles.rowActions} ${styles.noPrint}`}>
-                    <button
-                      type="button"
-                      className={styles.qtyBtn}
-                      aria-label="Decrease quantity"
-                      onClick={() =>
-                        onChangeQuantity(item.noteId, item.quantity - 1)
-                      }
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.qtyBtn}
-                      aria-label="Increase quantity"
-                      onClick={() =>
-                        onChangeQuantity(item.noteId, item.quantity + 1)
-                      }
-                    >
-                      <Plus size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.removeBtn}
-                      aria-label="Remove from cart"
-                      onClick={() => onRemove(item.noteId)}
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                  return (
+                    <tr key={item.noteId}>
+                      <td className={styles.colQty}>
+                        <span className={styles.qty}>{item.quantity}</span>
+                      </td>
+                      <td className={styles.colIcon} aria-hidden>
+                        <Icon size={16} strokeWidth={1.75} />
+                      </td>
+                      <td className={styles.colBarcode}>
+                        {title ? (
+                          <button
+                            type="button"
+                            className={styles.barcodeBtn}
+                            onClick={() => onOpenNote(note!.id)}
+                          >
+                            <Barcode title={title} scannable />
+                          </button>
+                        ) : (
+                          <span className={styles.missing}>Missing note</span>
+                        )}
+                      </td>
+                      <td className={styles.colStatus}>{status || '—'}</td>
+                      <td className={styles.colType}>{type || '—'}</td>
+                      <td className={styles.colLabels}>
+                        {noteLabels.length > 0
+                          ? noteLabels.map((l) => `#${l.name}`).join(' ')
+                          : '—'}
+                      </td>
+                      <td className={styles.colSpecial}>
+                        {special || '—'}
+                      </td>
+                      <td className={`${styles.colActions} ${styles.noPrint}`}>
+                        <div className={styles.rowActions}>
+                          <button
+                            type="button"
+                            className={styles.qtyBtn}
+                            aria-label="Decrease quantity"
+                            onClick={() =>
+                              onChangeQuantity(item.noteId, item.quantity - 1)
+                            }
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.qtyBtn}
+                            aria-label="Increase quantity"
+                            onClick={() =>
+                              onChangeQuantity(item.noteId, item.quantity + 1)
+                            }
+                          >
+                            <Plus size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.removeBtn}
+                            aria-label="Remove from cart"
+                            onClick={() => onRemove(item.noteId)}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </section>
