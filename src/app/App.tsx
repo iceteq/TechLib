@@ -241,6 +241,20 @@ export default function App() {
     await refresh();
   }
 
+  async function handleUpdateNotes(
+    noteIds: string[],
+    patch: {
+      disposition?: NoteDisposition;
+      category?: NoteCategory;
+      labelIds?: string[];
+    },
+  ) {
+    for (const id of noteIds) {
+      await store.updateNote(id, patch);
+    }
+    await refresh();
+  }
+
   async function handleCreateLabel(name: string) {
     const label = await store.createLabel(name);
     setLabels(await store.listLabels());
@@ -314,6 +328,7 @@ export default function App() {
           onCreateNote={() => void handleCreateNote()}
           onPasteNotes={() => setPasteOpen(true)}
           onDeleteNotes={handleDeleteNotes}
+          onUpdateNotes={handleUpdateNotes}
           onClearLabel={() => setFilterLabelId(null)}
           onClearDisposition={() => setFilterDisposition(null)}
           onClearCategory={() => setFilterCategory(null)}
