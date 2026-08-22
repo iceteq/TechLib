@@ -22,6 +22,7 @@ export default function App() {
   const [filterDisposition, setFilterDisposition] =
     useState<NoteDisposition | null>(null);
   const [filterCategory, setFilterCategory] = useState<NoteCategory | null>(null);
+  const [specialCasesOnly, setSpecialCasesOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -51,6 +52,7 @@ export default function App() {
         view,
         disposition: view === 'notes' ? filterDisposition : null,
         category: view === 'notes' ? filterCategory : null,
+        specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
       }),
     [
       notes,
@@ -58,6 +60,7 @@ export default function App() {
       filterLabelId,
       filterDisposition,
       filterCategory,
+      specialCasesOnly,
       search,
       view,
     ],
@@ -69,6 +72,7 @@ export default function App() {
     setFilterLabelId(null);
     setFilterDisposition(null);
     setFilterCategory(null);
+    setSpecialCasesOnly(false);
   }
 
   function isBlankNote(note: NoteWithUrls) {
@@ -80,7 +84,8 @@ export default function App() {
       !note.pinned &&
       !note.archived &&
       (note.disposition ?? 'none') === 'none' &&
-      (note.category ?? 'none') === 'none'
+      (note.category ?? 'none') === 'none' &&
+      !(note.specialCase ?? '').trim()
     );
   }
 
@@ -111,6 +116,7 @@ export default function App() {
     archived?: boolean;
     disposition?: NoteDisposition;
     category?: NoteCategory;
+    specialCase?: string;
   }) {
     if (!activeNoteId) return;
     const updated = await store.updateNote(activeNoteId, patch);
@@ -180,6 +186,7 @@ export default function App() {
           activeLabelId={filterLabelId}
           activeDisposition={filterDisposition}
           activeCategory={filterCategory}
+          specialCasesOnly={specialCasesOnly}
           onSelectNotes={() => {
             setView('notes');
             clearAllFilters();
@@ -204,6 +211,11 @@ export default function App() {
             );
             setSidebarOpen(false);
           }}
+          onToggleSpecialCases={() => {
+            setView('notes');
+            setSpecialCasesOnly((value) => !value);
+            setSidebarOpen(false);
+          }}
           onSelectLabel={(labelId) => {
             setView('notes');
             setFilterLabelId((current) => (current === labelId ? null : labelId));
@@ -222,12 +234,14 @@ export default function App() {
           filterLabelId={filterLabelId}
           filterDisposition={filterDisposition}
           filterCategory={filterCategory}
+          specialCasesOnly={specialCasesOnly}
           search={search}
           onOpenNote={(id) => setActiveNoteId(id)}
           onCreateNote={() => void handleCreateNote()}
           onClearLabel={() => setFilterLabelId(null)}
           onClearDisposition={() => setFilterDisposition(null)}
           onClearCategory={() => setFilterCategory(null)}
+          onClearSpecialCases={() => setSpecialCasesOnly(false)}
           onClearAllFilters={clearAllFilters}
         />
       )}

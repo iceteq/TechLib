@@ -1,11 +1,14 @@
 import {
+  AlertCircle,
   Archive,
   Cable,
   Cpu,
   Lightbulb,
   Monitor,
+  Network,
   Package,
   Printer,
+  ScanBarcode,
   Tag,
   Trash2,
   Wrench,
@@ -24,10 +27,12 @@ interface SidebarProps {
   activeLabelId: string | null;
   activeDisposition: NoteDisposition | null;
   activeCategory: NoteCategory | null;
+  specialCasesOnly: boolean;
   onSelectNotes: () => void;
   onSelectArchive: () => void;
   onSelectDisposition: (disposition: NoteDisposition) => void;
   onSelectCategory: (category: NoteCategory) => void;
+  onToggleSpecialCases: () => void;
   onSelectLabel: (labelId: string) => void;
 }
 
@@ -37,17 +42,20 @@ export function Sidebar({
   activeLabelId,
   activeDisposition,
   activeCategory,
+  specialCasesOnly,
   onSelectNotes,
   onSelectArchive,
   onSelectDisposition,
   onSelectCategory,
+  onToggleSpecialCases,
   onSelectLabel,
 }: SidebarProps) {
   const allActive =
     view === 'notes' &&
     activeLabelId === null &&
     activeDisposition === null &&
-    activeCategory === null;
+    activeCategory === null &&
+    !specialCasesOnly;
 
   return (
     <nav className={styles.nav} aria-label="Notes navigation">
@@ -67,6 +75,17 @@ export function Sidebar({
       >
         <Archive size={18} />
         <span>Archive</span>
+      </button>
+
+      <button
+        type="button"
+        className={`${styles.item} ${
+          view === 'notes' && specialCasesOnly ? styles.active : ''
+        }`}
+        onClick={onToggleSpecialCases}
+      >
+        <AlertCircle size={18} />
+        <span>Special cases</span>
       </button>
 
       <div className={styles.section}>
@@ -138,14 +157,22 @@ export function Sidebar({
         <button
           type="button"
           className={`${styles.item} ${
-            view === 'notes' && activeCategory === 'accessories'
-              ? styles.active
-              : ''
+            view === 'notes' && activeCategory === 'network' ? styles.active : ''
           }`}
-          onClick={() => onSelectCategory('accessories')}
+          onClick={() => onSelectCategory('network')}
         >
-          <Package size={18} />
-          <span>Accessories</span>
+          <Network size={18} />
+          <span>Network</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeCategory === 'scanner' ? styles.active : ''
+          }`}
+          onClick={() => onSelectCategory('scanner')}
+        >
+          <ScanBarcode size={18} />
+          <span>Scanner</span>
         </button>
         <button
           type="button"
@@ -156,6 +183,16 @@ export function Sidebar({
         >
           <Cable size={18} />
           <span>Cables</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeCategory === 'other' ? styles.active : ''
+          }`}
+          onClick={() => onSelectCategory('other')}
+        >
+          <Package size={18} />
+          <span>Other</span>
         </button>
       </div>
 

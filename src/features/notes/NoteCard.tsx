@@ -78,6 +78,14 @@ export function NoteCard({ note, labels, onOpen }: NoteCardProps) {
             <Barcode title={note.title} compact />
           </div>
         )}
+        {(note.specialCase ?? '').trim() && (
+          <p className={styles.specialCase} title={note.specialCase}>
+            <span className={styles.specialCaseMark} aria-hidden>
+              !
+            </span>
+            {note.specialCase.trim()}
+          </p>
+        )}
         {noteLabels.length > 0 && (
           <div className={styles.labels}>
             {noteLabels.map((label) => (

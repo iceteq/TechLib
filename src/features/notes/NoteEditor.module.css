@@ -82,6 +82,35 @@
   color: var(--accent);
 }
 
+.specialCaseLabel {
+  display: block;
+  margin: 0.75rem 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.specialCase {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  resize: vertical;
+  min-height: 3.2rem;
+  line-height: 1.4;
+  font: inherit;
+  outline: none;
+}
+
+.specialCase:focus {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .iconBtn {
   display: inline-flex;
   align-items: center;

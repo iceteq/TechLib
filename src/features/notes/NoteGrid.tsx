@@ -17,12 +17,14 @@ interface NoteGridProps {
   filterLabelId: string | null;
   filterDisposition: NoteDisposition | null;
   filterCategory: NoteCategory | null;
+  specialCasesOnly: boolean;
   search: string;
   onOpenNote: (noteId: string) => void;
   onCreateNote: () => void;
   onClearLabel: () => void;
   onClearDisposition: () => void;
   onClearCategory: () => void;
+  onClearSpecialCases: () => void;
   onClearAllFilters: () => void;
 }
 
@@ -33,12 +35,14 @@ export function NoteGrid({
   filterLabelId,
   filterDisposition,
   filterCategory,
+  specialCasesOnly,
   search,
   onOpenNote,
   onCreateNote,
   onClearLabel,
   onClearDisposition,
   onClearCategory,
+  onClearSpecialCases,
   onClearAllFilters,
 }: NoteGridProps) {
   const filterName = labels.find((l) => l.id === filterLabelId)?.name;
@@ -46,7 +50,9 @@ export function NoteGrid({
   const canCreate = view === 'notes';
   const statusText = dispositionLabel(filterDisposition);
   const typeText = categoryLabel(filterCategory);
-  const hasFilters = Boolean(filterLabelId || filterDisposition || filterCategory);
+  const hasFilters = Boolean(
+    filterLabelId || filterDisposition || filterCategory || specialCasesOnly,
+  );
 
   let heading = 'All notes';
   if (view === 'archive') heading = 'Archive';
@@ -99,6 +105,16 @@ export function NoteGrid({
           {typeText && (
             <button type="button" className={styles.chip} onClick={onClearCategory}>
               {typeText}
+              <X size={14} />
+            </button>
+          )}
+          {specialCasesOnly && (
+            <button
+              type="button"
+              className={styles.chip}
+              onClick={onClearSpecialCases}
+            >
+              Special cases
               <X size={14} />
             </button>
           )}

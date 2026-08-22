@@ -37,6 +37,7 @@ interface NoteEditorProps {
     archived?: boolean;
     disposition?: NoteDisposition;
     category?: NoteCategory;
+    specialCase?: string;
   }) => Promise<void>;
   onAddImages: (files: FileList | File[]) => Promise<void>;
   onRemoveImage: (imageId: string) => Promise<void>;
@@ -58,6 +59,7 @@ export function NoteEditor({
 }: NoteEditorProps) {
   const [title, setTitle] = useState(note.title);
   const [description, setDescription] = useState(note.description);
+  const [specialCase, setSpecialCase] = useState(note.specialCase ?? '');
   const [colorOpen, setColorOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -71,12 +73,14 @@ export function NoteEditor({
     !note.pinned &&
     !note.archived &&
     (note.disposition ?? 'none') === 'none' &&
-    (note.category ?? 'none') === 'none';
+    (note.category ?? 'none') === 'none' &&
+    !(note.specialCase ?? '').trim();
 
   useEffect(() => {
     setTitle(note.title);
     setDescription(note.description);
-  }, [note.id, note.title, note.description]);
+    setSpecialCase(note.specialCase ?? '');
+  }, [note.id, note.title, note.description, note.specialCase]);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -92,8 +96,17 @@ export function NoteEditor({
     await onSaveMeta({ description: next });
   }
 
+  async function persistSpecialCase(next = specialCase) {
+    if (next === (note.specialCase ?? '')) return;
+    await onSaveMeta({ specialCase: next });
+  }
+
   async function finish() {
-    await Promise.all([persistTitle(), persistDescription()]);
+    await Promise.all([
+      persistTitle(),
+      persistDescription(),
+      persistSpecialCase(),
+    ]);
     onClose();
   }
 
@@ -271,6 +284,19 @@ export function NoteEditor({
               </button>
             ))}
           </div>
+          <label className={styles.specialCaseLabel} htmlFor="special-case">
+            Special case
+          </label>
+          <textarea
+            id="special-case"
+            className={styles.specialCase}
+            value={specialCase}
+            onChange={(e) => setSpecialCase(e.target.value)}
+            onBlur={() => void persistSpecialCase()}
+            placeholder="Only when it isn’t a normal stock / repair / scrap path…"
+            rows={2}
+            aria-label="Special case handling note"
+          />
         </div>
 
         <div className={styles.section}>

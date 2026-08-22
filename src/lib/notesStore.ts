@@ -7,6 +7,7 @@ import type {
   Reaction,
   ReactionEmoji,
 } from './types';
+import { normalizeCategory } from './types';
 
 interface TechLibDB extends DBSchema {
   notes: {
@@ -51,7 +52,8 @@ function normalizeNote(note: Note): Note {
     pinned: Boolean(note.pinned),
     archived: Boolean(note.archived),
     disposition: note.disposition ?? 'none',
-    category: note.category ?? 'none',
+    category: normalizeCategory(note.category),
+    specialCase: note.specialCase ?? '',
     labelIds: note.labelIds ?? [],
     images: note.images ?? [],
   };
@@ -154,6 +156,7 @@ export async function createNote(input?: {
     background: input?.background ?? 'default',
     disposition: 'none',
     category: 'none',
+    specialCase: '',
     pinned: false,
     archived: false,
     createdAt: now,
@@ -178,6 +181,7 @@ export async function updateNote(
       | 'archived'
       | 'disposition'
       | 'category'
+      | 'specialCase'
     >
   >,
 ): Promise<NoteWithUrls | undefined> {

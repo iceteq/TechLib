@@ -18,10 +18,15 @@ export function matchesNoteSearch(
 
   if (note.title.toLowerCase().includes(q)) return true;
   if (note.description.toLowerCase().includes(q)) return true;
+  if (note.specialCase?.toLowerCase().includes(q)) return true;
   if (note.disposition !== 'none' && note.disposition.includes(q)) return true;
 
   const category = CATEGORIES.find((c) => c.id === (note.category ?? 'none'));
-  if (category && category.id !== 'none' && category.label.toLowerCase().includes(q)) {
+  if (
+    category &&
+    category.id !== 'none' &&
+    category.label.toLowerCase().includes(q)
+  ) {
     return true;
   }
 
@@ -41,6 +46,7 @@ export function filterNotes(
     view: NotesView;
     disposition: NoteDisposition | null;
     category: NoteCategory | null;
+    specialCasesOnly?: boolean;
   },
 ): NoteWithUrls[] {
   return notes.filter((note) => {
@@ -54,6 +60,9 @@ export function filterNotes(
       return false;
     }
     if (options.category && (note.category ?? 'none') !== options.category) {
+      return false;
+    }
+    if (options.specialCasesOnly && !(note.specialCase ?? '').trim()) {
       return false;
     }
     return matchesNoteSearch(note, labels, options.search);

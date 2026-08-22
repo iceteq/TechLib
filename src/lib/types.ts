@@ -13,10 +13,12 @@ export type NoteDisposition = 'none' | 'stock' | 'repair' | 'scrap';
 export type NoteCategory =
   | 'none'
   | 'monitor'
-  | 'accessories'
   | 'computer'
   | 'printer'
-  | 'cables';
+  | 'network'
+  | 'scanner'
+  | 'cables'
+  | 'other';
 
 export type ReactionEmoji = '👍' | '❤️' | '🔥' | '✅';
 
@@ -36,6 +38,8 @@ export interface Note {
   background: NoteBackground;
   disposition: NoteDisposition;
   category: NoteCategory;
+  /** Exception / special-case handling note under status. */
+  specialCase: string;
   pinned: boolean;
   archived: boolean;
   createdAt: number;
@@ -81,8 +85,27 @@ export const CATEGORIES: {
 }[] = [
   { id: 'none', label: 'No type' },
   { id: 'monitor', label: 'Monitor' },
-  { id: 'accessories', label: 'Accessories' },
   { id: 'computer', label: 'Computer' },
   { id: 'printer', label: 'Printer' },
+  { id: 'network', label: 'Network' },
+  { id: 'scanner', label: 'Scanner' },
   { id: 'cables', label: 'Cables' },
+  { id: 'other', label: 'Other' },
 ];
+
+/** Migrate older category ids stored before the type list changed. */
+export function normalizeCategory(value: string | undefined): NoteCategory {
+  if (value === 'accessories') return 'other';
+  if (
+    value === 'monitor' ||
+    value === 'computer' ||
+    value === 'printer' ||
+    value === 'network' ||
+    value === 'scanner' ||
+    value === 'cables' ||
+    value === 'other'
+  ) {
+    return value;
+  }
+  return 'none';
+}
