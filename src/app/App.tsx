@@ -4,6 +4,7 @@ import { Sidebar } from '../features/shell/Sidebar';
 import { NoteEditor } from '../features/notes/NoteEditor';
 import { NoteGrid } from '../features/notes/NoteGrid';
 import { PasteNotesDialog } from '../features/notes/PasteNotesDialog';
+import { ImportUndoToast } from '../features/notes/ImportUndoToast';
 import type {
   Label,
   NoteBackground,
@@ -32,6 +33,7 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
+  const [lastImportIds, setLastImportIds] = useState<string[] | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -131,8 +133,9 @@ export default function App() {
 
   async function handlePasteImport(text: string) {
     const drafts = parsePastedNotes(text);
+    const createdIds: string[] = [];
     for (const draft of drafts) {
-      await store.createNote({
+      const note = await store.createNote({
         title: draft.title,
         description: draft.description,
         specialCase: draft.specialCase,
@@ -140,10 +143,29 @@ export default function App() {
         category: filterCategory ?? 'none',
         labelIds: filterLabelId ? [filterLabelId] : [],
       });
+      createdIds.push(note.id);
     }
     await refresh();
     setView('notes');
     setSidebarOpen(false);
+    setLastImportIds(createdIds.length > 0 ? createdIds : null);
+  }
+
+  const dismissLastImport = useCallback(() => {
+    setLastImportIds(null);
+  }, []);
+
+  async function handleUndoLastImport() {
+    if (!lastImportIds?.length) return;
+    const ids = lastImportIds;
+    setLastImportIds(null);
+    if (activeNoteId && ids.includes(activeNoteId)) {
+      setActiveNoteId(null);
+    }
+    for (const id of ids) {
+      await store.deleteNote(id);
+    }
+    await refresh();
   }
 
   async function handleSaveMeta(patch: {
@@ -291,6 +313,14 @@ export default function App() {
           filterSummary={pasteFilterSummary}
           onClose={() => setPasteOpen(false)}
           onImport={handlePasteImport}
+        />
+      )}
+
+      {lastImportIds && lastImportIds.length > 0 && (
+        <ImportUndoToast
+          count={lastImportIds.length}
+          onUndo={() => void handleUndoLastImport()}
+          onDismiss={dismissLastImport}
         />
       )}
 
