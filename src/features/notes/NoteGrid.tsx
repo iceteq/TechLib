@@ -1,4 +1,4 @@
-import { Plus, X } from 'lucide-react';
+import { ClipboardPaste, Plus, X } from 'lucide-react';
 import type {
   Label,
   NoteCategory,
@@ -21,6 +21,7 @@ interface NoteGridProps {
   search: string;
   onOpenNote: (noteId: string) => void;
   onCreateNote: () => void;
+  onPasteNotes: () => void;
   onClearLabel: () => void;
   onClearDisposition: () => void;
   onClearCategory: () => void;
@@ -39,6 +40,7 @@ export function NoteGrid({
   search,
   onOpenNote,
   onCreateNote,
+  onPasteNotes,
   onClearLabel,
   onClearDisposition,
   onClearCategory,
@@ -147,15 +149,26 @@ export function NoteGrid({
       )}
 
       {canCreate && (
-        <button
-          type="button"
-          className={styles.fab}
-          onClick={onCreateNote}
-          aria-label="New note"
-          title="New note"
-        >
-          <Plus size={24} strokeWidth={2.25} />
-        </button>
+        <div className={styles.fabStack}>
+          <button
+            type="button"
+            className={styles.fabSecondary}
+            onClick={onPasteNotes}
+            aria-label="Paste notes"
+            title="Paste notes"
+          >
+            <ClipboardPaste size={20} strokeWidth={2.25} />
+          </button>
+          <button
+            type="button"
+            className={styles.fab}
+            onClick={onCreateNote}
+            aria-label="New note"
+            title="New note"
+          >
+            <Plus size={24} strokeWidth={2.25} />
+          </button>
+        </div>
       )}
     </section>
   );

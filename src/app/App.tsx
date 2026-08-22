@@ -3,6 +3,7 @@ import { AppShell } from '../features/shell/AppShell';
 import { Sidebar } from '../features/shell/Sidebar';
 import { NoteEditor } from '../features/notes/NoteEditor';
 import { NoteGrid } from '../features/notes/NoteGrid';
+import { PasteNotesDialog } from '../features/notes/PasteNotesDialog';
 import type {
   Label,
   NoteBackground,
@@ -11,7 +12,12 @@ import type {
   NotesView,
   NoteWithUrls,
 } from '../lib/types';
-import { filterNotes } from '../lib/searchNotes';
+import {
+  categoryLabel,
+  dispositionLabel,
+  filterNotes,
+} from '../lib/searchNotes';
+import { parsePastedNotes } from '../lib/parsePastedNotes';
 import * as store from '../lib/notesStore';
 
 export default function App() {
@@ -25,6 +31,7 @@ export default function App() {
   const [specialCasesOnly, setSpecialCasesOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -68,6 +75,17 @@ export default function App() {
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
 
+  const pasteFilterSummary = useMemo(() => {
+    const parts: string[] = [];
+    const status = dispositionLabel(filterDisposition);
+    const type = categoryLabel(filterCategory);
+    const labelName = labels.find((l) => l.id === filterLabelId)?.name;
+    if (status) parts.push(status);
+    if (type) parts.push(type);
+    if (labelName) parts.push(`#${labelName}`);
+    return parts.length > 0 ? parts.join(' · ') : 'No filters';
+  }, [filterDisposition, filterCategory, filterLabelId, labels]);
+
   function clearAllFilters() {
     setFilterLabelId(null);
     setFilterDisposition(null);
@@ -108,6 +126,23 @@ export default function App() {
     await refresh();
     setView('notes');
     setActiveNoteId(note.id);
+    setSidebarOpen(false);
+  }
+
+  async function handlePasteImport(text: string) {
+    const drafts = parsePastedNotes(text);
+    for (const draft of drafts) {
+      await store.createNote({
+        title: draft.title,
+        description: draft.description,
+        specialCase: draft.specialCase,
+        disposition: filterDisposition ?? 'none',
+        category: filterCategory ?? 'none',
+        labelIds: filterLabelId ? [filterLabelId] : [],
+      });
+    }
+    await refresh();
+    setView('notes');
     setSidebarOpen(false);
   }
 
@@ -242,11 +277,20 @@ export default function App() {
           search={search}
           onOpenNote={(id) => setActiveNoteId(id)}
           onCreateNote={() => void handleCreateNote()}
+          onPasteNotes={() => setPasteOpen(true)}
           onClearLabel={() => setFilterLabelId(null)}
           onClearDisposition={() => setFilterDisposition(null)}
           onClearCategory={() => setFilterCategory(null)}
           onClearSpecialCases={() => setSpecialCasesOnly(false)}
           onClearAllFilters={clearAllFilters}
+        />
+      )}
+
+      {pasteOpen && (
+        <PasteNotesDialog
+          filterSummary={pasteFilterSummary}
+          onClose={() => setPasteOpen(false)}
+          onImport={handlePasteImport}
         />
       )}
 

@@ -80,11 +80,19 @@
   opacity: 0.92;
 }
 
-.fab {
+.fabStack {
   position: fixed;
   right: 1.5rem;
   bottom: 1.5rem;
   z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.fab {
+  position: static;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -100,7 +108,24 @@
     opacity var(--transition);
 }
 
-.fab:hover {
+.fabSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.85rem;
+  height: 2.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated, #fff);
+  color: var(--text);
+  box-shadow: 0 6px 18px rgba(20, 24, 30, 0.14);
+  transition:
+    transform var(--transition),
+    opacity var(--transition);
+}
+
+.fab:hover,
+.fabSecondary:hover {
   transform: translateY(-2px) scale(1.03);
   opacity: 0.95;
 }

@@ -150,6 +150,7 @@ export async function createNote(input?: {
   background?: NoteBackground;
   disposition?: NoteDisposition;
   category?: NoteCategory;
+  specialCase?: string;
   labelIds?: string[];
 }): Promise<NoteWithUrls> {
   const db = await getDb();
@@ -161,7 +162,7 @@ export async function createNote(input?: {
     background: input?.background ?? 'default',
     disposition: input?.disposition ?? 'none',
     category: input?.category ?? 'none',
-    specialCase: '',
+    specialCase: input?.specialCase ?? '',
     pinned: false,
     archived: false,
     createdAt: now,
