@@ -1,5 +1,12 @@
-import { Plus } from 'lucide-react';
-import type { Label, NoteDisposition, NotesView, NoteWithUrls } from '../../lib/types';
+import { Plus, X } from 'lucide-react';
+import type {
+  Label,
+  NoteCategory,
+  NoteDisposition,
+  NotesView,
+  NoteWithUrls,
+} from '../../lib/types';
+import { categoryLabel, dispositionLabel } from '../../lib/searchNotes';
 import { NoteCard } from './NoteCard';
 import styles from './NoteGrid.module.css';
 
@@ -9,9 +16,14 @@ interface NoteGridProps {
   view: NotesView;
   filterLabelId: string | null;
   filterDisposition: NoteDisposition | null;
+  filterCategory: NoteCategory | null;
   search: string;
   onOpenNote: (noteId: string) => void;
   onCreateNote: () => void;
+  onClearLabel: () => void;
+  onClearDisposition: () => void;
+  onClearCategory: () => void;
+  onClearAllFilters: () => void;
 }
 
 export function NoteGrid({
@@ -20,20 +32,25 @@ export function NoteGrid({
   view,
   filterLabelId,
   filterDisposition,
+  filterCategory,
   search,
   onOpenNote,
   onCreateNote,
+  onClearLabel,
+  onClearDisposition,
+  onClearCategory,
+  onClearAllFilters,
 }: NoteGridProps) {
   const filterName = labels.find((l) => l.id === filterLabelId)?.name;
   const hasSearch = search.trim().length > 0;
   const canCreate = view === 'notes';
+  const statusText = dispositionLabel(filterDisposition);
+  const typeText = categoryLabel(filterCategory);
+  const hasFilters = Boolean(filterLabelId || filterDisposition || filterCategory);
 
   let heading = 'All notes';
   if (view === 'archive') heading = 'Archive';
-  else if (filterDisposition === 'stock') heading = 'Return to stock';
-  else if (filterDisposition === 'repair') heading = 'Repair';
-  else if (filterDisposition === 'scrap') heading = 'Throw away';
-  else if (filterLabelId) heading = `#${filterName}`;
+  else if (hasFilters) heading = 'Filtered notes';
 
   let emptyTitle = 'Nothing here yet';
   let emptyText = 'Tap + to create a note.';
@@ -41,15 +58,9 @@ export function NoteGrid({
   if (view === 'archive') {
     emptyTitle = 'Archive is empty';
     emptyText = 'Archived notes will show up here.';
-  } else if (hasSearch) {
+  } else if (hasSearch || hasFilters) {
     emptyTitle = 'No matching notes';
-    emptyText = `No notes match “${search.trim()}”.`;
-  } else if (filterDisposition) {
-    emptyTitle = 'No notes with this status';
-    emptyText = 'Open a note and set its status.';
-  } else if (filterLabelId) {
-    emptyTitle = 'No notes with this label';
-    emptyText = 'Open a note and type # to add this label.';
+    emptyText = 'Try clearing a filter or adjusting search.';
   }
 
   return (
@@ -61,11 +72,45 @@ export function NoteGrid({
             {notes.length === 0
               ? 'No results'
               : `${notes.length} note${notes.length === 1 ? '' : 's'}${
-                  hasSearch ? ' found' : ''
+                  hasSearch || hasFilters ? ' found' : ''
                 }`}
           </p>
         </div>
       </div>
+
+      {view === 'notes' && hasFilters && (
+        <div className={styles.chips} aria-label="Active filters">
+          {filterName && (
+            <button type="button" className={styles.chip} onClick={onClearLabel}>
+              #{filterName}
+              <X size={14} />
+            </button>
+          )}
+          {statusText && (
+            <button
+              type="button"
+              className={styles.chip}
+              onClick={onClearDisposition}
+            >
+              {statusText}
+              <X size={14} />
+            </button>
+          )}
+          {typeText && (
+            <button type="button" className={styles.chip} onClick={onClearCategory}>
+              {typeText}
+              <X size={14} />
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.clearAll}
+            onClick={onClearAllFilters}
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
       {notes.length === 0 ? (
         <div className={styles.empty}>

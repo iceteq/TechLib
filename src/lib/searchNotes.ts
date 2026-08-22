@@ -1,4 +1,12 @@
-import type { Label, NoteDisposition, NoteWithUrls, NotesView, Reaction } from './types';
+import type {
+  Label,
+  NoteCategory,
+  NoteDisposition,
+  NoteWithUrls,
+  NotesView,
+  Reaction,
+} from './types';
+import { CATEGORIES, DISPOSITIONS } from './types';
 
 export function matchesNoteSearch(
   note: NoteWithUrls,
@@ -11,6 +19,11 @@ export function matchesNoteSearch(
   if (note.title.toLowerCase().includes(q)) return true;
   if (note.description.toLowerCase().includes(q)) return true;
   if (note.disposition !== 'none' && note.disposition.includes(q)) return true;
+
+  const category = CATEGORIES.find((c) => c.id === (note.category ?? 'none'));
+  if (category && category.id !== 'none' && category.label.toLowerCase().includes(q)) {
+    return true;
+  }
 
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   return noteLabels.some((l) => {
@@ -27,6 +40,7 @@ export function filterNotes(
     search: string;
     view: NotesView;
     disposition: NoteDisposition | null;
+    category: NoteCategory | null;
   },
 ): NoteWithUrls[] {
   return notes.filter((note) => {
@@ -39,6 +53,9 @@ export function filterNotes(
     if (options.disposition && note.disposition !== options.disposition) {
       return false;
     }
+    if (options.category && (note.category ?? 'none') !== options.category) {
+      return false;
+    }
     return matchesNoteSearch(note, labels, options.search);
   });
 }
@@ -48,4 +65,14 @@ export function reactionsForNote(
   noteId: string,
 ): Reaction[] {
   return reactions.filter((r) => r.noteId === noteId);
+}
+
+export function dispositionLabel(id: NoteDisposition | null): string | null {
+  if (!id) return null;
+  return DISPOSITIONS.find((d) => d.id === id)?.short || null;
+}
+
+export function categoryLabel(id: NoteCategory | null): string | null {
+  if (!id || id === 'none') return null;
+  return CATEGORIES.find((c) => c.id === id)?.label ?? null;
 }

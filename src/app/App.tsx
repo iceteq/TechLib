@@ -6,6 +6,7 @@ import { NoteGrid } from '../features/notes/NoteGrid';
 import type {
   Label,
   NoteBackground,
+  NoteCategory,
   NoteDisposition,
   NotesView,
   NoteWithUrls,
@@ -20,6 +21,7 @@ export default function App() {
   const [filterLabelId, setFilterLabelId] = useState<string | null>(null);
   const [filterDisposition, setFilterDisposition] =
     useState<NoteDisposition | null>(null);
+  const [filterCategory, setFilterCategory] = useState<NoteCategory | null>(null);
   const [search, setSearch] = useState('');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -48,11 +50,26 @@ export default function App() {
         search,
         view,
         disposition: view === 'notes' ? filterDisposition : null,
+        category: view === 'notes' ? filterCategory : null,
       }),
-    [notes, labels, filterLabelId, filterDisposition, search, view],
+    [
+      notes,
+      labels,
+      filterLabelId,
+      filterDisposition,
+      filterCategory,
+      search,
+      view,
+    ],
   );
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
+
+  function clearAllFilters() {
+    setFilterLabelId(null);
+    setFilterDisposition(null);
+    setFilterCategory(null);
+  }
 
   function isBlankNote(note: NoteWithUrls) {
     return (
@@ -62,7 +79,8 @@ export default function App() {
       note.labelIds.length === 0 &&
       !note.pinned &&
       !note.archived &&
-      (note.disposition ?? 'none') === 'none'
+      (note.disposition ?? 'none') === 'none' &&
+      (note.category ?? 'none') === 'none'
     );
   }
 
@@ -80,7 +98,6 @@ export default function App() {
     const note = await store.createNote();
     await refresh();
     setView('notes');
-    setFilterDisposition(null);
     setActiveNoteId(note.id);
     setSidebarOpen(false);
   }
@@ -93,6 +110,7 @@ export default function App() {
     pinned?: boolean;
     archived?: boolean;
     disposition?: NoteDisposition;
+    category?: NoteCategory;
   }) {
     if (!activeNoteId) return;
     const updated = await store.updateNote(activeNoteId, patch);
@@ -161,28 +179,34 @@ export default function App() {
           view={view}
           activeLabelId={filterLabelId}
           activeDisposition={filterDisposition}
+          activeCategory={filterCategory}
           onSelectNotes={() => {
             setView('notes');
-            setFilterLabelId(null);
-            setFilterDisposition(null);
+            clearAllFilters();
             setSidebarOpen(false);
           }}
           onSelectArchive={() => {
             setView('archive');
-            setFilterLabelId(null);
-            setFilterDisposition(null);
+            clearAllFilters();
             setSidebarOpen(false);
           }}
           onSelectDisposition={(disposition) => {
             setView('notes');
-            setFilterLabelId(null);
-            setFilterDisposition(disposition);
+            setFilterDisposition((current) =>
+              current === disposition ? null : disposition,
+            );
+            setSidebarOpen(false);
+          }}
+          onSelectCategory={(category) => {
+            setView('notes');
+            setFilterCategory((current) =>
+              current === category ? null : category,
+            );
             setSidebarOpen(false);
           }}
           onSelectLabel={(labelId) => {
             setView('notes');
-            setFilterDisposition(null);
-            setFilterLabelId(labelId);
+            setFilterLabelId((current) => (current === labelId ? null : labelId));
             setSidebarOpen(false);
           }}
         />
@@ -197,9 +221,14 @@ export default function App() {
           view={view}
           filterLabelId={filterLabelId}
           filterDisposition={filterDisposition}
+          filterCategory={filterCategory}
           search={search}
           onOpenNote={(id) => setActiveNoteId(id)}
           onCreateNote={() => void handleCreateNote()}
+          onClearLabel={() => setFilterLabelId(null)}
+          onClearDisposition={() => setFilterDisposition(null)}
+          onClearCategory={() => setFilterCategory(null)}
+          onClearAllFilters={clearAllFilters}
         />
       )}
 

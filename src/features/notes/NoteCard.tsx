@@ -1,6 +1,6 @@
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
-import { DISPOSITIONS } from '../../lib/types';
+import { CATEGORIES, DISPOSITIONS } from '../../lib/types';
 import type { Label, NoteWithUrls } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { LabelChip } from '../labels/LabelChip';
@@ -21,6 +21,7 @@ export function NoteCard({ note, labels, onOpen }: NoteCardProps) {
   const disposition = DISPOSITIONS.find(
     (d) => d.id === (note.disposition ?? 'none'),
   );
+  const category = CATEGORIES.find((c) => c.id === (note.category ?? 'none'));
 
   return (
     <article
@@ -40,6 +41,9 @@ export function NoteCard({ note, labels, onOpen }: NoteCardProps) {
       <div className={styles.badges}>
         {note.pinned && (
           <span className={styles.pinDot} title="Pinned" aria-label="Pinned" />
+        )}
+        {category && category.id !== 'none' && (
+          <span className={styles.category}>{category.label}</span>
         )}
         {disposition && disposition.id !== 'none' && (
           <span

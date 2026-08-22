@@ -47,6 +47,17 @@
   color: white;
 }
 
+.category {
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--text);
+  border: 1px solid rgba(31, 35, 40, 0.12);
+}
+
 .disposition_stock {
   background: #1e8e3e;
 }

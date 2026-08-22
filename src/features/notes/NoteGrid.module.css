@@ -27,6 +27,39 @@
   font-size: 0.95rem;
 }
 
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.clearAll {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 560;
+  padding: 0.35rem 0.4rem;
+}
+
+.clearAll:hover {
+  color: var(--text);
+}
+
 .createBtn {
   display: inline-flex;
   align-items: center;

@@ -51,6 +51,7 @@ function normalizeNote(note: Note): Note {
     pinned: Boolean(note.pinned),
     archived: Boolean(note.archived),
     disposition: note.disposition ?? 'none',
+    category: note.category ?? 'none',
     labelIds: note.labelIds ?? [],
     images: note.images ?? [],
   };
@@ -152,6 +153,7 @@ export async function createNote(input?: {
     description: input?.description ?? '',
     background: input?.background ?? 'default',
     disposition: 'none',
+    category: 'none',
     pinned: false,
     archived: false,
     createdAt: now,
@@ -175,6 +177,7 @@ export async function updateNote(
       | 'pinned'
       | 'archived'
       | 'disposition'
+      | 'category'
     >
   >,
 ): Promise<NoteWithUrls | undefined> {

@@ -1,5 +1,21 @@
-import { Archive, Lightbulb, Package, Tag, Trash2, Wrench } from 'lucide-react';
-import type { Label, NoteDisposition, NotesView } from '../../lib/types';
+import {
+  Archive,
+  Cable,
+  Cpu,
+  Lightbulb,
+  Monitor,
+  Package,
+  Printer,
+  Tag,
+  Trash2,
+  Wrench,
+} from 'lucide-react';
+import type {
+  Label,
+  NoteCategory,
+  NoteDisposition,
+  NotesView,
+} from '../../lib/types';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -7,9 +23,11 @@ interface SidebarProps {
   view: NotesView;
   activeLabelId: string | null;
   activeDisposition: NoteDisposition | null;
+  activeCategory: NoteCategory | null;
   onSelectNotes: () => void;
   onSelectArchive: () => void;
   onSelectDisposition: (disposition: NoteDisposition) => void;
+  onSelectCategory: (category: NoteCategory) => void;
   onSelectLabel: (labelId: string) => void;
 }
 
@@ -18,20 +36,24 @@ export function Sidebar({
   view,
   activeLabelId,
   activeDisposition,
+  activeCategory,
   onSelectNotes,
   onSelectArchive,
   onSelectDisposition,
+  onSelectCategory,
   onSelectLabel,
 }: SidebarProps) {
+  const allActive =
+    view === 'notes' &&
+    activeLabelId === null &&
+    activeDisposition === null &&
+    activeCategory === null;
+
   return (
     <nav className={styles.nav} aria-label="Notes navigation">
       <button
         type="button"
-        className={`${styles.item} ${
-          view === 'notes' && activeLabelId === null && activeDisposition === null
-            ? styles.active
-            : ''
-        }`}
+        className={`${styles.item} ${allActive ? styles.active : ''}`}
         onClick={onSelectNotes}
       >
         <Lightbulb size={18} />
@@ -82,6 +104,62 @@ export function Sidebar({
       </div>
 
       <div className={styles.section}>
+        <p className={styles.sectionTitle}>Type</p>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeCategory === 'monitor' ? styles.active : ''
+          }`}
+          onClick={() => onSelectCategory('monitor')}
+        >
+          <Monitor size={18} />
+          <span>Monitor</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeCategory === 'computer' ? styles.active : ''
+          }`}
+          onClick={() => onSelectCategory('computer')}
+        >
+          <Cpu size={18} />
+          <span>Computer</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeCategory === 'printer' ? styles.active : ''
+          }`}
+          onClick={() => onSelectCategory('printer')}
+        >
+          <Printer size={18} />
+          <span>Printer</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeCategory === 'accessories'
+              ? styles.active
+              : ''
+          }`}
+          onClick={() => onSelectCategory('accessories')}
+        >
+          <Package size={18} />
+          <span>Accessories</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeCategory === 'cables' ? styles.active : ''
+          }`}
+          onClick={() => onSelectCategory('cables')}
+        >
+          <Cable size={18} />
+          <span>Cables</span>
+        </button>
+      </div>
+
+      <div className={styles.section}>
         <p className={styles.sectionTitle}>Labels</p>
         {labels.length === 0 ? (
           <p className={styles.empty}>Type # in a note to add labels.</p>
@@ -92,9 +170,7 @@ export function Sidebar({
                 <button
                   type="button"
                   className={`${styles.item} ${
-                    view === 'notes' &&
-                    activeLabelId === label.id &&
-                    activeDisposition === null
+                    view === 'notes' && activeLabelId === label.id
                       ? styles.active
                       : ''
                   }`}

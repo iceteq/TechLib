@@ -10,10 +10,11 @@ import {
   X,
 } from 'lucide-react';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
-import { DISPOSITIONS } from '../../lib/types';
+import { CATEGORIES, DISPOSITIONS } from '../../lib/types';
 import type {
   Label,
   NoteBackground,
+  NoteCategory,
   NoteDisposition,
   NoteWithUrls,
 } from '../../lib/types';
@@ -35,6 +36,7 @@ interface NoteEditorProps {
     pinned?: boolean;
     archived?: boolean;
     disposition?: NoteDisposition;
+    category?: NoteCategory;
   }) => Promise<void>;
   onAddImages: (files: FileList | File[]) => Promise<void>;
   onRemoveImage: (imageId: string) => Promise<void>;
@@ -68,7 +70,8 @@ export function NoteEditor({
     note.labelIds.length === 0 &&
     !note.pinned &&
     !note.archived &&
-    (note.disposition ?? 'none') === 'none';
+    (note.disposition ?? 'none') === 'none' &&
+    (note.category ?? 'none') === 'none';
 
   useEffect(() => {
     setTitle(note.title);
@@ -265,6 +268,26 @@ export function NoteEditor({
                 onClick={() => void onSaveMeta({ disposition: option.id })}
               >
                 {option.id === 'none' ? 'None' : option.short}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionLabel}>Type</p>
+          <div className={styles.dispositionRow} role="group" aria-label="Product type">
+            {CATEGORIES.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`${styles.dispositionBtn} ${
+                  (note.category ?? 'none') === option.id
+                    ? styles.dispositionActive
+                    : ''
+                }`}
+                onClick={() => void onSaveMeta({ category: option.id })}
+              >
+                {option.id === 'none' ? 'None' : option.label}
               </button>
             ))}
           </div>

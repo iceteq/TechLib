@@ -9,6 +9,15 @@ export type NoteBackground =
 /** What to do with the product on this note. */
 export type NoteDisposition = 'none' | 'stock' | 'repair' | 'scrap';
 
+/** What kind of product this note is about. */
+export type NoteCategory =
+  | 'none'
+  | 'monitor'
+  | 'accessories'
+  | 'computer'
+  | 'printer'
+  | 'cables';
+
 export type ReactionEmoji = '👍' | '❤️' | '🔥' | '✅';
 
 export interface NoteImage {
@@ -26,6 +35,7 @@ export interface Note {
   description: string;
   background: NoteBackground;
   disposition: NoteDisposition;
+  category: NoteCategory;
   pinned: boolean;
   archived: boolean;
   createdAt: number;
@@ -63,4 +73,16 @@ export const DISPOSITIONS: {
   { id: 'stock', label: 'Return to stock', short: 'Stock' },
   { id: 'repair', label: 'Go to repair', short: 'Repair' },
   { id: 'scrap', label: 'Throw away', short: 'Scrap' },
+];
+
+export const CATEGORIES: {
+  id: NoteCategory;
+  label: string;
+}[] = [
+  { id: 'none', label: 'No type' },
+  { id: 'monitor', label: 'Monitor' },
+  { id: 'accessories', label: 'Accessories' },
+  { id: 'computer', label: 'Computer' },
+  { id: 'printer', label: 'Printer' },
+  { id: 'cables', label: 'Cables' },
 ];
