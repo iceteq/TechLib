@@ -1,4 +1,4 @@
-import type { Label, NoteWithUrls, NotesView, Reaction } from './types';
+import type { Label, NoteDisposition, NoteWithUrls, NotesView, Reaction } from './types';
 
 export function matchesNoteSearch(
   note: NoteWithUrls,
@@ -10,6 +10,7 @@ export function matchesNoteSearch(
 
   if (note.title.toLowerCase().includes(q)) return true;
   if (note.description.toLowerCase().includes(q)) return true;
+  if (note.disposition !== 'none' && note.disposition.includes(q)) return true;
 
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   return noteLabels.some((l) => {
@@ -25,6 +26,7 @@ export function filterNotes(
     labelId: string | null;
     search: string;
     view: NotesView;
+    disposition: NoteDisposition | null;
   },
 ): NoteWithUrls[] {
   return notes.filter((note) => {
@@ -32,6 +34,9 @@ export function filterNotes(
       return false;
     }
     if (options.labelId && !note.labelIds.includes(options.labelId)) {
+      return false;
+    }
+    if (options.disposition && note.disposition !== options.disposition) {
       return false;
     }
     return matchesNoteSearch(note, labels, options.search);

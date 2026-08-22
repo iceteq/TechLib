@@ -5,19 +5,18 @@
   gap: 0.35rem;
   padding: 0.75rem;
   border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm, 10px);
   background: rgba(255, 255, 255, 0.45);
+}
+
+.compact {
+  padding: 0.35rem 0.25rem 0.15rem;
+  border: none;
+  background: transparent;
+  border-radius: 0;
 }
 
 .svg {
   max-width: 100%;
   height: auto;
-}
-
-.value {
-  margin: 0;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
 }

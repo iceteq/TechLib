@@ -1,23 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
-import { Archive, ArchiveRestore, ImagePlus, Pin, PinOff, Trash2, X } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  ImagePlus,
+  Palette,
+  Pin,
+  PinOff,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
+import { DISPOSITIONS } from '../../lib/types';
 import type {
   Label,
   NoteBackground,
+  NoteDisposition,
   NoteWithUrls,
-  Reaction,
-  ReactionEmoji,
 } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
-import { LabelPicker } from '../labels/LabelPicker';
-import { ReactionBar } from '../reactions/ReactionBar';
+import { DescriptionField } from '../labels/DescriptionField';
+import { LabelChip } from '../labels/LabelChip';
 import styles from './NoteEditor.module.css';
 
 interface NoteEditorProps {
   note: NoteWithUrls;
   labels: Label[];
-  reactions: Reaction[];
   onClose: () => void;
   onSaveMeta: (patch: {
     title?: string;
@@ -26,11 +34,11 @@ interface NoteEditorProps {
     labelIds?: string[];
     pinned?: boolean;
     archived?: boolean;
+    disposition?: NoteDisposition;
   }) => Promise<void>;
   onAddImages: (files: FileList | File[]) => Promise<void>;
   onRemoveImage: (imageId: string) => Promise<void>;
   onReorderImages: (orderedImageIds: string[]) => Promise<void>;
-  onToggleReaction: (emoji: ReactionEmoji) => Promise<void>;
   onDelete: () => Promise<void>;
   onCreateLabel: (name: string) => Promise<Label>;
 }
@@ -38,28 +46,29 @@ interface NoteEditorProps {
 export function NoteEditor({
   note,
   labels,
-  reactions,
   onClose,
   onSaveMeta,
   onAddImages,
   onRemoveImage,
   onReorderImages,
-  onToggleReaction,
   onDelete,
   onCreateLabel,
 }: NoteEditorProps) {
   const [title, setTitle] = useState(note.title);
   const [description, setDescription] = useState(note.description);
+  const [colorOpen, setColorOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const bg = getBackground(note.background);
+  const selectedLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const isBlank =
     !note.title.trim() &&
     !note.description.trim() &&
     note.images.length === 0 &&
     note.labelIds.length === 0 &&
     !note.pinned &&
-    !note.archived;
+    !note.archived &&
+    (note.disposition ?? 'none') === 'none';
 
   useEffect(() => {
     setTitle(note.title);
@@ -88,6 +97,10 @@ export function NoteEditor({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        if (colorOpen) {
+          setColorOpen(false);
+          return;
+        }
         void finish();
         return;
       }
@@ -99,6 +112,17 @@ export function NoteEditor({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  function removeLabel(id: string) {
+    void onSaveMeta({
+      labelIds: note.labelIds.filter((lid) => lid !== id),
+    });
+  }
+
+  async function addLabel(label: Label) {
+    if (note.labelIds.includes(label.id)) return;
+    await onSaveMeta({ labelIds: [...note.labelIds, label.id] });
+  }
 
   return (
     <div className={styles.overlay} role="presentation" onClick={() => void finish()}>
@@ -119,6 +143,7 @@ export function NoteEditor({
           >
             <X size={18} />
           </button>
+
           <div className={styles.topRight}>
             <button
               type="button"
@@ -138,11 +163,46 @@ export function NoteEditor({
             >
               {note.archived ? <ArchiveRestore size={18} /> : <Archive size={18} />}
             </button>
+
+            <div className={styles.colorWrap}>
+              <button
+                type="button"
+                className={`${styles.iconBtn} ${colorOpen ? styles.iconActive : ''}`}
+                onClick={() => setColorOpen((v) => !v)}
+                aria-label="Note color"
+                aria-expanded={colorOpen}
+                title="Color"
+              >
+                <Palette size={18} />
+              </button>
+              {colorOpen && (
+                <div className={styles.colorPopover} role="listbox" aria-label="Note background">
+                  {BACKGROUNDS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={`${styles.swatch} ${
+                        note.background === option.id ? styles.swatchActive : ''
+                      }`}
+                      style={{ background: option.surface, borderColor: option.border }}
+                      onClick={() => {
+                        void onSaveMeta({ background: option.id });
+                        setColorOpen(false);
+                      }}
+                      aria-label={option.label}
+                      title={option.label}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               className={`${styles.iconBtn} ${styles.danger}`}
               onClick={() => void onDelete()}
               aria-label="Delete note"
+              title="Delete"
             >
               <Trash2 size={18} />
             </button>
@@ -165,57 +225,54 @@ export function NoteEditor({
             placeholder="Title"
             aria-label="Note title"
           />
-          <textarea
-            className={styles.description}
+          <DescriptionField
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onBlur={() => void persistDescription()}
-            placeholder="Take a note…"
-            rows={5}
-            aria-label="Note description"
-          />
-        </div>
-
-        <div className={styles.section}>
-          <p className={styles.sectionLabel}>Labels</p>
-          <LabelPicker
             labels={labels}
             selectedIds={note.labelIds}
-            onChange={(labelIds) => void onSaveMeta({ labelIds })}
+            onChange={setDescription}
+            onBlur={() => void persistDescription()}
+            onAddLabel={(label) => void addLabel(label)}
             onCreateLabel={onCreateLabel}
           />
         </div>
 
+        {selectedLabels.length > 0 && (
+          <div className={styles.section}>
+            <div className={styles.labelRow}>
+              {selectedLabels.map((label) => (
+                <LabelChip
+                  key={label.id}
+                  name={label.name}
+                  onRemove={() => removeLabel(label.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className={styles.section}>
-          <p className={styles.sectionLabel}>Reactions</p>
-          <ReactionBar
-            reactions={reactions}
-            onToggle={(emoji) => void onToggleReaction(emoji)}
-          />
+          <p className={styles.sectionLabel}>Status</p>
+          <div className={styles.dispositionRow} role="group" aria-label="Product status">
+            {DISPOSITIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`${styles.dispositionBtn} ${
+                  (note.disposition ?? 'none') === option.id
+                    ? styles.dispositionActive
+                    : ''
+                }`}
+                onClick={() => void onSaveMeta({ disposition: option.id })}
+              >
+                {option.id === 'none' ? 'None' : option.short}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className={styles.section}>
           <p className={styles.sectionLabel}>Barcode</p>
           <Barcode title={title || note.title} />
-        </div>
-
-        <div className={styles.section}>
-          <p className={styles.sectionLabel}>Background</p>
-          <div className={styles.swatches} role="listbox" aria-label="Note background">
-            {BACKGROUNDS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className={`${styles.swatch} ${
-                  note.background === option.id ? styles.swatchActive : ''
-                }`}
-                style={{ background: option.surface, borderColor: option.border }}
-                onClick={() => void onSaveMeta({ background: option.id })}
-                aria-label={option.label}
-                title={option.label}
-              />
-            ))}
-          </div>
         </div>
 
         <div className={styles.footer}>
@@ -234,11 +291,12 @@ export function NoteEditor({
           />
           <button
             type="button"
-            className={styles.secondaryBtn}
+            className={styles.iconBtn}
             onClick={() => fileRef.current?.click()}
+            aria-label="Add images"
+            title="Add images"
           >
-            <ImagePlus size={16} />
-            Add images
+            <ImagePlus size={18} />
           </button>
           <button
             type="button"

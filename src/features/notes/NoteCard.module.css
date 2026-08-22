@@ -13,35 +13,50 @@
   box-shadow: 0 1px 1px rgba(31, 35, 40, 0.04);
 }
 
-.pinBadge {
-  position: absolute;
-  top: 0.55rem;
-  right: 0.55rem;
-  z-index: 2;
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  background: rgba(20, 24, 30, 0.72);
-  color: white;
-  font-size: 0.7rem;
-  font-weight: 600;
-}
-
-.reactions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  margin-top: 0.15rem;
-}
-
-.reaction {
-  font-size: 0.9rem;
-  line-height: 1;
-}
-
 .card:hover,
 .card:focus-visible {
   transform: translateY(-2px);
   box-shadow: var(--shadow);
+}
+
+.badges {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pinDot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #1a73e8;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.75);
+}
+
+.disposition {
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: white;
+}
+
+.disposition_stock {
+  background: #1e8e3e;
+}
+
+.disposition_repair {
+  background: #e37400;
+}
+
+.disposition_scrap {
+  background: #d93025;
 }
 
 .images {
@@ -100,21 +115,14 @@
   line-height: 1.3;
 }
 
-.description {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.barcode {
+  display: flex;
+  justify-content: center;
 }
 
 .labels {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
-  margin-top: 0.2rem;
+  margin-top: 0.1rem;
 }

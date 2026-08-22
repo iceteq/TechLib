@@ -6,6 +6,9 @@ export type NoteBackground =
   | 'pink'
   | 'gray';
 
+/** What to do with the product on this note. */
+export type NoteDisposition = 'none' | 'stock' | 'repair' | 'scrap';
+
 export type ReactionEmoji = '👍' | '❤️' | '🔥' | '✅';
 
 export interface NoteImage {
@@ -22,6 +25,7 @@ export interface Note {
   title: string;
   description: string;
   background: NoteBackground;
+  disposition: NoteDisposition;
   pinned: boolean;
   archived: boolean;
   createdAt: number;
@@ -49,3 +53,14 @@ export interface Reaction {
 export type NotesView = 'notes' | 'archive';
 
 export const REACTION_EMOJIS: ReactionEmoji[] = ['👍', '❤️', '🔥', '✅'];
+
+export const DISPOSITIONS: {
+  id: NoteDisposition;
+  label: string;
+  short: string;
+}[] = [
+  { id: 'none', label: 'No status', short: '' },
+  { id: 'stock', label: 'Return to stock', short: 'Stock' },
+  { id: 'repair', label: 'Go to repair', short: 'Repair' },
+  { id: 'scrap', label: 'Throw away', short: 'Scrap' },
+];

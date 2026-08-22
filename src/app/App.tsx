@@ -6,34 +6,32 @@ import { NoteGrid } from '../features/notes/NoteGrid';
 import type {
   Label,
   NoteBackground,
+  NoteDisposition,
   NotesView,
   NoteWithUrls,
-  Reaction,
-  ReactionEmoji,
 } from '../lib/types';
-import { filterNotes, reactionsForNote } from '../lib/searchNotes';
+import { filterNotes } from '../lib/searchNotes';
 import * as store from '../lib/notesStore';
 
 export default function App() {
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
-  const [reactions, setReactions] = useState<Reaction[]>([]);
   const [view, setView] = useState<NotesView>('notes');
   const [filterLabelId, setFilterLabelId] = useState<string | null>(null);
+  const [filterDisposition, setFilterDisposition] =
+    useState<NoteDisposition | null>(null);
   const [search, setSearch] = useState('');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [nextNotes, nextLabels, nextReactions] = await Promise.all([
+    const [nextNotes, nextLabels] = await Promise.all([
       store.listNotes(),
       store.listLabels(),
-      store.listAllReactions(),
     ]);
     setNotes(nextNotes);
     setLabels(nextLabels);
-    setReactions(nextReactions);
   }, []);
 
   useEffect(() => {
@@ -49,14 +47,12 @@ export default function App() {
         labelId: view === 'notes' ? filterLabelId : null,
         search,
         view,
+        disposition: view === 'notes' ? filterDisposition : null,
       }),
-    [notes, labels, filterLabelId, search, view],
+    [notes, labels, filterLabelId, filterDisposition, search, view],
   );
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
-  const activeReactions = activeNote
-    ? reactionsForNote(reactions, activeNote.id)
-    : [];
 
   function isBlankNote(note: NoteWithUrls) {
     return (
@@ -65,7 +61,8 @@ export default function App() {
       note.images.length === 0 &&
       note.labelIds.length === 0 &&
       !note.pinned &&
-      !note.archived
+      !note.archived &&
+      (note.disposition ?? 'none') === 'none'
     );
   }
 
@@ -83,6 +80,7 @@ export default function App() {
     const note = await store.createNote();
     await refresh();
     setView('notes');
+    setFilterDisposition(null);
     setActiveNoteId(note.id);
     setSidebarOpen(false);
   }
@@ -94,6 +92,7 @@ export default function App() {
     labelIds?: string[];
     pinned?: boolean;
     archived?: boolean;
+    disposition?: NoteDisposition;
   }) {
     if (!activeNoteId) return;
     const updated = await store.updateNote(activeNoteId, patch);
@@ -137,15 +136,6 @@ export default function App() {
     }
   }
 
-  async function handleToggleReaction(emoji: ReactionEmoji) {
-    if (!activeNoteId) return;
-    const nextForNote = await store.toggleReaction(activeNoteId, emoji);
-    setReactions((prev) => [
-      ...prev.filter((r) => r.noteId !== activeNoteId),
-      ...nextForNote,
-    ]);
-  }
-
   async function handleDelete() {
     if (!activeNoteId) return;
     await store.deleteNote(activeNoteId);
@@ -170,18 +160,28 @@ export default function App() {
           labels={labels}
           view={view}
           activeLabelId={filterLabelId}
+          activeDisposition={filterDisposition}
           onSelectNotes={() => {
             setView('notes');
             setFilterLabelId(null);
+            setFilterDisposition(null);
             setSidebarOpen(false);
           }}
           onSelectArchive={() => {
             setView('archive');
             setFilterLabelId(null);
+            setFilterDisposition(null);
+            setSidebarOpen(false);
+          }}
+          onSelectDisposition={(disposition) => {
+            setView('notes');
+            setFilterLabelId(null);
+            setFilterDisposition(disposition);
             setSidebarOpen(false);
           }}
           onSelectLabel={(labelId) => {
             setView('notes');
+            setFilterDisposition(null);
             setFilterLabelId(labelId);
             setSidebarOpen(false);
           }}
@@ -194,9 +194,9 @@ export default function App() {
         <NoteGrid
           notes={visibleNotes}
           labels={labels}
-          reactions={reactions}
           view={view}
           filterLabelId={filterLabelId}
+          filterDisposition={filterDisposition}
           search={search}
           onOpenNote={(id) => setActiveNoteId(id)}
           onCreateNote={() => void handleCreateNote()}
@@ -207,13 +207,11 @@ export default function App() {
         <NoteEditor
           note={activeNote}
           labels={labels}
-          reactions={activeReactions}
           onClose={() => void handleCloseEditor()}
           onSaveMeta={handleSaveMeta}
           onAddImages={handleAddImages}
           onRemoveImage={handleRemoveImage}
           onReorderImages={handleReorderImages}
-          onToggleReaction={handleToggleReaction}
           onDelete={handleDelete}
           onCreateLabel={handleCreateLabel}
         />

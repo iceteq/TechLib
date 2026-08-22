@@ -1,24 +1,26 @@
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
-import type { Label, NoteWithUrls, Reaction } from '../../lib/types';
+import { DISPOSITIONS } from '../../lib/types';
+import type { Label, NoteWithUrls } from '../../lib/types';
+import { Barcode } from '../barcodes/Barcode';
 import { LabelChip } from '../labels/LabelChip';
 import styles from './NoteCard.module.css';
 
 interface NoteCardProps {
   note: NoteWithUrls;
   labels: Label[];
-  reactions: Reaction[];
   onOpen: (noteId: string) => void;
 }
 
-export function NoteCard({ note, labels, reactions, onOpen }: NoteCardProps) {
+export function NoteCard({ note, labels, onOpen }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
   const overflow = Math.max(0, note.images.length - NOTE_PREVIEW_IMAGE_LIMIT);
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const title = note.title.trim() || 'Untitled';
-  const description = note.description.trim();
-  const activeReactions = reactions.filter((r) => r.count > 0);
+  const disposition = DISPOSITIONS.find(
+    (d) => d.id === (note.disposition ?? 'none'),
+  );
 
   return (
     <article
@@ -35,7 +37,18 @@ export function NoteCard({ note, labels, reactions, onOpen }: NoteCardProps) {
       tabIndex={0}
       aria-label={`Open note ${title}`}
     >
-      {note.pinned && <span className={styles.pinBadge}>Pinned</span>}
+      <div className={styles.badges}>
+        {note.pinned && (
+          <span className={styles.pinDot} title="Pinned" aria-label="Pinned" />
+        )}
+        {disposition && disposition.id !== 'none' && (
+          <span
+            className={`${styles.disposition} ${styles[`disposition_${disposition.id}`]}`}
+          >
+            {disposition.short}
+          </span>
+        )}
+      </div>
 
       {preview.length > 0 && (
         <div
@@ -56,20 +69,15 @@ export function NoteCard({ note, labels, reactions, onOpen }: NoteCardProps) {
 
       <div className={styles.body}>
         <h3 className={styles.title}>{title}</h3>
-        {description && <p className={styles.description}>{description}</p>}
+        {note.title.trim() && (
+          <div className={styles.barcode}>
+            <Barcode title={note.title} compact />
+          </div>
+        )}
         {noteLabels.length > 0 && (
           <div className={styles.labels}>
             {noteLabels.map((label) => (
               <LabelChip key={label.id} name={label.name} />
-            ))}
-          </div>
-        )}
-        {activeReactions.length > 0 && (
-          <div className={styles.reactions}>
-            {activeReactions.map((reaction) => (
-              <span key={reaction.id} className={styles.reaction}>
-                {reaction.emoji}
-              </span>
             ))}
           </div>
         )}

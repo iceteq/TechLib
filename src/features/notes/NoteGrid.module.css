@@ -1,8 +1,10 @@
 .section {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
   animation: fadeIn 280ms ease;
+  min-height: calc(100vh - 8rem);
 }
 
 .toolbar {
@@ -43,6 +45,31 @@
 .createBtn:hover {
   transform: translateY(-1px);
   opacity: 0.92;
+}
+
+.fab {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--text);
+  color: white;
+  box-shadow: 0 8px 24px rgba(20, 24, 30, 0.28);
+  transition:
+    transform var(--transition),
+    opacity var(--transition);
+}
+
+.fab:hover {
+  transform: translateY(-2px) scale(1.03);
+  opacity: 0.95;
 }
 
 .grid {

@@ -1,13 +1,15 @@
-import { Archive, Lightbulb, Tag } from 'lucide-react';
-import type { Label, NotesView } from '../../lib/types';
+import { Archive, Lightbulb, Package, Tag, Trash2, Wrench } from 'lucide-react';
+import type { Label, NoteDisposition, NotesView } from '../../lib/types';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
   labels: Label[];
   view: NotesView;
   activeLabelId: string | null;
+  activeDisposition: NoteDisposition | null;
   onSelectNotes: () => void;
   onSelectArchive: () => void;
+  onSelectDisposition: (disposition: NoteDisposition) => void;
   onSelectLabel: (labelId: string) => void;
 }
 
@@ -15,8 +17,10 @@ export function Sidebar({
   labels,
   view,
   activeLabelId,
+  activeDisposition,
   onSelectNotes,
   onSelectArchive,
+  onSelectDisposition,
   onSelectLabel,
 }: SidebarProps) {
   return (
@@ -24,7 +28,9 @@ export function Sidebar({
       <button
         type="button"
         className={`${styles.item} ${
-          view === 'notes' && activeLabelId === null ? styles.active : ''
+          view === 'notes' && activeLabelId === null && activeDisposition === null
+            ? styles.active
+            : ''
         }`}
         onClick={onSelectNotes}
       >
@@ -42,9 +48,43 @@ export function Sidebar({
       </button>
 
       <div className={styles.section}>
+        <p className={styles.sectionTitle}>Status</p>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeDisposition === 'stock' ? styles.active : ''
+          }`}
+          onClick={() => onSelectDisposition('stock')}
+        >
+          <Package size={18} />
+          <span>Stock</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeDisposition === 'repair' ? styles.active : ''
+          }`}
+          onClick={() => onSelectDisposition('repair')}
+        >
+          <Wrench size={18} />
+          <span>Repair</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeDisposition === 'scrap' ? styles.active : ''
+          }`}
+          onClick={() => onSelectDisposition('scrap')}
+        >
+          <Trash2 size={18} />
+          <span>Throw away</span>
+        </button>
+      </div>
+
+      <div className={styles.section}>
         <p className={styles.sectionTitle}>Labels</p>
         {labels.length === 0 ? (
-          <p className={styles.empty}>Labels you add to notes show up here.</p>
+          <p className={styles.empty}>Type # in a note to add labels.</p>
         ) : (
           <ul className={styles.list}>
             {labels.map((label) => (
@@ -52,7 +92,9 @@ export function Sidebar({
                 <button
                   type="button"
                   className={`${styles.item} ${
-                    view === 'notes' && activeLabelId === label.id
+                    view === 'notes' &&
+                    activeLabelId === label.id &&
+                    activeDisposition === null
                       ? styles.active
                       : ''
                   }`}

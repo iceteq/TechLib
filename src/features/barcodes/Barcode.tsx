@@ -5,9 +5,11 @@ import styles from './Barcode.module.css';
 
 interface BarcodeProps {
   title: string;
+  /** Smaller barcode for note cards */
+  compact?: boolean;
 }
 
-export function Barcode({ title }: BarcodeProps) {
+export function Barcode({ title, compact = false }: BarcodeProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const value = barcodeValueFromTitle(title);
 
@@ -17,8 +19,8 @@ export function Barcode({ title }: BarcodeProps) {
       JsBarcode(svgRef.current, value, {
         format: 'CODE128',
         displayValue: true,
-        fontSize: 12,
-        height: 48,
+        fontSize: compact ? 10 : 12,
+        height: compact ? 36 : 48,
         margin: 0,
         background: 'transparent',
         lineColor: '#1f2328',
@@ -26,12 +28,16 @@ export function Barcode({ title }: BarcodeProps) {
     } catch {
       // Invalid characters shouldn't happen after normalization.
     }
-  }, [value]);
+  }, [value, compact]);
 
   return (
-    <div className={styles.wrap}>
-      <svg ref={svgRef} className={styles.svg} role="img" aria-label={`Barcode ${value}`} />
-      <p className={styles.value}>{value}</p>
+    <div className={`${styles.wrap} ${compact ? styles.compact : ''}`}>
+      <svg
+        ref={svgRef}
+        className={styles.svg}
+        role="img"
+        aria-label={`Barcode ${value}`}
+      />
     </div>
   );
 }
