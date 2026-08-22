@@ -9,6 +9,7 @@ import {
   Package,
   Printer,
   ScanBarcode,
+  ShoppingCart,
   Tag,
   Trash2,
   Wrench,
@@ -28,8 +29,10 @@ interface SidebarProps {
   activeDisposition: NoteDisposition | null;
   activeCategory: NoteCategory | null;
   specialCasesOnly: boolean;
+  cartCount: number;
   onSelectNotes: () => void;
   onSelectArchive: () => void;
+  onSelectCart: () => void;
   onSelectDisposition: (disposition: NoteDisposition) => void;
   onSelectCategory: (category: NoteCategory) => void;
   onToggleSpecialCases: () => void;
@@ -43,8 +46,10 @@ export function Sidebar({
   activeDisposition,
   activeCategory,
   specialCasesOnly,
+  cartCount,
   onSelectNotes,
   onSelectArchive,
+  onSelectCart,
   onSelectDisposition,
   onSelectCategory,
   onToggleSpecialCases,
@@ -75,6 +80,15 @@ export function Sidebar({
       >
         <Archive size={18} />
         <span>Archive</span>
+      </button>
+
+      <button
+        type="button"
+        className={`${styles.item} ${view === 'cart' ? styles.active : ''}`}
+        onClick={onSelectCart}
+      >
+        <ShoppingCart size={18} />
+        <span>Cart{cartCount > 0 ? ` (${cartCount})` : ''}</span>
       </button>
 
       <button

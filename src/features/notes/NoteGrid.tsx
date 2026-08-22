@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ClipboardPaste, Plus, Tag, Trash2, X } from 'lucide-react';
+import { ClipboardPaste, Plus, ShoppingCart, Tag, Trash2, X } from 'lucide-react';
 import type {
   Label,
   NoteCategory,
@@ -27,6 +27,7 @@ interface NoteGridProps {
   onCreateNote: () => void;
   onPasteNotes: () => void;
   onDeleteNotes: (noteIds: string[]) => Promise<void>;
+  onAddToCart: (noteIds: string[]) => Promise<void>;
   onUpdateNotes: (
     noteIds: string[],
     patch: {
@@ -55,6 +56,7 @@ export function NoteGrid({
   onCreateNote,
   onPasteNotes,
   onDeleteNotes,
+  onAddToCart,
   onUpdateNotes,
   onClearLabel,
   onClearDisposition,
@@ -145,6 +147,12 @@ export function NoteGrid({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleAddToCart() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    await runBulk(() => onAddToCart(ids), { clearAfter: true });
   }
 
   async function handleDelete() {
@@ -401,6 +409,16 @@ export function NoteGrid({
                 </div>
               )}
             </div>
+
+            <button
+              type="button"
+              className={styles.selectionAction}
+              onClick={() => void handleAddToCart()}
+              disabled={busy}
+            >
+              <ShoppingCart size={14} />
+              Add to cart
+            </button>
 
             <button
               type="button"

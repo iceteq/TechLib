@@ -6,6 +6,7 @@ import {
   Palette,
   Pin,
   PinOff,
+  ShoppingCart,
   Trash2,
   X,
 } from 'lucide-react';
@@ -43,6 +44,7 @@ interface NoteEditorProps {
   onRemoveImage: (imageId: string) => Promise<void>;
   onReorderImages: (orderedImageIds: string[]) => Promise<void>;
   onDelete: () => Promise<void>;
+  onAddToCart: () => Promise<void>;
   onCreateLabel: (name: string) => Promise<Label>;
 }
 
@@ -55,6 +57,7 @@ export function NoteEditor({
   onRemoveImage,
   onReorderImages,
   onDelete,
+  onAddToCart,
   onCreateLabel,
 }: NoteEditorProps) {
   const [title, setTitle] = useState(note.title);
@@ -212,6 +215,16 @@ export function NoteEditor({
                 </div>
               )}
             </div>
+
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={() => void onAddToCart()}
+              aria-label="Add to cart"
+              title="Add to cart"
+            >
+              <ShoppingCart size={18} />
+            </button>
 
             <button
               type="button"

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from '../features/shell/AppShell';
 import { Sidebar } from '../features/shell/Sidebar';
+import { CartView } from '../features/notes/CartView';
 import { NoteEditor } from '../features/notes/NoteEditor';
 import { NoteGrid } from '../features/notes/NoteGrid';
 import { PasteNotesDialog } from '../features/notes/PasteNotesDialog';
 import { UndoToast } from '../features/notes/UndoToast';
 import type {
+  CartItem,
   Label,
   NoteBackground,
   NoteCategory,
@@ -28,6 +30,7 @@ type UndoAction =
 export default function App() {
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [view, setView] = useState<NotesView>('notes');
   const [filterLabelId, setFilterLabelId] = useState<string | null>(null);
   const [filterDisposition, setFilterDisposition] =
@@ -43,12 +46,14 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [nextNotes, nextLabels] = await Promise.all([
+    const [nextNotes, nextLabels, nextCart] = await Promise.all([
       store.listNotes(),
       store.listLabels(),
+      store.listCartItems(),
     ]);
     setNotes(nextNotes);
     setLabels(nextLabels);
+    setCartItems(nextCart);
   }, []);
 
   useEffect(() => {
@@ -64,7 +69,7 @@ export default function App() {
       filterNotes(notes, labels, {
         labelId: view === 'notes' ? filterLabelId : null,
         search,
-        view,
+        view: view === 'cart' ? 'notes' : view,
         disposition: view === 'notes' ? filterDisposition : null,
         category: view === 'notes' ? filterCategory : null,
         specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
@@ -82,6 +87,15 @@ export default function App() {
   );
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
+  const cartUnitCount = store.cartUnitCount(cartItems);
+  const cartRows = useMemo(
+    () =>
+      cartItems.map((item) => ({
+        item,
+        note: notes.find((n) => n.id === item.noteId) ?? null,
+      })),
+    [cartItems, notes],
+  );
 
   const pasteFilterSummary = useMemo(() => {
     const parts: string[] = [];
@@ -271,6 +285,29 @@ export default function App() {
     await softDeleteWithUndo(noteIds);
   }
 
+  async function handleAddToCart(noteIds: string[]) {
+    const nextItems = await store.addToCart(noteIds);
+    setCartItems(nextItems);
+  }
+
+  async function handleAddActiveToCart() {
+    if (!activeNoteId) return;
+    await handleAddToCart([activeNoteId]);
+  }
+
+  async function handleCartQuantity(noteId: string, quantity: number) {
+    setCartItems(await store.setCartQuantity(noteId, quantity));
+  }
+
+  async function handleRemoveFromCart(noteId: string) {
+    setCartItems(await store.removeFromCart(noteId));
+  }
+
+  async function handleClearCart() {
+    await store.clearCart();
+    setCartItems([]);
+  }
+
   async function handleUpdateNotes(
     noteIds: string[],
     patch: {
@@ -316,6 +353,7 @@ export default function App() {
           activeDisposition={filterDisposition}
           activeCategory={filterCategory}
           specialCasesOnly={specialCasesOnly}
+          cartCount={cartUnitCount}
           onSelectNotes={() => {
             setView('notes');
             clearAllFilters();
@@ -323,6 +361,11 @@ export default function App() {
           }}
           onSelectArchive={() => {
             setView('archive');
+            clearAllFilters();
+            setSidebarOpen(false);
+          }}
+          onSelectCart={() => {
+            setView('cart');
             clearAllFilters();
             setSidebarOpen(false);
           }}
@@ -355,6 +398,18 @@ export default function App() {
     >
       {!ready ? (
         <p style={{ color: 'var(--text-muted)' }}>Loading notes…</p>
+      ) : view === 'cart' ? (
+        <CartView
+          rows={cartRows}
+          labels={labels}
+          unitCount={cartUnitCount}
+          onOpenNote={(id) => setActiveNoteId(id)}
+          onChangeQuantity={(noteId, quantity) =>
+            void handleCartQuantity(noteId, quantity)
+          }
+          onRemove={(noteId) => void handleRemoveFromCart(noteId)}
+          onClear={() => void handleClearCart()}
+        />
       ) : (
         <NoteGrid
           notes={visibleNotes}
@@ -369,6 +424,7 @@ export default function App() {
           onCreateNote={() => void handleCreateNote()}
           onPasteNotes={() => setPasteOpen(true)}
           onDeleteNotes={handleDeleteNotes}
+          onAddToCart={handleAddToCart}
           onUpdateNotes={handleUpdateNotes}
           onClearLabel={() => setFilterLabelId(null)}
           onClearDisposition={() => setFilterDisposition(null)}
@@ -405,6 +461,7 @@ export default function App() {
           onReorderImages={handleReorderImages}
           onDelete={handleDelete}
           onCreateLabel={handleCreateLabel}
+          onAddToCart={handleAddActiveToCart}
         />
       )}
     </AppShell>

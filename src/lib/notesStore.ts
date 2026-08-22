@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type {
+  CartItem,
   Label,
   Note,
   NoteBackground,
@@ -36,10 +37,14 @@ interface TechLibDB extends DBSchema {
     value: Reaction;
     indexes: { 'by-note': string };
   };
+  cartItems: {
+    key: string;
+    value: CartItem;
+  };
 }
 
 const DB_NAME = 'techlib';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<TechLibDB>> | null = null;
 const urlCache = new Map<string, string>();
@@ -82,6 +87,12 @@ function getDb() {
               keyPath: 'id',
             });
             reactions.createIndex('by-note', 'noteId');
+          }
+        }
+
+        if (oldVersion < 3) {
+          if (!db.objectStoreNames.contains('cartItems')) {
+            db.createObjectStore('cartItems', { keyPath: 'noteId' });
           }
         }
       },
@@ -444,4 +455,58 @@ export async function toggleReaction(
   }
 
   return listReactionsForNote(noteId);
+}
+
+export async function listCartItems(): Promise<CartItem[]> {
+  const db = await getDb();
+  const items = await db.getAll('cartItems');
+  return items
+    .filter((item) => item.quantity > 0)
+    .sort((a, b) => a.noteId.localeCompare(b.noteId));
+}
+
+/** Add each noteId once (or +amount). Same note collapses by increasing quantity. */
+export async function addToCart(
+  noteIds: string[],
+  amount = 1,
+): Promise<CartItem[]> {
+  if (noteIds.length === 0 || amount <= 0) return listCartItems();
+  const db = await getDb();
+  for (const noteId of noteIds) {
+    const existing = await db.get('cartItems', noteId);
+    const quantity = (existing?.quantity ?? 0) + amount;
+    await db.put('cartItems', { noteId, quantity });
+  }
+  return listCartItems();
+}
+
+export async function setCartQuantity(
+  noteId: string,
+  quantity: number,
+): Promise<CartItem[]> {
+  const db = await getDb();
+  if (quantity <= 0) {
+    await db.delete('cartItems', noteId);
+  } else {
+    await db.put('cartItems', { noteId, quantity });
+  }
+  return listCartItems();
+}
+
+export async function removeFromCart(noteId: string): Promise<CartItem[]> {
+  const db = await getDb();
+  await db.delete('cartItems', noteId);
+  return listCartItems();
+}
+
+export async function clearCart(): Promise<void> {
+  const db = await getDb();
+  const items = await db.getAll('cartItems');
+  for (const item of items) {
+    await db.delete('cartItems', item.noteId);
+  }
+}
+
+export function cartUnitCount(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.quantity, 0);
 }

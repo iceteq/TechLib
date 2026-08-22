@@ -127,3 +127,20 @@
     padding: 1rem 1rem 2.5rem;
   }
 }
+
+@media print {
+  .topbar,
+  .sidebar,
+  .backdrop,
+  .menuBtn {
+    display: none !important;
+  }
+
+  .body {
+    display: block;
+  }
+
+  .main {
+    padding: 0;
+  }
+}

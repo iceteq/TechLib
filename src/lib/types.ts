@@ -66,7 +66,12 @@ export interface Reaction {
   count: number;
 }
 
-export type NotesView = 'notes' | 'archive';
+export type NotesView = 'notes' | 'archive' | 'cart';
+
+export interface CartItem {
+  noteId: string;
+  quantity: number;
+}
 
 export const REACTION_EMOJIS: ReactionEmoji[] = ['👍', '❤️', '🔥', '✅'];
 
