@@ -20,6 +20,47 @@
   overflow: hidden;
   border-radius: 12px;
   background: rgba(31, 35, 40, 0.08);
+  z-index: 0;
+}
+
+.dragging {
+  z-index: 5;
+  box-shadow: var(--shadow);
+  opacity: 0.95;
+}
+
+.dragHandle {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(20, 24, 30, 0.72);
+  color: white;
+  opacity: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.thumb:hover .dragHandle,
+.thumb:focus-within .dragHandle {
+  opacity: 1;
+}
+
+.hint {
+  margin: 0.15rem 0.85rem 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 
 .thumbOpen {

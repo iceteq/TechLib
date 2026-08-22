@@ -1,11 +1,14 @@
 import { Plus } from 'lucide-react';
-import type { Label, NoteWithUrls } from '../../lib/types';
+import type { Label, NotesView, NoteWithUrls, Reaction } from '../../lib/types';
+import { reactionsForNote } from '../../lib/searchNotes';
 import { NoteCard } from './NoteCard';
 import styles from './NoteGrid.module.css';
 
 interface NoteGridProps {
   notes: NoteWithUrls[];
   labels: Label[];
+  reactions: Reaction[];
+  view: NotesView;
   filterLabelId: string | null;
   search: string;
   onOpenNote: (noteId: string) => void;
@@ -15,6 +18,8 @@ interface NoteGridProps {
 export function NoteGrid({
   notes,
   labels,
+  reactions,
+  view,
   filterLabelId,
   search,
   onOpenNote,
@@ -22,12 +27,20 @@ export function NoteGrid({
 }: NoteGridProps) {
   const filterName = labels.find((l) => l.id === filterLabelId)?.name;
   const hasSearch = search.trim().length > 0;
+  const canCreate = view === 'notes';
+
+  let heading = 'All notes';
+  if (view === 'archive') heading = 'Archive';
+  else if (filterLabelId) heading = `#${filterName}`;
 
   let emptyTitle = 'Start your first note';
   let emptyText =
     'Add a title, a couple of images, labels, and a color — Keep-style, image-first.';
 
-  if (hasSearch && filterLabelId) {
+  if (view === 'archive') {
+    emptyTitle = 'Archive is empty';
+    emptyText = 'Archived notes will show up here.';
+  } else if (hasSearch && filterLabelId) {
     emptyTitle = 'No matching notes';
     emptyText = `Nothing in #${filterName} matches “${search.trim()}”.`;
   } else if (hasSearch) {
@@ -42,12 +55,10 @@ export function NoteGrid({
     <section className={styles.section}>
       <div className={styles.toolbar}>
         <div>
-          <h2 className={styles.heading}>
-            {filterLabelId ? `#${filterName}` : 'All notes'}
-          </h2>
+          <h2 className={styles.heading}>{heading}</h2>
           <p className={styles.subheading}>
             {notes.length === 0
-              ? hasSearch || filterLabelId
+              ? hasSearch || filterLabelId || view === 'archive'
                 ? 'No results'
                 : 'Nothing here yet'
               : `${notes.length} note${notes.length === 1 ? '' : 's'}${
@@ -55,17 +66,19 @@ export function NoteGrid({
                 }`}
           </p>
         </div>
-        <button type="button" className={styles.createBtn} onClick={onCreateNote}>
-          <Plus size={18} />
-          New note
-        </button>
+        {canCreate && (
+          <button type="button" className={styles.createBtn} onClick={onCreateNote}>
+            <Plus size={18} />
+            New note
+          </button>
+        )}
       </div>
 
       {notes.length === 0 ? (
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>{emptyTitle}</p>
           <p className={styles.emptyText}>{emptyText}</p>
-          {!hasSearch && (
+          {canCreate && !hasSearch && (
             <button type="button" className={styles.createBtn} onClick={onCreateNote}>
               <Plus size={18} />
               Create note
@@ -79,6 +92,7 @@ export function NoteGrid({
               key={note.id}
               note={note}
               labels={labels}
+              reactions={reactionsForNote(reactions, note.id)}
               onOpen={onOpenNote}
             />
           ))}

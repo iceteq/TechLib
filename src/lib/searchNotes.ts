@@ -1,4 +1,4 @@
-import type { Label, NoteWithUrls } from './types';
+import type { Label, NoteWithUrls, NotesView, Reaction } from './types';
 
 export function matchesNoteSearch(
   note: NoteWithUrls,
@@ -21,12 +21,26 @@ export function matchesNoteSearch(
 export function filterNotes(
   notes: NoteWithUrls[],
   labels: Label[],
-  options: { labelId: string | null; search: string },
+  options: {
+    labelId: string | null;
+    search: string;
+    view: NotesView;
+  },
 ): NoteWithUrls[] {
   return notes.filter((note) => {
+    if (options.view === 'archive' ? !note.archived : note.archived) {
+      return false;
+    }
     if (options.labelId && !note.labelIds.includes(options.labelId)) {
       return false;
     }
     return matchesNoteSearch(note, labels, options.search);
   });
+}
+
+export function reactionsForNote(
+  reactions: Reaction[],
+  noteId: string,
+): Reaction[] {
+  return reactions.filter((r) => r.noteId === noteId);
 }

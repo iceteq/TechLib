@@ -1,15 +1,91 @@
-import type { NoteImageWithUrl } from '../../lib/types';
-import { ChevronLeft, ChevronRight, Trash2, X } from 'lucide-react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { ChevronLeft, ChevronRight, GripVertical, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { NoteImageWithUrl } from '../../lib/types';
 import styles from './ImageGallery.module.css';
 
 interface ImageGalleryProps {
   images: NoteImageWithUrl[];
   onRemove: (imageId: string) => void;
+  onReorder: (orderedImageIds: string[]) => void;
 }
 
-export function ImageGallery({ images, onRemove }: ImageGalleryProps) {
+function SortableThumb({
+  img,
+  index,
+  onOpen,
+  onRemove,
+}: {
+  img: NoteImageWithUrl;
+  index: number;
+  onOpen: () => void;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: img.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`${styles.thumb} ${isDragging ? styles.dragging : ''}`}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+    >
+      <button
+        type="button"
+        className={styles.dragHandle}
+        aria-label={`Drag to reorder image ${index + 1}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={14} />
+      </button>
+      <button
+        type="button"
+        className={styles.thumbOpen}
+        onClick={onOpen}
+        aria-label={`View image ${index + 1}`}
+      >
+        <img src={img.url} alt="" />
+      </button>
+      <button
+        type="button"
+        className={styles.remove}
+        onClick={onRemove}
+        aria-label="Remove image"
+      >
+        <Trash2 size={12} />
+      </button>
+    </div>
+  );
+}
+
+export function ImageGallery({ images, onRemove, onReorder }: ImageGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   useEffect(() => {
     if (lightboxIndex === null) return;
@@ -40,34 +116,50 @@ export function ImageGallery({ images, onRemove }: ImageGalleryProps) {
 
   const active = lightboxIndex !== null ? images[lightboxIndex] : null;
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active: dragActive, over } = event;
+    if (!over || dragActive.id === over.id) return;
+
+    const oldIndex = images.findIndex((img) => img.id === dragActive.id);
+    const newIndex = images.findIndex((img) => img.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const next = arrayMove(images, oldIndex, newIndex).map((img) => img.id);
+    onReorder(next);
+  }
+
   return (
     <>
-      <div
-        className={`${styles.grid} ${
-          images.length === 1 ? styles.single : ''
-        }`}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
       >
-        {images.map((img, index) => (
-          <div key={img.id} className={styles.thumb}>
-            <button
-              type="button"
-              className={styles.thumbOpen}
-              onClick={() => setLightboxIndex(index)}
-              aria-label={`View image ${index + 1}`}
-            >
-              <img src={img.url} alt="" />
-            </button>
-            <button
-              type="button"
-              className={styles.remove}
-              onClick={() => onRemove(img.id)}
-              aria-label="Remove image"
-            >
-              <Trash2 size={12} />
-            </button>
+        <SortableContext
+          items={images.map((img) => img.id)}
+          strategy={rectSortingStrategy}
+        >
+          <div
+            className={`${styles.grid} ${
+              images.length === 1 ? styles.single : ''
+            }`}
+          >
+            {images.map((img, index) => (
+              <SortableThumb
+                key={img.id}
+                img={img}
+                index={index}
+                onOpen={() => setLightboxIndex(index)}
+                onRemove={() => onRemove(img.id)}
+              />
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
+
+      {images.length > 1 && (
+        <p className={styles.hint}>Drag the handle to reorder images</p>
+      )}
 
       {active && lightboxIndex !== null && (
         <div

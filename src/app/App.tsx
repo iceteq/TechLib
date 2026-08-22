@@ -3,13 +3,22 @@ import { AppShell } from '../features/shell/AppShell';
 import { Sidebar } from '../features/shell/Sidebar';
 import { NoteEditor } from '../features/notes/NoteEditor';
 import { NoteGrid } from '../features/notes/NoteGrid';
-import type { Label, NoteBackground, NoteWithUrls } from '../lib/types';
-import { filterNotes } from '../lib/searchNotes';
+import type {
+  Label,
+  NoteBackground,
+  NotesView,
+  NoteWithUrls,
+  Reaction,
+  ReactionEmoji,
+} from '../lib/types';
+import { filterNotes, reactionsForNote } from '../lib/searchNotes';
 import * as store from '../lib/notesStore';
 
 export default function App() {
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
+  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [view, setView] = useState<NotesView>('notes');
   const [filterLabelId, setFilterLabelId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
@@ -17,12 +26,14 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [nextNotes, nextLabels] = await Promise.all([
+    const [nextNotes, nextLabels, nextReactions] = await Promise.all([
       store.listNotes(),
       store.listLabels(),
+      store.listAllReactions(),
     ]);
     setNotes(nextNotes);
     setLabels(nextLabels);
+    setReactions(nextReactions);
   }, []);
 
   useEffect(() => {
@@ -35,20 +46,26 @@ export default function App() {
   const visibleNotes = useMemo(
     () =>
       filterNotes(notes, labels, {
-        labelId: filterLabelId,
+        labelId: view === 'notes' ? filterLabelId : null,
         search,
+        view,
       }),
-    [notes, labels, filterLabelId, search],
+    [notes, labels, filterLabelId, search, view],
   );
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
+  const activeReactions = activeNote
+    ? reactionsForNote(reactions, activeNote.id)
+    : [];
 
   function isBlankNote(note: NoteWithUrls) {
     return (
       !note.title.trim() &&
       !note.description.trim() &&
       note.images.length === 0 &&
-      note.labelIds.length === 0
+      note.labelIds.length === 0 &&
+      !note.pinned &&
+      !note.archived
     );
   }
 
@@ -65,6 +82,7 @@ export default function App() {
   async function handleCreateNote() {
     const note = await store.createNote();
     await refresh();
+    setView('notes');
     setActiveNoteId(note.id);
     setSidebarOpen(false);
   }
@@ -74,11 +92,19 @@ export default function App() {
     description?: string;
     background?: NoteBackground;
     labelIds?: string[];
+    pinned?: boolean;
+    archived?: boolean;
   }) {
     if (!activeNoteId) return;
     const updated = await store.updateNote(activeNoteId, patch);
     if (!updated) return;
-    setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+    setNotes((prev) => {
+      const next = prev.map((n) => (n.id === updated.id ? updated : n));
+      return [...next].sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt - a.updatedAt;
+      });
+    });
     if (patch.labelIds) {
       setLabels(await store.listLabels());
     }
@@ -103,6 +129,23 @@ export default function App() {
     }
   }
 
+  async function handleReorderImages(orderedImageIds: string[]) {
+    if (!activeNoteId) return;
+    const updated = await store.reorderImages(activeNoteId, orderedImageIds);
+    if (updated) {
+      setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+    }
+  }
+
+  async function handleToggleReaction(emoji: ReactionEmoji) {
+    if (!activeNoteId) return;
+    const nextForNote = await store.toggleReaction(activeNoteId, emoji);
+    setReactions((prev) => [
+      ...prev.filter((r) => r.noteId !== activeNoteId),
+      ...nextForNote,
+    ]);
+  }
+
   async function handleDelete() {
     if (!activeNoteId) return;
     await store.deleteNote(activeNoteId);
@@ -125,12 +168,20 @@ export default function App() {
       sidebar={
         <Sidebar
           labels={labels}
-          activeFilter={filterLabelId}
-          onSelectAll={() => {
+          view={view}
+          activeLabelId={filterLabelId}
+          onSelectNotes={() => {
+            setView('notes');
+            setFilterLabelId(null);
+            setSidebarOpen(false);
+          }}
+          onSelectArchive={() => {
+            setView('archive');
             setFilterLabelId(null);
             setSidebarOpen(false);
           }}
           onSelectLabel={(labelId) => {
+            setView('notes');
             setFilterLabelId(labelId);
             setSidebarOpen(false);
           }}
@@ -143,6 +194,8 @@ export default function App() {
         <NoteGrid
           notes={visibleNotes}
           labels={labels}
+          reactions={reactions}
+          view={view}
           filterLabelId={filterLabelId}
           search={search}
           onOpenNote={(id) => setActiveNoteId(id)}
@@ -154,10 +207,13 @@ export default function App() {
         <NoteEditor
           note={activeNote}
           labels={labels}
+          reactions={activeReactions}
           onClose={() => void handleCloseEditor()}
           onSaveMeta={handleSaveMeta}
           onAddImages={handleAddImages}
           onRemoveImage={handleRemoveImage}
+          onReorderImages={handleReorderImages}
+          onToggleReaction={handleToggleReaction}
           onDelete={handleDelete}
           onCreateLabel={handleCreateLabel}
         />

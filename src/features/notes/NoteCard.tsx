@@ -1,22 +1,24 @@
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
-import type { Label, NoteWithUrls } from '../../lib/types';
+import type { Label, NoteWithUrls, Reaction } from '../../lib/types';
 import { LabelChip } from '../labels/LabelChip';
 import styles from './NoteCard.module.css';
 
 interface NoteCardProps {
   note: NoteWithUrls;
   labels: Label[];
+  reactions: Reaction[];
   onOpen: (noteId: string) => void;
 }
 
-export function NoteCard({ note, labels, onOpen }: NoteCardProps) {
+export function NoteCard({ note, labels, reactions, onOpen }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
   const overflow = Math.max(0, note.images.length - NOTE_PREVIEW_IMAGE_LIMIT);
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const title = note.title.trim() || 'Untitled';
   const description = note.description.trim();
+  const activeReactions = reactions.filter((r) => r.count > 0);
 
   return (
     <article
@@ -33,6 +35,8 @@ export function NoteCard({ note, labels, onOpen }: NoteCardProps) {
       tabIndex={0}
       aria-label={`Open note ${title}`}
     >
+      {note.pinned && <span className={styles.pinBadge}>Pinned</span>}
+
       {preview.length > 0 && (
         <div
           className={`${styles.images} ${
@@ -57,6 +61,15 @@ export function NoteCard({ note, labels, onOpen }: NoteCardProps) {
           <div className={styles.labels}>
             {noteLabels.map((label) => (
               <LabelChip key={label.id} name={label.name} />
+            ))}
+          </div>
+        )}
+        {activeReactions.length > 0 && (
+          <div className={styles.reactions}>
+            {activeReactions.map((reaction) => (
+              <span key={reaction.id} className={styles.reaction}>
+                {reaction.emoji}
+              </span>
             ))}
           </div>
         )}

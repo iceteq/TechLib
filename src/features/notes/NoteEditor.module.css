@@ -22,7 +22,19 @@
 .topActions {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 0.75rem 0.85rem 0.25rem;
+}
+
+.topRight {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.iconActive {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .iconBtn {

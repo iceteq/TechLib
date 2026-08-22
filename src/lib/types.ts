@@ -6,6 +6,8 @@ export type NoteBackground =
   | 'pink'
   | 'gray';
 
+export type ReactionEmoji = '👍' | '❤️' | '🔥' | '✅';
+
 export interface NoteImage {
   id: string;
   position: number;
@@ -20,6 +22,8 @@ export interface Note {
   title: string;
   description: string;
   background: NoteBackground;
+  pinned: boolean;
+  archived: boolean;
   createdAt: number;
   updatedAt: number;
   labelIds: string[];
@@ -34,3 +38,14 @@ export interface Label {
   id: string;
   name: string;
 }
+
+export interface Reaction {
+  id: string;
+  noteId: string;
+  emoji: ReactionEmoji;
+  count: number;
+}
+
+export type NotesView = 'notes' | 'archive';
+
+export const REACTION_EMOJIS: ReactionEmoji[] = ['👍', '❤️', '🔥', '✅'];

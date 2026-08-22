@@ -1,29 +1,44 @@
-import { Lightbulb, Tag } from 'lucide-react';
-import type { Label } from '../../lib/types';
+import { Archive, Lightbulb, Tag } from 'lucide-react';
+import type { Label, NotesView } from '../../lib/types';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
   labels: Label[];
-  activeFilter: string | null;
-  onSelectAll: () => void;
+  view: NotesView;
+  activeLabelId: string | null;
+  onSelectNotes: () => void;
+  onSelectArchive: () => void;
   onSelectLabel: (labelId: string) => void;
 }
 
 export function Sidebar({
   labels,
-  activeFilter,
-  onSelectAll,
+  view,
+  activeLabelId,
+  onSelectNotes,
+  onSelectArchive,
   onSelectLabel,
 }: SidebarProps) {
   return (
     <nav className={styles.nav} aria-label="Notes navigation">
       <button
         type="button"
-        className={`${styles.item} ${activeFilter === null ? styles.active : ''}`}
-        onClick={onSelectAll}
+        className={`${styles.item} ${
+          view === 'notes' && activeLabelId === null ? styles.active : ''
+        }`}
+        onClick={onSelectNotes}
       >
         <Lightbulb size={18} />
         <span>All notes</span>
+      </button>
+
+      <button
+        type="button"
+        className={`${styles.item} ${view === 'archive' ? styles.active : ''}`}
+        onClick={onSelectArchive}
+      >
+        <Archive size={18} />
+        <span>Archive</span>
       </button>
 
       <div className={styles.section}>
@@ -37,7 +52,9 @@ export function Sidebar({
                 <button
                   type="button"
                   className={`${styles.item} ${
-                    activeFilter === label.id ? styles.active : ''
+                    view === 'notes' && activeLabelId === label.id
+                      ? styles.active
+                      : ''
                   }`}
                   onClick={() => onSelectLabel(label.id)}
                 >

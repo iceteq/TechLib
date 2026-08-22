@@ -1,23 +1,36 @@
 import { useEffect, useRef, useState } from 'react';
-import { ImagePlus, Trash2, X } from 'lucide-react';
+import { Archive, ArchiveRestore, ImagePlus, Pin, PinOff, Trash2, X } from 'lucide-react';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
-import type { Label, NoteBackground, NoteWithUrls } from '../../lib/types';
+import type {
+  Label,
+  NoteBackground,
+  NoteWithUrls,
+  Reaction,
+  ReactionEmoji,
+} from '../../lib/types';
+import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
 import { LabelPicker } from '../labels/LabelPicker';
+import { ReactionBar } from '../reactions/ReactionBar';
 import styles from './NoteEditor.module.css';
 
 interface NoteEditorProps {
   note: NoteWithUrls;
   labels: Label[];
+  reactions: Reaction[];
   onClose: () => void;
   onSaveMeta: (patch: {
     title?: string;
     description?: string;
     background?: NoteBackground;
     labelIds?: string[];
+    pinned?: boolean;
+    archived?: boolean;
   }) => Promise<void>;
   onAddImages: (files: FileList | File[]) => Promise<void>;
   onRemoveImage: (imageId: string) => Promise<void>;
+  onReorderImages: (orderedImageIds: string[]) => Promise<void>;
+  onToggleReaction: (emoji: ReactionEmoji) => Promise<void>;
   onDelete: () => Promise<void>;
   onCreateLabel: (name: string) => Promise<Label>;
 }
@@ -25,10 +38,13 @@ interface NoteEditorProps {
 export function NoteEditor({
   note,
   labels,
+  reactions,
   onClose,
   onSaveMeta,
   onAddImages,
   onRemoveImage,
+  onReorderImages,
+  onToggleReaction,
   onDelete,
   onCreateLabel,
 }: NoteEditorProps) {
@@ -41,7 +57,9 @@ export function NoteEditor({
     !note.title.trim() &&
     !note.description.trim() &&
     note.images.length === 0 &&
-    note.labelIds.length === 0;
+    note.labelIds.length === 0 &&
+    !note.pinned &&
+    !note.archived;
 
   useEffect(() => {
     setTitle(note.title);
@@ -80,7 +98,6 @@ export function NoteEditor({
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // Intentionally rebind when draft text changes so finish persists latest values.
   });
 
   return (
@@ -102,17 +119,41 @@ export function NoteEditor({
           >
             <X size={18} />
           </button>
-          <button
-            type="button"
-            className={`${styles.iconBtn} ${styles.danger}`}
-            onClick={() => void onDelete()}
-            aria-label="Delete note"
-          >
-            <Trash2 size={18} />
-          </button>
+          <div className={styles.topRight}>
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${note.pinned ? styles.iconActive : ''}`}
+              onClick={() => void onSaveMeta({ pinned: !note.pinned })}
+              aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
+              title={note.pinned ? 'Unpin' : 'Pin'}
+            >
+              {note.pinned ? <PinOff size={18} /> : <Pin size={18} />}
+            </button>
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${note.archived ? styles.iconActive : ''}`}
+              onClick={() => void onSaveMeta({ archived: !note.archived })}
+              aria-label={note.archived ? 'Unarchive note' : 'Archive note'}
+              title={note.archived ? 'Unarchive' : 'Archive'}
+            >
+              {note.archived ? <ArchiveRestore size={18} /> : <Archive size={18} />}
+            </button>
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${styles.danger}`}
+              onClick={() => void onDelete()}
+              aria-label="Delete note"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
         </div>
 
-        <ImageGallery images={note.images} onRemove={(id) => void onRemoveImage(id)} />
+        <ImageGallery
+          images={note.images}
+          onRemove={(id) => void onRemoveImage(id)}
+          onReorder={(ids) => void onReorderImages(ids)}
+        />
 
         <div className={styles.fields}>
           <input
@@ -143,6 +184,19 @@ export function NoteEditor({
             onChange={(labelIds) => void onSaveMeta({ labelIds })}
             onCreateLabel={onCreateLabel}
           />
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionLabel}>Reactions</p>
+          <ReactionBar
+            reactions={reactions}
+            onToggle={(emoji) => void onToggleReaction(emoji)}
+          />
+        </div>
+
+        <div className={styles.section}>
+          <p className={styles.sectionLabel}>Barcode</p>
+          <Barcode title={title || note.title} />
         </div>
 
         <div className={styles.section}>

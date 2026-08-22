@@ -1,5 +1,12 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Label, Note, NoteBackground, NoteWithUrls } from './types';
+import type {
+  Label,
+  Note,
+  NoteBackground,
+  NoteWithUrls,
+  Reaction,
+  ReactionEmoji,
+} from './types';
 
 interface TechLibDB extends DBSchema {
   notes: {
@@ -21,10 +28,15 @@ interface TechLibDB extends DBSchema {
       mimeType: string;
     };
   };
+  reactions: {
+    key: string;
+    value: Reaction;
+    indexes: { 'by-note': string };
+  };
 }
 
 const DB_NAME = 'techlib';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<TechLibDB>> | null = null;
 const urlCache = new Map<string, string>();
@@ -33,17 +45,38 @@ function uid(): string {
   return crypto.randomUUID();
 }
 
+function normalizeNote(note: Note): Note {
+  return {
+    ...note,
+    pinned: Boolean(note.pinned),
+    archived: Boolean(note.archived),
+    labelIds: note.labelIds ?? [],
+    images: note.images ?? [],
+  };
+}
+
 function getDb() {
   if (!dbPromise) {
     dbPromise = openDB<TechLibDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        const notes = db.createObjectStore('notes', { keyPath: 'id' });
-        notes.createIndex('by-updated', 'updatedAt');
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          const notes = db.createObjectStore('notes', { keyPath: 'id' });
+          notes.createIndex('by-updated', 'updatedAt');
 
-        const labels = db.createObjectStore('labels', { keyPath: 'id' });
-        labels.createIndex('by-name', 'name', { unique: true });
+          const labels = db.createObjectStore('labels', { keyPath: 'id' });
+          labels.createIndex('by-name', 'name', { unique: true });
 
-        db.createObjectStore('imageBlobs', { keyPath: 'id' });
+          db.createObjectStore('imageBlobs', { keyPath: 'id' });
+        }
+
+        if (oldVersion < 2) {
+          if (!db.objectStoreNames.contains('reactions')) {
+            const reactions = db.createObjectStore('reactions', {
+              keyPath: 'id',
+            });
+            reactions.createIndex('by-note', 'noteId');
+          }
+        }
       },
     });
   }
@@ -68,8 +101,9 @@ function revokeUrl(imageId: string) {
 
 async function hydrateNote(note: Note): Promise<NoteWithUrls> {
   const db = await getDb();
+  const normalized = normalizeNote(note);
   const images = await Promise.all(
-    [...note.images]
+    [...normalized.images]
       .sort((a, b) => a.position - b.position)
       .map(async (img) => {
         const record = await db.get('imageBlobs', img.id);
@@ -80,13 +114,21 @@ async function hydrateNote(note: Note): Promise<NoteWithUrls> {
       }),
   );
 
-  return { ...note, images: images.filter((i) => i.url) };
+  return { ...normalized, images: images.filter((i) => i.url) };
+}
+
+function sortNotes(notes: NoteWithUrls[]): NoteWithUrls[] {
+  return [...notes].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return b.updatedAt - a.updatedAt;
+  });
 }
 
 export async function listNotes(): Promise<NoteWithUrls[]> {
   const db = await getDb();
-  const notes = await db.getAllFromIndex('notes', 'by-updated');
-  return Promise.all(notes.reverse().map(hydrateNote));
+  const notes = await db.getAll('notes');
+  const hydrated = await Promise.all(notes.map(hydrateNote));
+  return sortNotes(hydrated);
 }
 
 export async function getNote(id: string): Promise<NoteWithUrls | undefined> {
@@ -108,6 +150,8 @@ export async function createNote(input?: {
     title: input?.title ?? '',
     description: input?.description ?? '',
     background: input?.background ?? 'default',
+    pinned: false,
+    archived: false,
     createdAt: now,
     updatedAt: now,
     labelIds: [],
@@ -119,14 +163,24 @@ export async function createNote(input?: {
 
 export async function updateNote(
   id: string,
-  patch: Partial<Pick<Note, 'title' | 'description' | 'background' | 'labelIds'>>,
+  patch: Partial<
+    Pick<
+      Note,
+      | 'title'
+      | 'description'
+      | 'background'
+      | 'labelIds'
+      | 'pinned'
+      | 'archived'
+    >
+  >,
 ): Promise<NoteWithUrls | undefined> {
   const db = await getDb();
   const existing = await db.get('notes', id);
   if (!existing) return undefined;
 
   const next: Note = {
-    ...existing,
+    ...normalizeNote(existing),
     ...patch,
     updatedAt: Date.now(),
   };
@@ -143,6 +197,12 @@ export async function deleteNote(id: string): Promise<void> {
     revokeUrl(img.id);
     await db.delete('imageBlobs', img.id);
   }
+
+  const reactions = await db.getAllFromIndex('reactions', 'by-note', id);
+  for (const reaction of reactions) {
+    await db.delete('reactions', reaction.id);
+  }
+
   await db.delete('notes', id);
 }
 
@@ -153,12 +213,13 @@ export async function addImage(
   const db = await getDb();
   const note = await db.get('notes', noteId);
   if (!note) return undefined;
+  const normalized = normalizeNote(note);
 
   const imageId = uid();
   const position =
-    note.images.length === 0
+    normalized.images.length === 0
       ? 0
-      : Math.max(...note.images.map((i) => i.position)) + 1;
+      : Math.max(...normalized.images.map((i) => i.position)) + 1;
 
   await db.put('imageBlobs', {
     id: imageId,
@@ -168,8 +229,8 @@ export async function addImage(
   });
 
   const next: Note = {
-    ...note,
-    images: [...note.images, { id: imageId, position }],
+    ...normalized,
+    images: [...normalized.images, { id: imageId, position }],
     updatedAt: Date.now(),
   };
   await db.put('notes', next);
@@ -183,18 +244,53 @@ export async function removeImage(
   const db = await getDb();
   const note = await db.get('notes', noteId);
   if (!note) return undefined;
+  const normalized = normalizeNote(note);
 
   revokeUrl(imageId);
   await db.delete('imageBlobs', imageId);
 
-  const remaining = note.images
+  const remaining = normalized.images
     .filter((i) => i.id !== imageId)
     .sort((a, b) => a.position - b.position)
     .map((img, index) => ({ ...img, position: index }));
 
   const next: Note = {
-    ...note,
+    ...normalized,
     images: remaining,
+    updatedAt: Date.now(),
+  };
+  await db.put('notes', next);
+  return hydrateNote(next);
+}
+
+export async function reorderImages(
+  noteId: string,
+  orderedImageIds: string[],
+): Promise<NoteWithUrls | undefined> {
+  const db = await getDb();
+  const note = await db.get('notes', noteId);
+  if (!note) return undefined;
+  const normalized = normalizeNote(note);
+
+  const byId = new Map(normalized.images.map((img) => [img.id, img]));
+  const reordered = orderedImageIds
+    .map((id, position) => {
+      const img = byId.get(id);
+      if (!img) return null;
+      return { ...img, position };
+    })
+    .filter((img): img is NonNullable<typeof img> => img !== null);
+
+  // Keep any images missing from the payload at the end.
+  for (const img of normalized.images) {
+    if (!orderedImageIds.includes(img.id)) {
+      reordered.push({ ...img, position: reordered.length });
+    }
+  }
+
+  const next: Note = {
+    ...normalized,
+    images: reordered,
     updatedAt: Date.now(),
   };
   await db.put('notes', next);
@@ -226,10 +322,11 @@ export async function deleteLabel(id: string): Promise<void> {
 
   const notes = await db.getAll('notes');
   for (const note of notes) {
-    if (!note.labelIds.includes(id)) continue;
+    const normalized = normalizeNote(note);
+    if (!normalized.labelIds.includes(id)) continue;
     await db.put('notes', {
-      ...note,
-      labelIds: note.labelIds.filter((lid) => lid !== id),
+      ...normalized,
+      labelIds: normalized.labelIds.filter((lid) => lid !== id),
       updatedAt: Date.now(),
     });
   }
@@ -240,4 +337,38 @@ export async function setNoteLabels(
   labelIds: string[],
 ): Promise<NoteWithUrls | undefined> {
   return updateNote(noteId, { labelIds: [...new Set(labelIds)] });
+}
+
+export async function listReactionsForNote(noteId: string): Promise<Reaction[]> {
+  const db = await getDb();
+  return db.getAllFromIndex('reactions', 'by-note', noteId);
+}
+
+export async function listAllReactions(): Promise<Reaction[]> {
+  const db = await getDb();
+  return db.getAll('reactions');
+}
+
+/** Single-user toggle: add reaction or remove it. */
+export async function toggleReaction(
+  noteId: string,
+  emoji: ReactionEmoji,
+): Promise<Reaction[]> {
+  const db = await getDb();
+  const existing = (await db.getAllFromIndex('reactions', 'by-note', noteId)).find(
+    (r) => r.emoji === emoji,
+  );
+
+  if (existing) {
+    await db.delete('reactions', existing.id);
+  } else {
+    await db.put('reactions', {
+      id: uid(),
+      noteId,
+      emoji,
+      count: 1,
+    });
+  }
+
+  return listReactionsForNote(noteId);
 }
