@@ -1,512 +1,67 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type {
-  CartItem,
-  Label,
-  Note,
-  NoteBackground,
-  NoteCategory,
-  NoteDisposition,
-  NoteWithUrls,
-  Reaction,
-  ReactionEmoji,
-} from './types';
-import { normalizeCategory } from './types';
+import { isCloudConfigured } from './supabaseClient';
+import * as cloud from './cloudNotesStore';
+import * as local from './localNotesStore';
 
-interface TechLibDB extends DBSchema {
-  notes: {
-    key: string;
-    value: Note;
-    indexes: { 'by-updated': number };
-  };
-  labels: {
-    key: string;
-    value: Label;
-    indexes: { 'by-name': string };
-  };
-  imageBlobs: {
-    key: string;
-    value: {
-      id: string;
-      noteId: string;
-      blob: Blob;
-      mimeType: string;
-    };
-  };
-  reactions: {
-    key: string;
-    value: Reaction;
-    indexes: { 'by-note': string };
-  };
-  cartItems: {
-    key: string;
-    value: CartItem;
-  };
+function api() {
+  return isCloudConfigured() ? cloud : local;
 }
 
-const DB_NAME = 'techlib';
-const DB_VERSION = 3;
-
-let dbPromise: Promise<IDBPDatabase<TechLibDB>> | null = null;
-const urlCache = new Map<string, string>();
-
-function uid(): string {
-  return crypto.randomUUID();
-}
-
-function normalizeNote(note: Note): Note {
-  return {
-    ...note,
-    pinned: Boolean(note.pinned),
-    archived: Boolean(note.archived),
-    deletedAt: note.deletedAt ?? null,
-    disposition: note.disposition ?? 'none',
-    category: normalizeCategory(note.category),
-    specialCase: note.specialCase ?? '',
-    labelIds: note.labelIds ?? [],
-    images: note.images ?? [],
-  };
-}
-
-function getDb() {
-  if (!dbPromise) {
-    dbPromise = openDB<TechLibDB>(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion) {
-        if (oldVersion < 1) {
-          const notes = db.createObjectStore('notes', { keyPath: 'id' });
-          notes.createIndex('by-updated', 'updatedAt');
-
-          const labels = db.createObjectStore('labels', { keyPath: 'id' });
-          labels.createIndex('by-name', 'name', { unique: true });
-
-          db.createObjectStore('imageBlobs', { keyPath: 'id' });
-        }
-
-        if (oldVersion < 2) {
-          if (!db.objectStoreNames.contains('reactions')) {
-            const reactions = db.createObjectStore('reactions', {
-              keyPath: 'id',
-            });
-            reactions.createIndex('by-note', 'noteId');
-          }
-        }
-
-        if (oldVersion < 3) {
-          if (!db.objectStoreNames.contains('cartItems')) {
-            db.createObjectStore('cartItems', { keyPath: 'noteId' });
-          }
-        }
-      },
-    });
-  }
-  return dbPromise;
-}
-
-function getOrCreateUrl(imageId: string, blob: Blob): string {
-  const existing = urlCache.get(imageId);
-  if (existing) return existing;
-  const url = URL.createObjectURL(blob);
-  urlCache.set(imageId, url);
-  return url;
-}
-
-function revokeUrl(imageId: string) {
-  const url = urlCache.get(imageId);
-  if (url) {
-    URL.revokeObjectURL(url);
-    urlCache.delete(imageId);
-  }
-}
-
-async function hydrateNote(note: Note): Promise<NoteWithUrls> {
-  const db = await getDb();
-  const normalized = normalizeNote(note);
-  const images = await Promise.all(
-    [...normalized.images]
-      .sort((a, b) => a.position - b.position)
-      .map(async (img) => {
-        const record = await db.get('imageBlobs', img.id);
-        if (!record) {
-          return { ...img, url: '' };
-        }
-        return { ...img, url: getOrCreateUrl(img.id, record.blob) };
-      }),
-  );
-
-  return { ...normalized, images: images.filter((i) => i.url) };
-}
-
-function sortNotes(notes: NoteWithUrls[]): NoteWithUrls[] {
-  return [...notes].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return b.updatedAt - a.updatedAt;
-  });
-}
-
-export async function listNotes(): Promise<NoteWithUrls[]> {
-  const db = await getDb();
-  const notes = await db.getAll('notes');
-  const active = notes
-    .map(normalizeNote)
-    .filter((note) => note.deletedAt == null);
-  const hydrated = await Promise.all(active.map(hydrateNote));
-  return sortNotes(hydrated);
-}
-
-export async function getNote(id: string): Promise<NoteWithUrls | undefined> {
-  const db = await getDb();
-  const note = await db.get('notes', id);
-  if (!note) return undefined;
-  return hydrateNote(note);
-}
-
-export async function createNote(input?: {
-  title?: string;
-  description?: string;
-  background?: NoteBackground;
-  disposition?: NoteDisposition;
-  category?: NoteCategory;
-  specialCase?: string;
-  labelIds?: string[];
-}): Promise<NoteWithUrls> {
-  const db = await getDb();
-  const now = Date.now();
-  const note: Note = {
-    id: uid(),
-    title: input?.title ?? '',
-    description: input?.description ?? '',
-    background: input?.background ?? 'default',
-    disposition: input?.disposition ?? 'none',
-    category: input?.category ?? 'none',
-    specialCase: input?.specialCase ?? '',
-    pinned: false,
-    archived: false,
-    deletedAt: null,
-    createdAt: now,
-    updatedAt: now,
-    labelIds: input?.labelIds ?? [],
-    images: [],
-  };
-  await db.put('notes', note);
-  return hydrateNote(note);
-}
-
-export async function updateNote(
-  id: string,
-  patch: Partial<
-    Pick<
-      Note,
-      | 'title'
-      | 'description'
-      | 'background'
-      | 'labelIds'
-      | 'pinned'
-      | 'archived'
-      | 'disposition'
-      | 'category'
-      | 'specialCase'
-    >
-  >,
-): Promise<NoteWithUrls | undefined> {
-  const db = await getDb();
-  const existing = await db.get('notes', id);
-  if (!existing) return undefined;
-
-  const next: Note = {
-    ...normalizeNote(existing),
-    ...patch,
-    updatedAt: Date.now(),
-  };
-  await db.put('notes', next);
-  return hydrateNote(next);
-}
-
-export async function softDeleteNotes(ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
-  const db = await getDb();
-  const now = Date.now();
-  for (const id of ids) {
-    const existing = await db.get('notes', id);
-    if (!existing) continue;
-    const normalized = normalizeNote(existing);
-    if (normalized.deletedAt != null) continue;
-    await db.put('notes', {
-      ...normalized,
-      deletedAt: now,
-      updatedAt: now,
-    });
-  }
-}
-
-export async function restoreNotes(ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
-  const db = await getDb();
-  const now = Date.now();
-  for (const id of ids) {
-    const existing = await db.get('notes', id);
-    if (!existing) continue;
-    const normalized = normalizeNote(existing);
-    if (normalized.deletedAt == null) continue;
-    await db.put('notes', {
-      ...normalized,
-      deletedAt: null,
-      updatedAt: now,
-    });
-  }
-}
-
-/** Hard-delete notes (and images/reactions). Used after undo window expires. */
-export async function purgeNotes(ids: string[]): Promise<void> {
-  for (const id of ids) {
-    await deleteNote(id);
-  }
-}
-
-/** Remove any soft-deleted notes left behind (e.g. after a crash). */
-export async function purgeSoftDeletedNotes(): Promise<void> {
-  const db = await getDb();
-  const notes = await db.getAll('notes');
-  for (const note of notes) {
-    if (normalizeNote(note).deletedAt != null) {
-      await deleteNote(note.id);
-    }
-  }
-}
-
-export async function deleteNote(id: string): Promise<void> {
-  const db = await getDb();
-  const note = await db.get('notes', id);
-  if (!note) return;
-
-  for (const img of note.images ?? []) {
-    revokeUrl(img.id);
-    await db.delete('imageBlobs', img.id);
-  }
-
-  const reactions = await db.getAllFromIndex('reactions', 'by-note', id);
-  for (const reaction of reactions) {
-    await db.delete('reactions', reaction.id);
-  }
-
-  await db.delete('notes', id);
-}
-
-export async function addImage(
-  noteId: string,
-  file: File | Blob,
-): Promise<NoteWithUrls | undefined> {
-  const db = await getDb();
-  const note = await db.get('notes', noteId);
-  if (!note) return undefined;
-  const normalized = normalizeNote(note);
-
-  const imageId = uid();
-  const position =
-    normalized.images.length === 0
-      ? 0
-      : Math.max(...normalized.images.map((i) => i.position)) + 1;
-
-  await db.put('imageBlobs', {
-    id: imageId,
-    noteId,
-    blob: file,
-    mimeType: file.type || 'image/jpeg',
-  });
-
-  const next: Note = {
-    ...normalized,
-    images: [...normalized.images, { id: imageId, position }],
-    updatedAt: Date.now(),
-  };
-  await db.put('notes', next);
-  return hydrateNote(next);
-}
-
-export async function removeImage(
-  noteId: string,
-  imageId: string,
-): Promise<NoteWithUrls | undefined> {
-  const db = await getDb();
-  const note = await db.get('notes', noteId);
-  if (!note) return undefined;
-  const normalized = normalizeNote(note);
-
-  revokeUrl(imageId);
-  await db.delete('imageBlobs', imageId);
-
-  const remaining = normalized.images
-    .filter((i) => i.id !== imageId)
-    .sort((a, b) => a.position - b.position)
-    .map((img, index) => ({ ...img, position: index }));
-
-  const next: Note = {
-    ...normalized,
-    images: remaining,
-    updatedAt: Date.now(),
-  };
-  await db.put('notes', next);
-  return hydrateNote(next);
-}
-
-export async function reorderImages(
-  noteId: string,
-  orderedImageIds: string[],
-): Promise<NoteWithUrls | undefined> {
-  const db = await getDb();
-  const note = await db.get('notes', noteId);
-  if (!note) return undefined;
-  const normalized = normalizeNote(note);
-
-  const byId = new Map(normalized.images.map((img) => [img.id, img]));
-  const reordered = orderedImageIds
-    .map((id, position) => {
-      const img = byId.get(id);
-      if (!img) return null;
-      return { ...img, position };
-    })
-    .filter((img): img is NonNullable<typeof img> => img !== null);
-
-  // Keep any images missing from the payload at the end.
-  for (const img of normalized.images) {
-    if (!orderedImageIds.includes(img.id)) {
-      reordered.push({ ...img, position: reordered.length });
-    }
-  }
-
-  const next: Note = {
-    ...normalized,
-    images: reordered,
-    updatedAt: Date.now(),
-  };
-  await db.put('notes', next);
-  return hydrateNote(next);
-}
-
-export async function listLabels(): Promise<Label[]> {
-  const db = await getDb();
-  const labels = await db.getAll('labels');
-  return labels.sort((a, b) => a.name.localeCompare(b.name));
-}
-
-export async function createLabel(name: string): Promise<Label> {
-  const db = await getDb();
-  const trimmed = name.trim();
-  if (!trimmed) throw new Error('Label name is required');
-
-  const existing = await db.getAllFromIndex('labels', 'by-name', trimmed);
-  if (existing[0]) return existing[0];
-
-  const label: Label = { id: uid(), name: trimmed };
-  await db.put('labels', label);
-  return label;
-}
-
-export async function deleteLabel(id: string): Promise<void> {
-  const db = await getDb();
-  await db.delete('labels', id);
-
-  const notes = await db.getAll('notes');
-  for (const note of notes) {
-    const normalized = normalizeNote(note);
-    if (!normalized.labelIds.includes(id)) continue;
-    await db.put('notes', {
-      ...normalized,
-      labelIds: normalized.labelIds.filter((lid) => lid !== id),
-      updatedAt: Date.now(),
-    });
-  }
-}
-
-export async function setNoteLabels(
-  noteId: string,
-  labelIds: string[],
-): Promise<NoteWithUrls | undefined> {
-  return updateNote(noteId, { labelIds: [...new Set(labelIds)] });
-}
-
-export async function listReactionsForNote(noteId: string): Promise<Reaction[]> {
-  const db = await getDb();
-  return db.getAllFromIndex('reactions', 'by-note', noteId);
-}
-
-export async function listAllReactions(): Promise<Reaction[]> {
-  const db = await getDb();
-  return db.getAll('reactions');
-}
-
-/** Single-user toggle: add reaction or remove it. */
-export async function toggleReaction(
-  noteId: string,
-  emoji: ReactionEmoji,
-): Promise<Reaction[]> {
-  const db = await getDb();
-  const existing = (await db.getAllFromIndex('reactions', 'by-note', noteId)).find(
-    (r) => r.emoji === emoji,
-  );
-
-  if (existing) {
-    await db.delete('reactions', existing.id);
-  } else {
-    await db.put('reactions', {
-      id: uid(),
-      noteId,
-      emoji,
-      count: 1,
-    });
-  }
-
-  return listReactionsForNote(noteId);
-}
-
-export async function listCartItems(): Promise<CartItem[]> {
-  const db = await getDb();
-  const items = await db.getAll('cartItems');
-  return items
-    .filter((item) => item.quantity > 0)
-    .sort((a, b) => a.noteId.localeCompare(b.noteId));
-}
-
-/** Add each noteId once (or +amount). Same note collapses by increasing quantity. */
-export async function addToCart(
-  noteIds: string[],
-  amount = 1,
-): Promise<CartItem[]> {
-  if (noteIds.length === 0 || amount <= 0) return listCartItems();
-  const db = await getDb();
-  for (const noteId of noteIds) {
-    const existing = await db.get('cartItems', noteId);
-    const quantity = (existing?.quantity ?? 0) + amount;
-    await db.put('cartItems', { noteId, quantity });
-  }
-  return listCartItems();
-}
-
-export async function setCartQuantity(
-  noteId: string,
-  quantity: number,
-): Promise<CartItem[]> {
-  const db = await getDb();
-  if (quantity <= 0) {
-    await db.delete('cartItems', noteId);
-  } else {
-    await db.put('cartItems', { noteId, quantity });
-  }
-  return listCartItems();
-}
-
-export async function removeFromCart(noteId: string): Promise<CartItem[]> {
-  const db = await getDb();
-  await db.delete('cartItems', noteId);
-  return listCartItems();
-}
-
-export async function clearCart(): Promise<void> {
-  const db = await getDb();
-  const items = await db.getAll('cartItems');
-  for (const item of items) {
-    await db.delete('cartItems', item.noteId);
-  }
-}
-
-export function cartUnitCount(items: CartItem[]): number {
-  return items.reduce((sum, item) => sum + item.quantity, 0);
-}
+export const listNotes = (...args: Parameters<typeof local.listNotes>) =>
+  api().listNotes(...args);
+export const getNote = (...args: Parameters<typeof local.getNote>) =>
+  api().getNote(...args);
+export const createNote = (...args: Parameters<typeof local.createNote>) =>
+  api().createNote(...args);
+export const updateNote = (...args: Parameters<typeof local.updateNote>) =>
+  api().updateNote(...args);
+export const softDeleteNotes = (
+  ...args: Parameters<typeof local.softDeleteNotes>
+) => api().softDeleteNotes(...args);
+export const restoreNotes = (...args: Parameters<typeof local.restoreNotes>) =>
+  api().restoreNotes(...args);
+export const purgeNotes = (...args: Parameters<typeof local.purgeNotes>) =>
+  api().purgeNotes(...args);
+export const purgeSoftDeletedNotes = (
+  ...args: Parameters<typeof local.purgeSoftDeletedNotes>
+) => api().purgeSoftDeletedNotes(...args);
+export const deleteNote = (...args: Parameters<typeof local.deleteNote>) =>
+  api().deleteNote(...args);
+export const addImage = (...args: Parameters<typeof local.addImage>) =>
+  api().addImage(...args);
+export const removeImage = (...args: Parameters<typeof local.removeImage>) =>
+  api().removeImage(...args);
+export const reorderImages = (
+  ...args: Parameters<typeof local.reorderImages>
+) => api().reorderImages(...args);
+export const listLabels = (...args: Parameters<typeof local.listLabels>) =>
+  api().listLabels(...args);
+export const createLabel = (...args: Parameters<typeof local.createLabel>) =>
+  api().createLabel(...args);
+export const deleteLabel = (...args: Parameters<typeof local.deleteLabel>) =>
+  api().deleteLabel(...args);
+export const setNoteLabels = (
+  ...args: Parameters<typeof local.setNoteLabels>
+) => api().setNoteLabels(...args);
+export const listReactionsForNote = (
+  ...args: Parameters<typeof local.listReactionsForNote>
+) => api().listReactionsForNote(...args);
+export const listAllReactions = (
+  ...args: Parameters<typeof local.listAllReactions>
+) => api().listAllReactions(...args);
+export const toggleReaction = (
+  ...args: Parameters<typeof local.toggleReaction>
+) => api().toggleReaction(...args);
+export const listCartItems = (
+  ...args: Parameters<typeof local.listCartItems>
+) => api().listCartItems(...args);
+export const addToCart = (...args: Parameters<typeof local.addToCart>) =>
+  api().addToCart(...args);
+export const setCartQuantity = (
+  ...args: Parameters<typeof local.setCartQuantity>
+) => api().setCartQuantity(...args);
+export const removeFromCart = (
+  ...args: Parameters<typeof local.removeFromCart>
+) => api().removeFromCart(...args);
+export const clearCart = (...args: Parameters<typeof local.clearCart>) =>
+  api().clearCart(...args);
+export const cartUnitCount = local.cartUnitCount;

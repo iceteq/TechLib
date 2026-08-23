@@ -22,6 +22,8 @@ import {
 } from '../lib/searchNotes';
 import { parsePastedNotes } from '../lib/parsePastedNotes';
 import * as store from '../lib/notesStore';
+import { isCloudConfigured } from '../lib/supabaseClient';
+import { signOutCloud } from '../features/auth/AuthGate';
 
 type UndoAction =
   | { kind: 'import'; ids: string[] }
@@ -393,6 +395,13 @@ export default function App() {
             setFilterLabelId((current) => (current === labelId ? null : labelId));
             setSidebarOpen(false);
           }}
+          onSignOut={
+            isCloudConfigured()
+              ? () => {
+                  void signOutCloud();
+                }
+              : undefined
+          }
         />
       }
     >

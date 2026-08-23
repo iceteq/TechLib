@@ -4,6 +4,7 @@ import {
   Cable,
   Cpu,
   Lightbulb,
+  LogOut,
   Monitor,
   Network,
   Package,
@@ -37,6 +38,7 @@ interface SidebarProps {
   onSelectCategory: (category: NoteCategory) => void;
   onToggleSpecialCases: () => void;
   onSelectLabel: (labelId: string) => void;
+  onSignOut?: () => void;
 }
 
 export function Sidebar({
@@ -54,6 +56,7 @@ export function Sidebar({
   onSelectCategory,
   onToggleSpecialCases,
   onSelectLabel,
+  onSignOut,
 }: SidebarProps) {
   const allActive =
     view === 'notes' &&
@@ -235,6 +238,15 @@ export function Sidebar({
           </ul>
         )}
       </div>
+
+      {onSignOut && (
+        <div className={styles.section}>
+          <button type="button" className={styles.item} onClick={onSignOut}>
+            <LogOut size={18} />
+            <span>Sign out</span>
+          </button>
+        </div>
+      )}
     </nav>
   );
 }
