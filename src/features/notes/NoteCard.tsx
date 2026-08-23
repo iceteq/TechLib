@@ -9,7 +9,9 @@ import { LabelChip } from '../labels/LabelChip';
 import styles from './NoteCard.module.css';
 
 const LONG_PRESS_MS = 450;
-const MOVE_CANCEL_PX = 10;
+const MOVE_CANCEL_PX = 12;
+/** Ignore click/contextmenu after long-press (mobile fires extras). */
+const SUPPRESS_GESTURE_MS = 1000;
 
 interface NoteCardProps {
   note: NoteWithUrls;
@@ -42,8 +44,8 @@ export function NoteCard({
 
   const longPressTimer = useRef<number | null>(null);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
-  const suppressClick = useRef(false);
-  const suppressContextMenu = useRef(false);
+  const suppressUntil = useRef(0);
+  const unblockTimers = useRef<number[]>([]);
 
   function clearLongPress() {
     if (longPressTimer.current != null) {
@@ -53,15 +55,40 @@ export function NoteCard({
     pointerStart.current = null;
   }
 
+  function shouldSuppressGesture(e: React.SyntheticEvent) {
+    if (Date.now() >= suppressUntil.current) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    return true;
+  }
+
+  function armGestureSuppress() {
+    suppressUntil.current = Date.now() + SUPPRESS_GESTURE_MS;
+
+    // Capture-phase blockers beat React's bubble handlers (mobile ghost clicks).
+    const block = (event: Event) => {
+      if (Date.now() >= suppressUntil.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
+    document.addEventListener('click', block, true);
+    document.addEventListener('contextmenu', block, true);
+    const timer = window.setTimeout(() => {
+      document.removeEventListener('click', block, true);
+      document.removeEventListener('contextmenu', block, true);
+      unblockTimers.current = unblockTimers.current.filter((t) => t !== timer);
+    }, SUPPRESS_GESTURE_MS);
+    unblockTimers.current.push(timer);
+  }
+
   function handlePointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
     if (selecting) return;
     pointerStart.current = { x: e.clientX, y: e.clientY };
     longPressTimer.current = window.setTimeout(() => {
       longPressTimer.current = null;
-      suppressClick.current = true;
-      // Mobile long-press also fires contextmenu shortly after.
-      suppressContextMenu.current = true;
+      armGestureSuppress();
       onEnterSelect(note.id);
     }, LONG_PRESS_MS);
   }
@@ -80,10 +107,7 @@ export function NoteCard({
   }
 
   function handleClick(e: React.MouseEvent) {
-    if (suppressClick.current) {
-      suppressClick.current = false;
-      return;
-    }
+    if (shouldSuppressGesture(e)) return;
     if (selecting || e.ctrlKey || e.metaKey) {
       e.preventDefault();
       if (selecting) {
@@ -98,13 +122,10 @@ export function NoteCard({
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
-    if (suppressContextMenu.current) {
-      suppressContextMenu.current = false;
-      return;
-    }
-    if (selecting) {
-      onToggleSelect(note.id);
-    } else {
+    if (shouldSuppressGesture(e)) return;
+    // Never toggle-off via contextmenu — mobile long-press fires this and
+    // was clearing the selection we just entered.
+    if (!selecting) {
       onEnterSelect(note.id);
     }
   }
