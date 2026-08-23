@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Check } from 'lucide-react';
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
@@ -8,10 +8,10 @@ import { Barcode } from '../barcodes/Barcode';
 import { LabelChip } from '../labels/LabelChip';
 import styles from './NoteCard.module.css';
 
-const LONG_PRESS_MS = 450;
+const LONG_PRESS_MS = 500;
 const MOVE_CANCEL_PX = 12;
-/** Ignore click/contextmenu after long-press (mobile fires extras). */
-const SUPPRESS_GESTURE_MS = 1000;
+/** Ignore click/contextmenu after long-press (mobile fires several of these). */
+const SUPPRESS_MS = 1200;
 
 interface NoteCardProps {
   note: NoteWithUrls;
@@ -42,53 +42,50 @@ export function NoteCard({
   );
   const category = CATEGORIES.find((c) => c.id === (note.category ?? 'none'));
 
+  const cardRef = useRef<HTMLElement | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
+  const longPressActivated = useRef(false);
   const suppressUntil = useRef(0);
-  const unblockTimers = useRef<number[]>([]);
 
-  function clearLongPress() {
+  function armSuppress() {
+    suppressUntil.current = Date.now() + SUPPRESS_MS;
+  }
+
+  function isSuppressed() {
+    return Date.now() < suppressUntil.current;
+  }
+
+  function clearLongPressTimer() {
     if (longPressTimer.current != null) {
       window.clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    pointerStart.current = null;
   }
 
-  function shouldSuppressGesture(e: React.SyntheticEvent) {
-    if (Date.now() >= suppressUntil.current) return false;
-    e.preventDefault();
-    e.stopPropagation();
-    return true;
-  }
 
-  function armGestureSuppress() {
-    suppressUntil.current = Date.now() + SUPPRESS_GESTURE_MS;
-
-    // Capture-phase blockers beat React's bubble handlers (mobile ghost clicks).
-    const block = (event: Event) => {
-      if (Date.now() >= suppressUntil.current) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!longPressActivated.current && !isSuppressed()) return;
+      e.preventDefault();
+      armSuppress();
     };
-    document.addEventListener('click', block, true);
-    document.addEventListener('contextmenu', block, true);
-    const timer = window.setTimeout(() => {
-      document.removeEventListener('click', block, true);
-      document.removeEventListener('contextmenu', block, true);
-      unblockTimers.current = unblockTimers.current.filter((t) => t !== timer);
-    }, SUPPRESS_GESTURE_MS);
-    unblockTimers.current.push(timer);
-  }
+    el.addEventListener('touchend', onTouchEnd, { passive: false });
+    return () => el.removeEventListener('touchend', onTouchEnd);
+  }, []);
 
   function handlePointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
+    longPressActivated.current = false;
     if (selecting) return;
     pointerStart.current = { x: e.clientX, y: e.clientY };
+    clearLongPressTimer();
     longPressTimer.current = window.setTimeout(() => {
       longPressTimer.current = null;
-      armGestureSuppress();
+      longPressActivated.current = true;
+      armSuppress();
       onEnterSelect(note.id);
     }, LONG_PRESS_MS);
   }
@@ -98,16 +95,28 @@ export function NoteCard({
     const dx = Math.abs(e.clientX - pointerStart.current.x);
     const dy = Math.abs(e.clientY - pointerStart.current.y);
     if (dx > MOVE_CANCEL_PX || dy > MOVE_CANCEL_PX) {
-      clearLongPress();
+      clearLongPressTimer();
+      pointerStart.current = null;
     }
   }
 
-  function handlePointerUp() {
-    clearLongPress();
+  function handlePointerUp(e: React.PointerEvent) {
+    clearLongPressTimer();
+    pointerStart.current = null;
+    // Prevent the compatibility mouse click that follows a touch long-press.
+    if (longPressActivated.current) {
+      e.preventDefault();
+      armSuppress();
+    }
   }
 
+
   function handleClick(e: React.MouseEvent) {
-    if (shouldSuppressGesture(e)) return;
+    if (longPressActivated.current || isSuppressed()) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (selecting || e.ctrlKey || e.metaKey) {
       e.preventDefault();
       if (selecting) {
@@ -122,10 +131,15 @@ export function NoteCard({
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
-    if (shouldSuppressGesture(e)) return;
-    // Never toggle-off via contextmenu — mobile long-press fires this and
-    // was clearing the selection we just entered.
-    if (!selecting) {
+    e.stopPropagation();
+    if (longPressActivated.current || isSuppressed()) {
+      return;
+    }
+    // Desktop right-click still enters/toggles selection.
+    if (selecting) {
+      onToggleSelect(note.id);
+    } else {
+      armSuppress();
       onEnterSelect(note.id);
     }
   }
@@ -143,6 +157,7 @@ export function NoteCard({
 
   return (
     <article
+      ref={cardRef}
       className={`${styles.card} ${selected ? styles.selected : ''}`}
       style={{ background: bg.surface, borderColor: bg.border }}
       onClick={handleClick}

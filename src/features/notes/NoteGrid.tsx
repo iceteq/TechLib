@@ -68,6 +68,7 @@ export function NoteGrid({
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<BulkMenu>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const ignoreToggleUntil = useRef(0);
   const selecting = selectedIds.size > 0;
 
   const clearSelection = useCallback(() => {
@@ -122,11 +123,14 @@ export function NoteGrid({
   }, [notes]);
 
   function enterSelect(noteId: string) {
+    // Mobile long-press emits follow-up click/contextmenu that would toggle off.
+    ignoreToggleUntil.current = Date.now() + 1200;
     setSelectedIds(new Set([noteId]));
     setMenu(null);
   }
 
   function toggleSelect(noteId: string) {
+    if (Date.now() < ignoreToggleUntil.current) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(noteId)) next.delete(noteId);
