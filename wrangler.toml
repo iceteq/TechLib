@@ -1,3 +1,11 @@
+# Static Vite SPA on Cloudflare Workers (assets).
+# Cloudflare build settings:
+#   Build command:  npm run build
+#   Deploy command: npx wrangler deploy
+#   Root directory: /
 name = "techlib"
 compatibility_date = "2025-08-01"
-pages_build_output_dir = "dist"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"

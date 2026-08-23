@@ -1,24 +1,47 @@
-# Cloudflare Pages — TechLib
+# Cloudflare — TechLib
 
-## Connect via GitHub (recommended)
+TechLib is a static Vite app. With Cloudflare’s current UI, the simplest path is a **Worker that serves static assets** (not a separate Pages project name).
 
-1. Push this repo to GitHub (`git push`).
-2. Open https://dash.cloudflare.com → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**.
-3. Select the **TechLib** repository.
-4. Build settings:
-   - Framework preset: Vite
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-5. Environment variables (Production):
-   - `VITE_SUPABASE_URL` = your Supabase project URL
-   - `VITE_SUPABASE_ANON_KEY` = your Supabase anon key
-6. Save and deploy. You’ll get a URL like `https://techlib.pages.dev`.
+## Build settings (dashboard)
 
-## After first deploy
+Use these exactly:
+
+| Field | Value |
+|--------|--------|
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Version command | *(empty, or leave default)* |
+| Root directory | `/` |
+
+### Variables and secrets
+
+Add (Production):
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+(same values as your local `.env`)
+
+## Why `pages deploy` failed
+
+`npx wrangler pages deploy … --project-name techlib` needs an existing **Pages** project named `techlib`.
+
+Your Git build is set up as a **Workers** pipeline. So use:
+
+```bash
+npx wrangler deploy
+```
+
+`wrangler.toml` now points at `./dist` as static assets (SPA).
+
+## After it deploys
+
+You’ll get a `*.workers.dev` URL (or a custom domain).
 
 In Supabase → Authentication → URL configuration:
-- Site URL = your Pages URL
-- Redirect URLs = include `https://your-project.pages.dev/**`
+
+- Site URL = that URL  
+- Redirect URLs = `https://your-subdomain.workers.dev/**`
 
 ## Optional: deploy from your PC
 
@@ -26,5 +49,3 @@ In Supabase → Authentication → URL configuration:
 npx wrangler login
 npm run deploy
 ```
-
-Still set the same env vars in the Cloudflare Pages project settings so production builds include them.
