@@ -3,6 +3,7 @@
 #   Build command:  npm run build
 #   Deploy command: npx wrangler deploy
 #   Root directory: /
+# Do not put a public/_redirects SPA rule here — use not_found_handling below.
 name = "techlib"
 compatibility_date = "2025-08-01"
 

@@ -32,7 +32,9 @@ Your Git build is set up as a **Workers** pipeline. So use:
 npx wrangler deploy
 ```
 
-`wrangler.toml` now points at `./dist` as static assets (SPA).
+`wrangler.toml` points at `./dist` as static assets (SPA via `not_found_handling`).
+
+Do **not** add a `public/_redirects` rule of `/* /index.html` — that conflicts with Workers assets and fails deploy with “Infinite loop detected”.
 
 ## After it deploys
 
