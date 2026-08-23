@@ -43,6 +43,7 @@ export function NoteCard({
   const longPressTimer = useRef<number | null>(null);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const suppressClick = useRef(false);
+  const suppressContextMenu = useRef(false);
 
   function clearLongPress() {
     if (longPressTimer.current != null) {
@@ -59,6 +60,8 @@ export function NoteCard({
     longPressTimer.current = window.setTimeout(() => {
       longPressTimer.current = null;
       suppressClick.current = true;
+      // Mobile long-press also fires contextmenu shortly after.
+      suppressContextMenu.current = true;
       onEnterSelect(note.id);
     }, LONG_PRESS_MS);
   }
@@ -95,6 +98,10 @@ export function NoteCard({
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
+    if (suppressContextMenu.current) {
+      suppressContextMenu.current = false;
+      return;
+    }
     if (selecting) {
       onToggleSelect(note.id);
     } else {
