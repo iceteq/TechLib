@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Check } from 'lucide-react';
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
+import { formatNoteAge } from '../../lib/formatNoteAge';
 import { CATEGORIES, DISPOSITIONS } from '../../lib/types';
 import type { Label, NoteWithUrls } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
@@ -219,7 +220,16 @@ export function NoteCard({
       )}
 
       <div className={styles.body}>
-        <h3 className={styles.title}>{title}</h3>
+        <div className={styles.titleRow}>
+          <h3 className={styles.title}>{title}</h3>
+          <time
+            className={styles.age}
+            dateTime={new Date(note.createdAt).toISOString()}
+            title={`Created ${new Date(note.createdAt).toLocaleString()}`}
+          >
+            {formatNoteAge(note.createdAt)}
+          </time>
+        </div>
         {note.title.trim() && (
           <div className={styles.barcode}>
             <Barcode title={note.title} compact />

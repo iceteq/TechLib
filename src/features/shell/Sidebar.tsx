@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   AlertCircle,
   Archive,
@@ -8,6 +9,7 @@ import {
   Monitor,
   Network,
   Package,
+  Plus,
   Printer,
   ScanBarcode,
   ShoppingCart,
@@ -26,7 +28,7 @@ import styles from './Sidebar.module.css';
 interface SidebarProps {
   labels: Label[];
   view: NotesView;
-  activeLabelId: string | null;
+  activeLabelIds: string[];
   activeDisposition: NoteDisposition | null;
   activeCategory: NoteCategory | null;
   specialCasesOnly: boolean;
@@ -37,14 +39,15 @@ interface SidebarProps {
   onSelectDisposition: (disposition: NoteDisposition) => void;
   onSelectCategory: (category: NoteCategory) => void;
   onToggleSpecialCases: () => void;
-  onSelectLabel: (labelId: string) => void;
+  onToggleLabel: (labelId: string) => void;
+  onCreateLabel: (name: string) => Promise<Label>;
   onSignOut?: () => void;
 }
 
 export function Sidebar({
   labels,
   view,
-  activeLabelId,
+  activeLabelIds,
   activeDisposition,
   activeCategory,
   specialCasesOnly,
@@ -55,15 +58,34 @@ export function Sidebar({
   onSelectDisposition,
   onSelectCategory,
   onToggleSpecialCases,
-  onSelectLabel,
+  onToggleLabel,
+  onCreateLabel,
   onSignOut,
 }: SidebarProps) {
+  const [creatingLabel, setCreatingLabel] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [creatingBusy, setCreatingBusy] = useState(false);
+
   const allActive =
     view === 'notes' &&
-    activeLabelId === null &&
+    activeLabelIds.length === 0 &&
     activeDisposition === null &&
     activeCategory === null &&
     !specialCasesOnly;
+
+  async function submitNewLabel(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newLabelName.trim();
+    if (!name || creatingBusy) return;
+    setCreatingBusy(true);
+    try {
+      await onCreateLabel(name);
+      setNewLabelName('');
+      setCreatingLabel(false);
+    } finally {
+      setCreatingBusy(false);
+    }
+  }
 
   return (
     <nav className={styles.nav} aria-label="Notes navigation">
@@ -106,7 +128,7 @@ export function Sidebar({
       </button>
 
       <div className={styles.section}>
-        <p className={styles.sectionTitle}>Status</p>
+        <p className={styles.sectionTitle}>Guideline</p>
         <button
           type="button"
           className={`${styles.item} ${
@@ -214,9 +236,41 @@ export function Sidebar({
       </div>
 
       <div className={styles.section}>
-        <p className={styles.sectionTitle}>Labels</p>
-        {labels.length === 0 ? (
-          <p className={styles.empty}>Type # in a note to add labels.</p>
+        <div className={styles.sectionHeader}>
+          <p className={styles.sectionTitle}>Labels</p>
+          <button
+            type="button"
+            className={styles.addLabelBtn}
+            onClick={() => setCreatingLabel((open) => !open)}
+            aria-label="Create label"
+            title="Create label"
+            aria-expanded={creatingLabel}
+          >
+            <Plus size={16} strokeWidth={2.25} />
+          </button>
+        </div>
+        {creatingLabel && (
+          <form className={styles.createLabel} onSubmit={(e) => void submitNewLabel(e)}>
+            <input
+              className={styles.createLabelInput}
+              value={newLabelName}
+              onChange={(e) => setNewLabelName(e.target.value)}
+              placeholder="Label name"
+              aria-label="New label name"
+              autoFocus
+              disabled={creatingBusy}
+            />
+            <button
+              type="submit"
+              className={styles.createLabelSubmit}
+              disabled={creatingBusy || !newLabelName.trim()}
+            >
+              Add
+            </button>
+          </form>
+        )}
+        {labels.length === 0 && !creatingLabel ? (
+          <p className={styles.empty}>Type # in a note or tap + to add labels.</p>
         ) : (
           <ul className={styles.list}>
             {labels.map((label) => (
@@ -224,11 +278,14 @@ export function Sidebar({
                 <button
                   type="button"
                   className={`${styles.item} ${
-                    view === 'notes' && activeLabelId === label.id
+                    view === 'notes' && activeLabelIds.includes(label.id)
                       ? styles.active
                       : ''
                   }`}
-                  onClick={() => onSelectLabel(label.id)}
+                  onClick={() => onToggleLabel(label.id)}
+                  aria-pressed={
+                    view === 'notes' && activeLabelIds.includes(label.id)
+                  }
                 >
                   <Tag size={18} />
                   <span>{label.name}</span>

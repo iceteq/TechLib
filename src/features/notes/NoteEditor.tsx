@@ -63,6 +63,9 @@ export function NoteEditor({
   const [title, setTitle] = useState(note.title);
   const [description, setDescription] = useState(note.description);
   const [specialCase, setSpecialCase] = useState(note.specialCase ?? '');
+  const [specialCaseOpen, setSpecialCaseOpen] = useState(
+    Boolean((note.specialCase ?? '').trim()),
+  );
   const [colorOpen, setColorOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -83,6 +86,7 @@ export function NoteEditor({
     setTitle(note.title);
     setDescription(note.description);
     setSpecialCase(note.specialCase ?? '');
+    setSpecialCaseOpen(Boolean((note.specialCase ?? '').trim()));
   }, [note.id, note.title, note.description, note.specialCase]);
 
   useEffect(() => {
@@ -280,8 +284,8 @@ export function NoteEditor({
         )}
 
         <div className={styles.section}>
-          <p className={styles.sectionLabel}>Status</p>
-          <div className={styles.dispositionRow} role="group" aria-label="Product status">
+          <p className={styles.sectionLabel}>Guideline</p>
+          <div className={styles.dispositionRow} role="group" aria-label="Product guideline">
             {DISPOSITIONS.map((option) => (
               <button
                 key={option.id}
@@ -297,19 +301,34 @@ export function NoteEditor({
               </button>
             ))}
           </div>
-          <label className={styles.specialCaseLabel} htmlFor="special-case">
-            Special case
-          </label>
-          <textarea
-            id="special-case"
-            className={styles.specialCase}
-            value={specialCase}
-            onChange={(e) => setSpecialCase(e.target.value)}
-            onBlur={() => void persistSpecialCase()}
-            placeholder="Only when it isn’t a normal stock / repair / scrap path…"
-            rows={2}
-            aria-label="Special case handling note"
-          />
+          {specialCaseOpen ? (
+            <>
+              <label className={styles.specialCaseLabel} htmlFor="special-case">
+                Special case
+              </label>
+              <textarea
+                id="special-case"
+                className={styles.specialCase}
+                value={specialCase}
+                onChange={(e) => setSpecialCase(e.target.value)}
+                onBlur={() => {
+                  void persistSpecialCase();
+                  if (!specialCase.trim()) setSpecialCaseOpen(false);
+                }}
+                placeholder="Only when it isn’t a normal stock / repair / scrap path…"
+                rows={2}
+                aria-label="Special case handling note"
+              />
+            </>
+          ) : (
+            <button
+              type="button"
+              className={styles.addSpecialCase}
+              onClick={() => setSpecialCaseOpen(true)}
+            >
+              Add special note
+            </button>
+          )}
         </div>
 
         <div className={styles.section}>

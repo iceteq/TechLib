@@ -29,12 +29,32 @@ type UndoAction =
   | { kind: 'import'; ids: string[] }
   | { kind: 'delete'; ids: string[] };
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (target.isContentEditable) return true;
+  return Boolean(target.closest('[contenteditable="true"]'));
+}
+
+function clipboardImageFiles(clipboardData: DataTransfer | null): File[] {
+  if (!clipboardData) return [];
+  const fromItems = Array.from(clipboardData.items)
+    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file));
+  if (fromItems.length > 0) return fromItems;
+  return Array.from(clipboardData.files).filter((file) =>
+    file.type.startsWith('image/'),
+  );
+}
+
 export default function App() {
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [view, setView] = useState<NotesView>('notes');
-  const [filterLabelId, setFilterLabelId] = useState<string | null>(null);
+  const [filterLabelIds, setFilterLabelIds] = useState<string[]>([]);
   const [filterDisposition, setFilterDisposition] =
     useState<NoteDisposition | null>(null);
   const [filterCategory, setFilterCategory] = useState<NoteCategory | null>(null);
@@ -69,7 +89,7 @@ export default function App() {
   const visibleNotes = useMemo(
     () =>
       filterNotes(notes, labels, {
-        labelId: view === 'notes' ? filterLabelId : null,
+        labelIds: view === 'notes' ? filterLabelIds : [],
         search,
         view: view === 'cart' ? 'notes' : view,
         disposition: view === 'notes' ? filterDisposition : null,
@@ -79,7 +99,7 @@ export default function App() {
     [
       notes,
       labels,
-      filterLabelId,
+      filterLabelIds,
       filterDisposition,
       filterCategory,
       specialCasesOnly,
@@ -103,18 +123,29 @@ export default function App() {
     const parts: string[] = [];
     const status = dispositionLabel(filterDisposition);
     const type = categoryLabel(filterCategory);
-    const labelName = labels.find((l) => l.id === filterLabelId)?.name;
+    const labelNames = labels
+      .filter((l) => filterLabelIds.includes(l.id))
+      .map((l) => `#${l.name}`);
     if (status) parts.push(status);
     if (type) parts.push(type);
-    if (labelName) parts.push(`#${labelName}`);
+    parts.push(...labelNames);
     return parts.length > 0 ? parts.join(' · ') : 'No filters';
-  }, [filterDisposition, filterCategory, filterLabelId, labels]);
+  }, [filterDisposition, filterCategory, filterLabelIds, labels]);
 
   function clearAllFilters() {
-    setFilterLabelId(null);
+    setFilterLabelIds([]);
     setFilterDisposition(null);
     setFilterCategory(null);
     setSpecialCasesOnly(false);
+  }
+
+  function toggleFilterLabel(labelId: string) {
+    setView('notes');
+    setFilterLabelIds((current) =>
+      current.includes(labelId)
+        ? current.filter((id) => id !== labelId)
+        : [...current, labelId],
+    );
   }
 
   function isBlankNote(note: NoteWithUrls) {
@@ -158,7 +189,7 @@ export default function App() {
     const note = await store.createNote({
       disposition: filterDisposition ?? 'none',
       category: filterCategory ?? 'none',
-      labelIds: filterLabelId ? [filterLabelId] : [],
+      labelIds: filterLabelIds,
     });
     await refresh();
     setView('notes');
@@ -176,7 +207,7 @@ export default function App() {
         specialCase: draft.specialCase,
         disposition: filterDisposition ?? 'none',
         category: filterCategory ?? 'none',
-        labelIds: filterLabelId ? [filterLabelId] : [],
+        labelIds: filterLabelIds,
       });
       createdIds.push(note.id);
     }
@@ -330,6 +361,49 @@ export default function App() {
     return label;
   }
 
+  async function handleSidebarCreateLabel(name: string) {
+    const label = await handleCreateLabel(name);
+    setView('notes');
+    setFilterLabelIds((current) =>
+      current.includes(label.id) ? current : [...current, label.id],
+    );
+    return label;
+  }
+
+  useEffect(() => {
+    async function onPaste(e: ClipboardEvent) {
+      if (activeNoteId || pasteOpen || view !== 'notes') return;
+      if (isEditableTarget(e.target)) return;
+
+      const images = clipboardImageFiles(e.clipboardData);
+      if (images.length === 0) return;
+
+      e.preventDefault();
+      const note = await store.createNote({
+        disposition: filterDisposition ?? 'none',
+        category: filterCategory ?? 'none',
+        labelIds: filterLabelIds,
+      });
+      for (const file of images) {
+        await store.addImage(note.id, file);
+      }
+      await refresh();
+      setActiveNoteId(note.id);
+      setSidebarOpen(false);
+    }
+
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [
+    activeNoteId,
+    pasteOpen,
+    view,
+    filterDisposition,
+    filterCategory,
+    filterLabelIds,
+    refresh,
+  ]);
+
   const undoMessage =
     undoAction == null
       ? ''
@@ -351,7 +425,7 @@ export default function App() {
         <Sidebar
           labels={labels}
           view={view}
-          activeLabelId={filterLabelId}
+          activeLabelIds={filterLabelIds}
           activeDisposition={filterDisposition}
           activeCategory={filterCategory}
           specialCasesOnly={specialCasesOnly}
@@ -390,11 +464,8 @@ export default function App() {
             setSpecialCasesOnly((value) => !value);
             setSidebarOpen(false);
           }}
-          onSelectLabel={(labelId) => {
-            setView('notes');
-            setFilterLabelId((current) => (current === labelId ? null : labelId));
-            setSidebarOpen(false);
-          }}
+          onToggleLabel={toggleFilterLabel}
+          onCreateLabel={handleSidebarCreateLabel}
           onSignOut={
             isCloudConfigured()
               ? () => {
@@ -424,7 +495,7 @@ export default function App() {
           notes={visibleNotes}
           labels={labels}
           view={view}
-          filterLabelId={filterLabelId}
+          filterLabelIds={filterLabelIds}
           filterDisposition={filterDisposition}
           filterCategory={filterCategory}
           specialCasesOnly={specialCasesOnly}
@@ -435,7 +506,9 @@ export default function App() {
           onDeleteNotes={handleDeleteNotes}
           onAddToCart={handleAddToCart}
           onUpdateNotes={handleUpdateNotes}
-          onClearLabel={() => setFilterLabelId(null)}
+          onClearLabel={(labelId) =>
+            setFilterLabelIds((current) => current.filter((id) => id !== labelId))
+          }
           onClearDisposition={() => setFilterDisposition(null)}
           onClearCategory={() => setFilterCategory(null)}
           onClearSpecialCases={() => setSpecialCasesOnly(false)}

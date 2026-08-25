@@ -38,7 +38,7 @@ export interface Note {
   background: NoteBackground;
   disposition: NoteDisposition;
   category: NoteCategory;
-  /** Exception / special-case handling note under status. */
+  /** Exception / special-case handling note under guideline. */
   specialCase: string;
   pinned: boolean;
   archived: boolean;
@@ -80,7 +80,7 @@ export const DISPOSITIONS: {
   label: string;
   short: string;
 }[] = [
-  { id: 'none', label: 'No status', short: '' },
+  { id: 'none', label: 'No guideline', short: '' },
   { id: 'stock', label: 'Return to stock', short: 'Stock' },
   { id: 'repair', label: 'Go to repair', short: 'Repair' },
   { id: 'scrap', label: 'Throw away', short: 'Scrap' },

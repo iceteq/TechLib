@@ -41,7 +41,7 @@ export function filterNotes(
   notes: NoteWithUrls[],
   labels: Label[],
   options: {
-    labelId: string | null;
+    labelIds: string[];
     search: string;
     view: NotesView;
     disposition: NoteDisposition | null;
@@ -54,7 +54,10 @@ export function filterNotes(
     if (options.view === 'archive' ? !note.archived : note.archived) {
       return false;
     }
-    if (options.labelId && !note.labelIds.includes(options.labelId)) {
+    if (
+      options.labelIds.length > 0 &&
+      !options.labelIds.every((id) => note.labelIds.includes(id))
+    ) {
       return false;
     }
     if (options.disposition && note.disposition !== options.disposition) {

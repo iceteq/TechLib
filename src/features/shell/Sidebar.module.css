@@ -36,6 +36,19 @@
   gap: 0.35rem;
 }
 
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+  padding-right: 0.35rem;
+}
+
+.sectionHeader .sectionTitle {
+  margin: 0;
+}
+
 .sectionTitle {
   margin: 0 0 0.35rem;
   padding: 0 0.9rem;
@@ -44,6 +57,62 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.addLabelBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.addLabelBtn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.createLabel {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0 0.35rem 0.35rem 0.55rem;
+}
+
+.createLabelInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: white;
+  font: inherit;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.createLabelInput:focus {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.createLabelSubmit {
+  flex-shrink: 0;
+  padding: 0.45rem 0.75rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.createLabelSubmit:disabled {
+  opacity: 0.5;
 }
 
 .list {

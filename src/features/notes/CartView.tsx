@@ -99,7 +99,7 @@ export function CartView({
                     Barcode
                   </th>
                   <th className={styles.colStatus} scope="col">
-                    Status
+                    Guideline
                   </th>
                   <th className={styles.colType} scope="col">
                     Type

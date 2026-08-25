@@ -12,13 +12,13 @@ import { categoryLabel, dispositionLabel } from '../../lib/searchNotes';
 import { NoteCard } from './NoteCard';
 import styles from './NoteGrid.module.css';
 
-type BulkMenu = 'status' | 'type' | 'label' | null;
+type BulkMenu = 'guideline' | 'type' | 'label' | null;
 
 interface NoteGridProps {
   notes: NoteWithUrls[];
   labels: Label[];
   view: NotesView;
-  filterLabelId: string | null;
+  filterLabelIds: string[];
   filterDisposition: NoteDisposition | null;
   filterCategory: NoteCategory | null;
   specialCasesOnly: boolean;
@@ -36,7 +36,7 @@ interface NoteGridProps {
       labelIds?: string[];
     },
   ) => Promise<void>;
-  onClearLabel: () => void;
+  onClearLabel: (labelId: string) => void;
   onClearDisposition: () => void;
   onClearCategory: () => void;
   onClearSpecialCases: () => void;
@@ -47,7 +47,7 @@ export function NoteGrid({
   notes,
   labels,
   view,
-  filterLabelId,
+  filterLabelIds,
   filterDisposition,
   filterCategory,
   specialCasesOnly,
@@ -80,7 +80,7 @@ export function NoteGrid({
     clearSelection();
   }, [
     view,
-    filterLabelId,
+    filterLabelIds,
     filterDisposition,
     filterCategory,
     specialCasesOnly,
@@ -190,13 +190,16 @@ export function NoteGrid({
     setMenu((current) => (current === next ? null : next));
   }
 
-  const filterName = labels.find((l) => l.id === filterLabelId)?.name;
+  const filterLabels = labels.filter((l) => filterLabelIds.includes(l.id));
   const hasSearch = search.trim().length > 0;
   const canCreate = view === 'notes' && !selecting;
   const statusText = dispositionLabel(filterDisposition);
   const typeText = categoryLabel(filterCategory);
   const hasFilters = Boolean(
-    filterLabelId || filterDisposition || filterCategory || specialCasesOnly,
+    filterLabelIds.length > 0 ||
+      filterDisposition ||
+      filterCategory ||
+      specialCasesOnly,
   );
   const sortedLabels = [...labels].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
@@ -234,12 +237,17 @@ export function NoteGrid({
 
       {view === 'notes' && hasFilters && (
         <div className={styles.chips} aria-label="Active filters">
-          {filterName && (
-            <button type="button" className={styles.chip} onClick={onClearLabel}>
-              #{filterName}
+          {filterLabels.map((label) => (
+            <button
+              key={label.id}
+              type="button"
+              className={styles.chip}
+              onClick={() => onClearLabel(label.id)}
+            >
+              #{label.name}
               <X size={14} />
             </button>
-          )}
+          ))}
           {statusText && (
             <button
               type="button"
@@ -314,15 +322,15 @@ export function NoteGrid({
               <button
                 type="button"
                 className={`${styles.selectionAction} ${
-                  menu === 'status' ? styles.selectionActionOpen : ''
+                  menu === 'guideline' ? styles.selectionActionOpen : ''
                 }`}
-                onClick={() => toggleMenu('status')}
+                onClick={() => toggleMenu('guideline')}
                 disabled={busy}
-                aria-expanded={menu === 'status'}
+                aria-expanded={menu === 'guideline'}
               >
-                Status
+                Guideline
               </button>
-              {menu === 'status' && (
+              {menu === 'guideline' && (
                 <div className={styles.menu} role="menu">
                   {DISPOSITIONS.map((option) => (
                     <button
@@ -333,7 +341,7 @@ export function NoteGrid({
                       disabled={busy}
                       onClick={() => void applyDisposition(option.id)}
                     >
-                      {option.id === 'none' ? 'No status' : option.short}
+                      {option.id === 'none' ? 'No guideline' : option.short}
                     </button>
                   ))}
                 </div>
