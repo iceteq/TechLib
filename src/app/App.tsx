@@ -125,12 +125,22 @@ export default function App() {
     const type = categoryLabel(filterCategory);
     const labelNames = labels
       .filter((l) => filterLabelIds.includes(l.id))
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+      )
       .map((l) => `#${l.name}`);
     if (status) parts.push(status);
     if (type) parts.push(type);
+    if (specialCasesOnly) parts.push('Special cases');
     parts.push(...labelNames);
     return parts.length > 0 ? parts.join(' · ') : 'No filters';
-  }, [filterDisposition, filterCategory, filterLabelIds, labels]);
+  }, [
+    filterDisposition,
+    filterCategory,
+    filterLabelIds,
+    specialCasesOnly,
+    labels,
+  ]);
 
   function clearAllFilters() {
     setFilterLabelIds([]);

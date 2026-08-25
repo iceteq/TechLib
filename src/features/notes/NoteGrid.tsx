@@ -237,21 +237,10 @@ export function NoteGrid({
 
       {view === 'notes' && hasFilters && (
         <div className={styles.chips} aria-label="Active filters">
-          {filterLabels.map((label) => (
-            <button
-              key={label.id}
-              type="button"
-              className={styles.chip}
-              onClick={() => onClearLabel(label.id)}
-            >
-              #{label.name}
-              <X size={14} />
-            </button>
-          ))}
           {statusText && (
             <button
               type="button"
-              className={styles.chip}
+              className={`${styles.chip} ${styles.chipMeta}`}
               onClick={onClearDisposition}
             >
               {statusText}
@@ -259,7 +248,11 @@ export function NoteGrid({
             </button>
           )}
           {typeText && (
-            <button type="button" className={styles.chip} onClick={onClearCategory}>
+            <button
+              type="button"
+              className={`${styles.chip} ${styles.chipMeta}`}
+              onClick={onClearCategory}
+            >
               {typeText}
               <X size={14} />
             </button>
@@ -267,13 +260,32 @@ export function NoteGrid({
           {specialCasesOnly && (
             <button
               type="button"
-              className={styles.chip}
+              className={`${styles.chip} ${styles.chipMeta}`}
               onClick={onClearSpecialCases}
             >
               Special cases
               <X size={14} />
             </button>
           )}
+          {filterLabels.length > 0 &&
+            (statusText || typeText || specialCasesOnly) && (
+              <span className={styles.chipDivider} aria-hidden />
+            )}
+          {[...filterLabels]
+            .sort((a, b) =>
+              a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+            )
+            .map((label) => (
+              <button
+                key={label.id}
+                type="button"
+                className={`${styles.chip} ${styles.chipTag}`}
+                onClick={() => onClearLabel(label.id)}
+              >
+                #{label.name}
+                <X size={14} />
+              </button>
+            ))}
           <button
             type="button"
             className={styles.clearAll}

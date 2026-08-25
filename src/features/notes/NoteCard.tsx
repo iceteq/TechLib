@@ -190,15 +190,15 @@ export function NoteCard({
         {note.pinned && (
           <span className={styles.pinDot} title="Pinned" aria-label="Pinned" />
         )}
-        {category && category.id !== 'none' && (
-          <span className={styles.category}>{category.label}</span>
-        )}
         {disposition && disposition.id !== 'none' && (
           <span
             className={`${styles.disposition} ${styles[`disposition_${disposition.id}`]}`}
           >
             {disposition.short}
           </span>
+        )}
+        {category && category.id !== 'none' && (
+          <span className={styles.category}>{category.label}</span>
         )}
       </div>
 
