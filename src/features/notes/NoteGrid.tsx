@@ -24,6 +24,10 @@ interface NoteGridProps {
   specialCasesOnly: boolean;
   search: string;
   showBarcodes: boolean;
+  showPhotos: boolean;
+  showDescription: boolean;
+  showLabels: boolean;
+  showAge: boolean;
   onOpenNote: (noteId: string) => void;
   onCreateNote: () => void;
   onPasteNotes: () => void;
@@ -54,6 +58,10 @@ export function NoteGrid({
   specialCasesOnly,
   search,
   showBarcodes,
+  showPhotos,
+  showDescription,
+  showLabels,
+  showAge,
   onOpenNote,
   onCreateNote,
   onPasteNotes,
@@ -313,6 +321,10 @@ export function NoteGrid({
               selecting={selecting}
               selected={selectedIds.has(note.id)}
               showBarcodes={showBarcodes}
+              showPhotos={showPhotos}
+              showDescription={showDescription}
+              showLabels={showLabels}
+              showAge={showAge}
               onOpen={onOpenNote}
               onToggleSelect={toggleSelect}
               onEnterSelect={enterSelect}

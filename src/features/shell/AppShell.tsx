@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
-import { Menu, ScanBarcode } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { APP_NAME } from '../../lib/config';
+import type { ViewPrefs } from '../../lib/viewPrefs';
 import { SearchBar } from './SearchBar';
+import { ViewOptionsMenu } from './ViewOptionsMenu';
 import styles from './AppShell.module.css';
 
 interface AppShellProps {
@@ -11,8 +13,8 @@ interface AppShellProps {
   onToggleSidebar: () => void;
   search: string;
   onSearchChange: (value: string) => void;
-  showBarcodes: boolean;
-  onToggleBarcodes: () => void;
+  viewPrefs: ViewPrefs;
+  onViewPrefsChange: (prefs: ViewPrefs) => void;
 }
 
 export function AppShell({
@@ -22,8 +24,8 @@ export function AppShell({
   onToggleSidebar,
   search,
   onSearchChange,
-  showBarcodes,
-  onToggleBarcodes,
+  viewPrefs,
+  onViewPrefsChange,
 }: AppShellProps) {
   return (
     <div className={styles.shell}>
@@ -41,18 +43,7 @@ export function AppShell({
           <h1 className={styles.brandTitle}>{APP_NAME}</h1>
         </div>
         <SearchBar value={search} onChange={onSearchChange} />
-        <button
-          type="button"
-          className={`${styles.barcodeToggle} ${
-            showBarcodes ? styles.barcodeToggleOn : ''
-          }`}
-          onClick={onToggleBarcodes}
-          aria-pressed={showBarcodes}
-          aria-label={showBarcodes ? 'Hide barcodes' : 'Show barcodes'}
-          title={showBarcodes ? 'Hide barcodes' : 'Show barcodes'}
-        >
-          <ScanBarcode size={18} />
-        </button>
+        <ViewOptionsMenu prefs={viewPrefs} onChange={onViewPrefsChange} />
       </header>
 
       <div className={styles.body}>

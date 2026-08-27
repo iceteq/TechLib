@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SHOW_BARCODES_STORAGE_KEY } from '../lib/config';
+import { loadViewPrefs, saveViewPrefs } from '../lib/viewPrefs';
 import { AppShell } from '../features/shell/AppShell';
 import { Sidebar } from '../features/shell/Sidebar';
 import { CartView } from '../features/notes/CartView';
@@ -67,26 +67,11 @@ export default function App() {
   const undoActionRef = useRef<UndoAction | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ready, setReady] = useState(false);
-  const [showBarcodes, setShowBarcodes] = useState(() => {
-    try {
-      const stored = localStorage.getItem(SHOW_BARCODES_STORAGE_KEY);
-      if (stored === null) return true;
-      return stored === 'true';
-    } catch {
-      return true;
-    }
-  });
+  const [viewPrefs, setViewPrefs] = useState(loadViewPrefs);
 
-  function toggleBarcodes() {
-    setShowBarcodes((current) => {
-      const next = !current;
-      try {
-        localStorage.setItem(SHOW_BARCODES_STORAGE_KEY, String(next));
-      } catch {
-        // ignore quota / private mode
-      }
-      return next;
-    });
+  function updateViewPrefs(next: typeof viewPrefs) {
+    setViewPrefs(next);
+    saveViewPrefs(next);
   }
 
   const refresh = useCallback(async () => {
@@ -453,8 +438,8 @@ export default function App() {
       onToggleSidebar={() => setSidebarOpen((open) => !open)}
       search={search}
       onSearchChange={setSearch}
-      showBarcodes={showBarcodes}
-      onToggleBarcodes={toggleBarcodes}
+      viewPrefs={viewPrefs}
+      onViewPrefsChange={updateViewPrefs}
       sidebar={
         <Sidebar
           labels={labels}
@@ -517,7 +502,7 @@ export default function App() {
           rows={cartRows}
           labels={labels}
           unitCount={cartUnitCount}
-          showBarcodes={showBarcodes}
+          showBarcodes={viewPrefs.barcodes}
           onOpenNote={(id) => setActiveNoteId(id)}
           onChangeQuantity={(noteId, quantity) =>
             void handleCartQuantity(noteId, quantity)
@@ -535,7 +520,11 @@ export default function App() {
           filterCategory={filterCategory}
           specialCasesOnly={specialCasesOnly}
           search={search}
-          showBarcodes={showBarcodes}
+          showBarcodes={viewPrefs.barcodes}
+          showPhotos={viewPrefs.photos}
+          showDescription={viewPrefs.description}
+          showLabels={viewPrefs.labels}
+          showAge={viewPrefs.age}
           onOpenNote={(id) => setActiveNoteId(id)}
           onCreateNote={() => void handleCreateNote()}
           onPasteNotes={() => setPasteOpen(true)}
@@ -572,7 +561,7 @@ export default function App() {
         <NoteEditor
           note={activeNote}
           labels={labels}
-          showBarcodes={showBarcodes}
+          showBarcodes={viewPrefs.barcodes}
           onClose={() => void handleCloseEditor()}
           onSaveMeta={handleSaveMeta}
           onAddImages={handleAddImages}

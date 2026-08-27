@@ -20,6 +20,10 @@ interface NoteCardProps {
   selecting: boolean;
   selected: boolean;
   showBarcodes: boolean;
+  showPhotos: boolean;
+  showDescription: boolean;
+  showLabels: boolean;
+  showAge: boolean;
   onOpen: (noteId: string) => void;
   onToggleSelect: (noteId: string) => void;
   onEnterSelect: (noteId: string) => void;
@@ -31,6 +35,10 @@ export function NoteCard({
   selecting,
   selected,
   showBarcodes,
+  showPhotos,
+  showDescription,
+  showLabels,
+  showAge,
   onOpen,
   onToggleSelect,
   onEnterSelect,
@@ -194,7 +202,7 @@ export function NoteCard({
         </div>
       )}
 
-      {preview.length > 0 && (
+      {showPhotos && preview.length > 0 && (
         <div
           className={`${styles.images} ${
             preview.length === 1 ? styles.imagesSingle : styles.imagesSplit
@@ -214,20 +222,22 @@ export function NoteCard({
       <div className={styles.body}>
         <div className={styles.titleRow}>
           <h3 className={styles.title}>{title}</h3>
-          <time
-            className={styles.age}
-            dateTime={new Date(note.createdAt).toISOString()}
-            title={`Created ${new Date(note.createdAt).toLocaleString()}`}
-          >
-            {formatNoteAge(note.createdAt)}
-          </time>
+          {showAge && (
+            <time
+              className={styles.age}
+              dateTime={new Date(note.createdAt).toISOString()}
+              title={`Created ${new Date(note.createdAt).toLocaleString()}`}
+            >
+              {formatNoteAge(note.createdAt)}
+            </time>
+          )}
         </div>
         {showBarcodes && note.title.trim() && (
           <div className={styles.barcode}>
             <Barcode title={note.title} compact />
           </div>
         )}
-        {note.description.trim() && (
+        {showDescription && note.description.trim() && (
           <p className={styles.description}>{note.description.trim()}</p>
         )}
         {(note.specialCase ?? '').trim() && (
@@ -241,7 +251,7 @@ export function NoteCard({
         {(
           (disposition && disposition.id !== 'none') ||
           (category && category.id !== 'none') ||
-          noteLabels.length > 0
+          (showLabels && noteLabels.length > 0)
         ) && (
           <div className={styles.labels}>
             {disposition && disposition.id !== 'none' && (
@@ -254,9 +264,10 @@ export function NoteCard({
             {category && category.id !== 'none' && (
               <span className={styles.category}>{category.label}</span>
             )}
-            {noteLabels.map((label) => (
-              <LabelChip key={label.id} name={label.name} />
-            ))}
+            {showLabels &&
+              noteLabels.map((label) => (
+                <LabelChip key={label.id} name={label.name} />
+              ))}
           </div>
         )}
       </div>
