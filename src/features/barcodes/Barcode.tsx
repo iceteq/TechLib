@@ -24,8 +24,7 @@ export function Barcode({
     try {
       JsBarcode(svgRef.current, value, {
         format: 'CODE128',
-        displayValue: true,
-        fontSize: scannable ? 11 : compact ? 10 : 12,
+        displayValue: false,
         height: scannable ? 40 : compact ? 36 : 48,
         margin: scannable ? 6 : 0,
         background: scannable ? '#ffffff' : 'transparent',
