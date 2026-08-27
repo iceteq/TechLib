@@ -14,6 +14,7 @@ interface CartViewProps {
   rows: CartRow[];
   labels: Label[];
   unitCount: number;
+  showBarcodes: boolean;
   onOpenNote: (noteId: string) => void;
   onChangeQuantity: (noteId: string, quantity: number) => void;
   onRemove: (noteId: string) => void;
@@ -24,6 +25,7 @@ export function CartView({
   rows,
   labels,
   unitCount,
+  showBarcodes,
   onOpenNote,
   onChangeQuantity,
   onRemove,
@@ -96,7 +98,7 @@ export function CartView({
                     <span className={styles.srOnly}>Type</span>
                   </th>
                   <th className={styles.colBarcode} scope="col">
-                    Barcode
+                    {showBarcodes ? 'Barcode' : 'Title'}
                   </th>
                   <th className={styles.colStatus} scope="col">
                     Guideline
@@ -145,7 +147,11 @@ export function CartView({
                             className={styles.barcodeBtn}
                             onClick={() => onOpenNote(note!.id)}
                           >
-                            <Barcode title={title} scannable />
+                            {showBarcodes ? (
+                              <Barcode title={title} scannable />
+                            ) : (
+                              <span className={styles.titleFallback}>{title}</span>
+                            )}
                           </button>
                         ) : (
                           <span className={styles.missing}>Missing note</span>

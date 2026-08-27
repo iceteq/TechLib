@@ -19,6 +19,7 @@ interface NoteCardProps {
   labels: Label[];
   selecting: boolean;
   selected: boolean;
+  showBarcodes: boolean;
   onOpen: (noteId: string) => void;
   onToggleSelect: (noteId: string) => void;
   onEnterSelect: (noteId: string) => void;
@@ -29,6 +30,7 @@ export function NoteCard({
   labels,
   selecting,
   selected,
+  showBarcodes,
   onOpen,
   onToggleSelect,
   onEnterSelect,
@@ -186,21 +188,11 @@ export function NoteCard({
         </span>
       )}
 
-      <div className={styles.badges}>
-        {note.pinned && (
+      {note.pinned && (
+        <div className={styles.badges}>
           <span className={styles.pinDot} title="Pinned" aria-label="Pinned" />
-        )}
-        {disposition && disposition.id !== 'none' && (
-          <span
-            className={`${styles.disposition} ${styles[`disposition_${disposition.id}`]}`}
-          >
-            {disposition.short}
-          </span>
-        )}
-        {category && category.id !== 'none' && (
-          <span className={styles.category}>{category.label}</span>
-        )}
-      </div>
+        </div>
+      )}
 
       {preview.length > 0 && (
         <div
@@ -230,7 +222,7 @@ export function NoteCard({
             {formatNoteAge(note.createdAt)}
           </time>
         </div>
-        {note.title.trim() && (
+        {showBarcodes && note.title.trim() && (
           <div className={styles.barcode}>
             <Barcode title={note.title} compact />
           </div>
@@ -246,8 +238,22 @@ export function NoteCard({
             {note.specialCase.trim()}
           </p>
         )}
-        {noteLabels.length > 0 && (
+        {(
+          (disposition && disposition.id !== 'none') ||
+          (category && category.id !== 'none') ||
+          noteLabels.length > 0
+        ) && (
           <div className={styles.labels}>
+            {disposition && disposition.id !== 'none' && (
+              <span
+                className={`${styles.disposition} ${styles[`disposition_${disposition.id}`]}`}
+              >
+                {disposition.short}
+              </span>
+            )}
+            {category && category.id !== 'none' && (
+              <span className={styles.category}>{category.label}</span>
+            )}
             {noteLabels.map((label) => (
               <LabelChip key={label.id} name={label.name} />
             ))}

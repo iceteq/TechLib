@@ -364,3 +364,13 @@
     font-style: italic;
   }
 }
+
+.titleFallback {
+  display: inline-block;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 560;
+  text-align: left;
+}

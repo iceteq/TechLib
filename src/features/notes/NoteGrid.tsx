@@ -23,6 +23,7 @@ interface NoteGridProps {
   filterCategory: NoteCategory | null;
   specialCasesOnly: boolean;
   search: string;
+  showBarcodes: boolean;
   onOpenNote: (noteId: string) => void;
   onCreateNote: () => void;
   onPasteNotes: () => void;
@@ -52,6 +53,7 @@ export function NoteGrid({
   filterCategory,
   specialCasesOnly,
   search,
+  showBarcodes,
   onOpenNote,
   onCreateNote,
   onPasteNotes,
@@ -310,6 +312,7 @@ export function NoteGrid({
               labels={labels}
               selecting={selecting}
               selected={selectedIds.has(note.id)}
+              showBarcodes={showBarcodes}
               onOpen={onOpenNote}
               onToggleSelect={toggleSelect}
               onEnterSelect={enterSelect}

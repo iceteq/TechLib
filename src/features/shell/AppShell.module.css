@@ -144,3 +144,28 @@
     padding: 0;
   }
 }
+
+
+.barcodeToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.barcodeToggle:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.barcodeToggleOn {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}

@@ -28,6 +28,7 @@ import styles from './NoteEditor.module.css';
 interface NoteEditorProps {
   note: NoteWithUrls;
   labels: Label[];
+  showBarcodes: boolean;
   onClose: () => void;
   onSaveMeta: (patch: {
     title?: string;
@@ -51,6 +52,7 @@ interface NoteEditorProps {
 export function NoteEditor({
   note,
   labels,
+  showBarcodes,
   onClose,
   onSaveMeta,
   onAddImages,
@@ -284,7 +286,6 @@ export function NoteEditor({
         )}
 
         <div className={styles.section}>
-          <p className={styles.sectionLabel}>Guideline</p>
           <div className={styles.dispositionRow} role="group" aria-label="Product guideline">
             {DISPOSITIONS.map((option) => (
               <button
@@ -332,7 +333,6 @@ export function NoteEditor({
         </div>
 
         <div className={styles.section}>
-          <p className={styles.sectionLabel}>Type</p>
           <div className={styles.dispositionRow} role="group" aria-label="Product type">
             {CATEGORIES.map((option) => (
               <button
@@ -351,10 +351,12 @@ export function NoteEditor({
           </div>
         </div>
 
-        <div className={styles.section}>
-          <p className={styles.sectionLabel}>Barcode</p>
-          <Barcode title={title || note.title} />
-        </div>
+        {showBarcodes && (
+          <div className={styles.section}>
+            <p className={styles.sectionLabel}>Barcode</p>
+            <Barcode title={title || note.title} />
+          </div>
+        )}
 
         <div className={styles.footer}>
           <input
