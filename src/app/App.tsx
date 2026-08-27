@@ -523,6 +523,7 @@ export default function App() {
           showBarcodes={viewPrefs.barcodes}
           showPhotos={viewPrefs.photos}
           showDescription={viewPrefs.description}
+          showSpecialCase={viewPrefs.specialCase}
           showLabels={viewPrefs.labels}
           showAge={viewPrefs.age}
           onOpenNote={(id) => setActiveNoteId(id)}

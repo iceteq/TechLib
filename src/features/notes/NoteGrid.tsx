@@ -26,6 +26,7 @@ interface NoteGridProps {
   showBarcodes: boolean;
   showPhotos: boolean;
   showDescription: boolean;
+  showSpecialCase: boolean;
   showLabels: boolean;
   showAge: boolean;
   onOpenNote: (noteId: string) => void;
@@ -60,6 +61,7 @@ export function NoteGrid({
   showBarcodes,
   showPhotos,
   showDescription,
+  showSpecialCase,
   showLabels,
   showAge,
   onOpenNote,
@@ -323,6 +325,7 @@ export function NoteGrid({
               showBarcodes={showBarcodes}
               showPhotos={showPhotos}
               showDescription={showDescription}
+              showSpecialCase={showSpecialCase}
               showLabels={showLabels}
               showAge={showAge}
               onOpen={onOpenNote}

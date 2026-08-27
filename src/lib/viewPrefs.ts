@@ -2,6 +2,7 @@ export type ViewPrefs = {
   barcodes: boolean;
   photos: boolean;
   description: boolean;
+  specialCase: boolean;
   labels: boolean;
   age: boolean;
 };
@@ -10,6 +11,7 @@ export const DEFAULT_VIEW_PREFS: ViewPrefs = {
   barcodes: true,
   photos: true,
   description: true,
+  specialCase: true,
   labels: true,
   age: true,
 };

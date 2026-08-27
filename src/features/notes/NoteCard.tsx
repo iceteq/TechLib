@@ -22,6 +22,7 @@ interface NoteCardProps {
   showBarcodes: boolean;
   showPhotos: boolean;
   showDescription: boolean;
+  showSpecialCase: boolean;
   showLabels: boolean;
   showAge: boolean;
   onOpen: (noteId: string) => void;
@@ -37,6 +38,7 @@ export function NoteCard({
   showBarcodes,
   showPhotos,
   showDescription,
+  showSpecialCase,
   showLabels,
   showAge,
   onOpen,
@@ -240,7 +242,7 @@ export function NoteCard({
         {showDescription && note.description.trim() && (
           <p className={styles.description}>{note.description.trim()}</p>
         )}
-        {(note.specialCase ?? '').trim() && (
+        {showSpecialCase && (note.specialCase ?? '').trim() && (
           <p className={styles.specialCase} title={note.specialCase}>
             <span className={styles.specialCaseMark} aria-hidden>
               !

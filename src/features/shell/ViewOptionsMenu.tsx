@@ -7,6 +7,7 @@ const OPTIONS: { key: keyof ViewPrefs; label: string }[] = [
   { key: 'barcodes', label: 'Barcodes' },
   { key: 'photos', label: 'Photos' },
   { key: 'description', label: 'Description' },
+  { key: 'specialCase', label: 'Special note' },
   { key: 'labels', label: 'Labels' },
   { key: 'age', label: 'Relative time' },
 ];
