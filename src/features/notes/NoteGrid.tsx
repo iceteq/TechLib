@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClipboardPaste, Plus, ShoppingCart, Tag, Trash2, X } from 'lucide-react';
 import type {
   Label,
-  NoteCategory,
   NoteDisposition,
+  NoteType,
   NotesView,
   NoteWithUrls,
   StockLocation,
 } from '../../lib/types';
-import { CATEGORIES, DISPOSITIONS } from '../../lib/types';
+import { DISPOSITIONS } from '../../lib/types';
 import { categoryLabel, dispositionLabel, stockLabel } from '../../lib/searchNotes';
 import { NoteCard } from './NoteCard';
 import styles from './NoteGrid.module.css';
@@ -18,10 +18,11 @@ type BulkMenu = 'guideline' | 'type' | 'label' | null;
 interface NoteGridProps {
   notes: NoteWithUrls[];
   labels: Label[];
+  noteTypes: NoteType[];
   view: NotesView;
   filterLabelIds: string[];
   filterDisposition: NoteDisposition | null;
-  filterCategory: NoteCategory | null;
+  filterCategoryId: string | null;
   filterStockId: string | null;
   specialCasesOnly: boolean;
   search: string;
@@ -41,7 +42,7 @@ interface NoteGridProps {
     noteIds: string[],
     patch: {
       disposition?: NoteDisposition;
-      category?: NoteCategory;
+      categoryId?: string | null;
       stockId?: string | null;
       labelIds?: string[];
     },
@@ -57,10 +58,11 @@ interface NoteGridProps {
 export function NoteGrid({
   notes,
   labels,
+  noteTypes,
   view,
   filterLabelIds,
   filterDisposition,
-  filterCategory,
+  filterCategoryId,
   filterStockId,
   specialCasesOnly,
   search,
@@ -104,7 +106,7 @@ export function NoteGrid({
     view,
     filterLabelIds,
     filterDisposition,
-    filterCategory,
+    filterCategoryId,
     filterStockId,
     specialCasesOnly,
     search,
@@ -244,9 +246,9 @@ export function NoteGrid({
     await runBulk(() => onUpdateNotes(ids, { disposition }));
   }
 
-  async function applyCategory(category: NoteCategory) {
+  async function applyCategory(categoryId: string | null) {
     const ids = [...selectedIds];
-    await runBulk(() => onUpdateNotes(ids, { category }));
+    await runBulk(() => onUpdateNotes(ids, { categoryId }));
   }
 
   async function applyLabel(labelId: string | null) {
@@ -264,12 +266,12 @@ export function NoteGrid({
   const hasSearch = search.trim().length > 0;
   const canCreate = view === 'notes' && !selecting;
   const statusText = dispositionLabel(filterDisposition);
-  const typeText = categoryLabel(filterCategory);
+  const typeText = categoryLabel(filterCategoryId, noteTypes);
   const stockText = stockLabel(filterStockId, stockLocations);
   const hasFilters = Boolean(
     filterLabelIds.length > 0 ||
       filterDisposition ||
-      filterCategory ||
+      filterCategoryId ||
       filterStockId ||
       specialCasesOnly,
   );
@@ -390,6 +392,7 @@ export function NoteGrid({
               key={note.id}
               note={note}
               labels={labels}
+              noteTypes={noteTypes}
               stockLocations={stockLocations}
               selecting={selecting}
               selected={selectedIds.has(note.id)}
@@ -403,6 +406,9 @@ export function NoteGrid({
               onToggleSelect={toggleSelect}
               onEnterSelect={enterSelect}
               onRangeSelect={rangeSelect}
+              onApplyType={(noteId, categoryId) =>
+                void onUpdateNotes([noteId], { categoryId })
+              }
             />
           ))}
         </div>
@@ -464,7 +470,16 @@ export function NoteGrid({
               </button>
               {menu === 'type' && (
                 <div className={styles.menu} role="menu">
-                  {CATEGORIES.map((option) => (
+                  <button
+                    type="button"
+                    className={styles.menuItem}
+                    role="menuitem"
+                    disabled={busy}
+                    onClick={() => void applyCategory(null)}
+                  >
+                    No type
+                  </button>
+                  {noteTypes.map((option) => (
                     <button
                       key={option.id}
                       type="button"
@@ -473,7 +488,7 @@ export function NoteGrid({
                       disabled={busy}
                       onClick={() => void applyCategory(option.id)}
                     >
-                      {option.label}
+                      {option.name}
                     </button>
                   ))}
                 </div>

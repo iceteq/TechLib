@@ -1,32 +1,12 @@
 import type { LucideIcon } from 'lucide-react';
-import {
-  Cable,
-  Cpu,
-  Monitor,
-  Network,
-  Package,
-  Printer,
-  ScanBarcode,
-} from 'lucide-react';
-import type { NoteCategory } from './types';
+import { noteTypeIcon } from './noteTypes';
+import type { NoteType, NoteTypeIcon } from './types';
 
+/** @deprecated Prefer noteTypeIcon / TypeChip with NoteType. */
 export function categoryIcon(
-  category: NoteCategory | undefined | null,
+  iconOrType: NoteTypeIcon | NoteType | undefined | null,
 ): LucideIcon {
-  switch (category) {
-    case 'monitor':
-      return Monitor;
-    case 'computer':
-      return Cpu;
-    case 'printer':
-      return Printer;
-    case 'network':
-      return Network;
-    case 'scanner':
-      return ScanBarcode;
-    case 'cables':
-      return Cable;
-    default:
-      return Package;
-  }
+  if (!iconOrType) return noteTypeIcon('package');
+  if (typeof iconOrType === 'string') return noteTypeIcon(iconOrType);
+  return noteTypeIcon(iconOrType.icon);
 }

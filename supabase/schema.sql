@@ -10,6 +10,18 @@ create table if not exists public.stock_locations (
   unique (owner_id, name)
 );
 
+-- User-defined product types (Monitor, Printer, custom, …)
+-- Text PK so seeded ids like `monitor` work. Solo-owner for now.
+create table if not exists public.note_types (
+  id text primary key,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  color text not null default 'slate',
+  icon text not null default 'package',
+  created_at timestamptz not null default now(),
+  unique (owner_id, name)
+);
+
 -- Notes
 create table if not exists public.notes (
   id uuid primary key default gen_random_uuid(),
@@ -18,7 +30,9 @@ create table if not exists public.notes (
   description text not null default '',
   background text not null default 'default',
   disposition text not null default 'none',
+  -- Legacy enum-ish text; kept for read fallback / migration. Prefer category_id.
   category text not null default 'none',
+  category_id text references public.note_types (id) on delete set null,
   special_case text not null default '',
   stock_id uuid references public.stock_locations (id) on delete set null,
   pinned boolean not null default false,
@@ -31,9 +45,12 @@ create table if not exists public.notes (
 create index if not exists notes_owner_updated_idx
   on public.notes (owner_id, updated_at desc);
 
--- For databases created before stock_id existed
+-- For databases created before stock_id / category_id existed
 alter table public.notes
   add column if not exists stock_id uuid references public.stock_locations (id) on delete set null;
+
+alter table public.notes
+  add column if not exists category_id text references public.note_types (id) on delete set null;
 
 -- Labels
 create table if not exists public.labels (
@@ -86,6 +103,7 @@ create table if not exists public.reactions (
 alter table public.notes enable row level security;
 alter table public.labels enable row level security;
 alter table public.stock_locations enable row level security;
+alter table public.note_types enable row level security;
 alter table public.note_labels enable row level security;
 alter table public.note_images enable row level security;
 alter table public.cart_items enable row level security;
@@ -98,6 +116,9 @@ create policy "labels_owner_all" on public.labels
   for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
 
 create policy "stock_locations_owner_all" on public.stock_locations
+  for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+
+create policy "note_types_owner_all" on public.note_types
   for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
 
 create policy "note_labels_owner_all" on public.note_labels

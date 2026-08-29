@@ -1,18 +1,20 @@
 import type {
   Label,
-  NoteCategory,
   NoteDisposition,
+  NoteType,
   NoteWithUrls,
   NotesView,
   Reaction,
   StockLocation,
 } from './types';
-import { CATEGORIES, DISPOSITIONS } from './types';
+import { DISPOSITIONS, UNSET_TYPE_FILTER } from './types';
+import { noteTypeLabel } from './noteTypes';
 
 export function matchesNoteSearch(
   note: NoteWithUrls,
   labels: Label[],
   stockLocations: StockLocation[],
+  noteTypes: NoteType[],
   query: string,
 ): boolean {
   const q = query.trim().toLowerCase();
@@ -23,14 +25,8 @@ export function matchesNoteSearch(
   if (note.specialCase?.toLowerCase().includes(q)) return true;
   if (note.disposition !== 'none' && note.disposition.includes(q)) return true;
 
-  const category = CATEGORIES.find((c) => c.id === (note.category ?? 'none'));
-  if (
-    category &&
-    category.id !== 'none' &&
-    category.label.toLowerCase().includes(q)
-  ) {
-    return true;
-  }
+  const typeName = noteTypeLabel(noteTypes, note.categoryId);
+  if (typeName && typeName.toLowerCase().includes(q)) return true;
 
   const stock = stockLocations.find((s) => s.id === note.stockId);
   if (stock && stock.name.toLowerCase().includes(q)) return true;
@@ -46,12 +42,14 @@ export function filterNotes(
   notes: NoteWithUrls[],
   labels: Label[],
   stockLocations: StockLocation[],
+  noteTypes: NoteType[],
   options: {
     labelIds: string[];
     search: string;
     view: NotesView;
     disposition: NoteDisposition | null;
-    category: NoteCategory | null;
+    /** Type id, UNSET_TYPE_FILTER for no type, or null for any. */
+    categoryId: string | null;
     stockId: string | null;
     specialCasesOnly?: boolean;
   },
@@ -70,7 +68,9 @@ export function filterNotes(
     if (options.disposition && note.disposition !== options.disposition) {
       return false;
     }
-    if (options.category && (note.category ?? 'none') !== options.category) {
+    if (options.categoryId === UNSET_TYPE_FILTER) {
+      if (note.categoryId) return false;
+    } else if (options.categoryId && note.categoryId !== options.categoryId) {
       return false;
     }
     if (options.stockId && note.stockId !== options.stockId) {
@@ -79,7 +79,13 @@ export function filterNotes(
     if (options.specialCasesOnly && !(note.specialCase ?? '').trim()) {
       return false;
     }
-    return matchesNoteSearch(note, labels, stockLocations, options.search);
+    return matchesNoteSearch(
+      note,
+      labels,
+      stockLocations,
+      noteTypes,
+      options.search,
+    );
   });
 }
 
@@ -95,9 +101,14 @@ export function dispositionLabel(id: NoteDisposition | null): string | null {
   return DISPOSITIONS.find((d) => d.id === id)?.short || null;
 }
 
-export function categoryLabel(id: NoteCategory | null): string | null {
-  if (!id || id === 'none') return null;
-  return CATEGORIES.find((c) => c.id === id)?.label ?? null;
+export function categoryLabel(
+  categoryId: string | null,
+  noteTypes: NoteType[],
+): string | null {
+  if (!categoryId || categoryId === UNSET_TYPE_FILTER) {
+    return categoryId === UNSET_TYPE_FILTER ? 'No type' : null;
+  }
+  return noteTypeLabel(noteTypes, categoryId);
 }
 
 export function stockLabel(
@@ -106,4 +117,22 @@ export function stockLabel(
 ): string | null {
   if (!stockId) return null;
   return stockLocations.find((s) => s.id === stockId)?.name ?? null;
+}
+
+/** Counts of active (non-archived, non-deleted) notes per type + unset. */
+export function countNotesByType(notes: NoteWithUrls[]): {
+  byTypeId: Record<string, number>;
+  unset: number;
+} {
+  const byTypeId: Record<string, number> = {};
+  let unset = 0;
+  for (const note of notes) {
+    if (note.archived || note.deletedAt != null) continue;
+    if (!note.categoryId) {
+      unset += 1;
+      continue;
+    }
+    byTypeId[note.categoryId] = (byTypeId[note.categoryId] ?? 0) + 1;
+  }
+  return { byTypeId, unset };
 }

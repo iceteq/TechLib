@@ -11,12 +11,13 @@ import {
   X,
 } from 'lucide-react';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
-import { CATEGORIES, DISPOSITIONS } from '../../lib/types';
+import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
+import { DISPOSITIONS } from '../../lib/types';
 import type {
   Label,
   NoteBackground,
-  NoteCategory,
   NoteDisposition,
+  NoteType,
   NoteWithUrls,
   StockLocation,
 } from '../../lib/types';
@@ -24,11 +25,13 @@ import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
 import { DescriptionField } from '../labels/DescriptionField';
 import { LabelChip } from '../labels/LabelChip';
+import { TypeChip } from './TypeChip';
 import styles from './NoteEditor.module.css';
 
 interface NoteEditorProps {
   note: NoteWithUrls;
   labels: Label[];
+  noteTypes: NoteType[];
   stockLocations: StockLocation[];
   showBarcodes: boolean;
   onClose: () => void;
@@ -40,7 +43,7 @@ interface NoteEditorProps {
     pinned?: boolean;
     archived?: boolean;
     disposition?: NoteDisposition;
-    category?: NoteCategory;
+    categoryId?: string | null;
     stockId?: string | null;
     specialCase?: string;
   }) => Promise<void>;
@@ -55,6 +58,7 @@ interface NoteEditorProps {
 export function NoteEditor({
   note,
   labels,
+  noteTypes,
   stockLocations,
   showBarcodes,
   onClose,
@@ -77,6 +81,11 @@ export function NoteEditor({
   const titleRef = useRef<HTMLInputElement>(null);
   const bg = getBackground(note.background);
   const selectedLabels = labels.filter((l) => note.labelIds.includes(l.id));
+  const selectedType = noteTypeById(noteTypes, note.categoryId);
+  const suggestedType =
+    !note.categoryId
+      ? suggestNoteType(noteTypes, title || note.title, description || note.description)
+      : null;
   const isBlank =
     !note.title.trim() &&
     !note.description.trim() &&
@@ -85,7 +94,7 @@ export function NoteEditor({
     !note.pinned &&
     !note.archived &&
     (note.disposition ?? 'none') === 'none' &&
-    (note.category ?? 'none') === 'none' &&
+    !note.categoryId &&
     !note.stockId &&
     !(note.specialCase ?? '').trim();
 
@@ -339,21 +348,38 @@ export function NoteEditor({
 
         <div className={styles.section}>
           <div className={styles.dispositionRow} role="group" aria-label="Product type">
-            {CATEGORIES.map((option) => (
+            <button
+              type="button"
+              className={`${styles.dispositionBtn} ${
+                !note.categoryId ? styles.dispositionActive : ''
+              }`}
+              onClick={() => void onSaveMeta({ categoryId: null })}
+            >
+              None
+            </button>
+            {noteTypes.map((option) => (
               <button
                 key={option.id}
                 type="button"
                 className={`${styles.dispositionBtn} ${
-                  (note.category ?? 'none') === option.id
-                    ? styles.dispositionActive
-                    : ''
+                  note.categoryId === option.id ? styles.dispositionActive : ''
                 }`}
-                onClick={() => void onSaveMeta({ category: option.id })}
+                onClick={() => void onSaveMeta({ categoryId: option.id })}
               >
-                {option.id === 'none' ? 'None' : option.label}
+                {option.name}
               </button>
             ))}
           </div>
+          {!selectedType && suggestedType && (
+            <div className={styles.suggestRow}>
+              <span className={styles.suggestLabel}>Suggested</span>
+              <TypeChip
+                type={suggestedType}
+                suggested
+                onClick={() => void onSaveMeta({ categoryId: suggestedType.id })}
+              />
+            </div>
+          )}
         </div>
 
         <div className={styles.section}>

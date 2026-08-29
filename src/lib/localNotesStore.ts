@@ -4,14 +4,15 @@ import type {
   Label,
   Note,
   NoteBackground,
-  NoteCategory,
   NoteDisposition,
+  NoteType,
   NoteWithUrls,
   Reaction,
   ReactionEmoji,
   StockLocation,
 } from './types';
-import { normalizeCategory } from './types';
+import { DEFAULT_NOTE_TYPES, legacyCategoryToTypeId } from './types';
+import { guessIconFromName, nextNoteTypeColor } from './noteTypes';
 
 interface TechLibDB extends DBSchema {
   notes: {
@@ -27,6 +28,11 @@ interface TechLibDB extends DBSchema {
   stockLocations: {
     key: string;
     value: StockLocation;
+    indexes: { 'by-name': string };
+  };
+  noteTypes: {
+    key: string;
+    value: NoteType;
     indexes: { 'by-name': string };
   };
   imageBlobs: {
@@ -50,7 +56,7 @@ interface TechLibDB extends DBSchema {
 }
 
 const DB_NAME = 'techlib';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 let dbPromise: Promise<IDBPDatabase<TechLibDB>> | null = null;
 const urlCache = new Map<string, string>();
@@ -59,16 +65,26 @@ function uid(): string {
   return crypto.randomUUID();
 }
 
-function normalizeNote(note: Note): Note {
+function normalizeNote(note: Note & { category?: string }): Note {
+  const legacy = note.category;
+  const categoryId =
+    note.categoryId != null
+      ? note.categoryId
+      : legacyCategoryToTypeId(legacy);
   return {
-    ...note,
+    id: note.id,
+    title: note.title,
+    description: note.description,
+    background: note.background,
+    disposition: note.disposition ?? 'none',
+    categoryId,
+    stockId: note.stockId ?? null,
+    specialCase: note.specialCase ?? '',
     pinned: Boolean(note.pinned),
     archived: Boolean(note.archived),
     deletedAt: note.deletedAt ?? null,
-    disposition: note.disposition ?? 'none',
-    category: normalizeCategory(note.category),
-    stockId: note.stockId ?? null,
-    specialCase: note.specialCase ?? '',
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
     labelIds: note.labelIds ?? [],
     images: note.images ?? [],
   };
@@ -109,6 +125,15 @@ function getDb() {
               keyPath: 'id',
             });
             stock.createIndex('by-name', 'name', { unique: true });
+          }
+        }
+
+        if (oldVersion < 5) {
+          if (!db.objectStoreNames.contains('noteTypes')) {
+            const types = db.createObjectStore('noteTypes', {
+              keyPath: 'id',
+            });
+            types.createIndex('by-name', 'name', { unique: true });
           }
         }
       },
@@ -159,6 +184,7 @@ function sortNotes(notes: NoteWithUrls[]): NoteWithUrls[] {
 }
 
 export async function listNotes(): Promise<NoteWithUrls[]> {
+  await ensureDefaultNoteTypes();
   const db = await getDb();
   const notes = await db.getAll('notes');
   const active = notes
@@ -180,11 +206,12 @@ export async function createNote(input?: {
   description?: string;
   background?: NoteBackground;
   disposition?: NoteDisposition;
-  category?: NoteCategory;
+  categoryId?: string | null;
   stockId?: string | null;
   specialCase?: string;
   labelIds?: string[];
 }): Promise<NoteWithUrls> {
+  await ensureDefaultNoteTypes();
   const db = await getDb();
   const now = Date.now();
   const note: Note = {
@@ -193,7 +220,7 @@ export async function createNote(input?: {
     description: input?.description ?? '',
     background: input?.background ?? 'default',
     disposition: input?.disposition ?? 'none',
-    category: input?.category ?? 'none',
+    categoryId: input?.categoryId ?? null,
     stockId: input?.stockId ?? null,
     specialCase: input?.specialCase ?? '',
     pinned: false,
@@ -220,7 +247,7 @@ export async function updateNote(
       | 'pinned'
       | 'archived'
       | 'disposition'
-      | 'category'
+      | 'categoryId'
       | 'stockId'
       | 'specialCase'
     >
@@ -440,6 +467,72 @@ export async function setNoteLabels(
   labelIds: string[],
 ): Promise<NoteWithUrls | undefined> {
   return updateNote(noteId, { labelIds: [...new Set(labelIds)] });
+}
+
+async function ensureDefaultNoteTypes(): Promise<void> {
+  const db = await getDb();
+  for (const seed of DEFAULT_NOTE_TYPES) {
+    const existing = await db.get('noteTypes', seed.id);
+    if (!existing) await db.put('noteTypes', seed);
+  }
+
+  const notes = await db.getAll('notes');
+  for (const raw of notes) {
+    const note = raw as Note & { category?: string };
+    if (note.categoryId != null) continue;
+    if (!('category' in note) && note.categoryId === null) continue;
+    const migrated = legacyCategoryToTypeId(note.category);
+    const { category: _drop, ...rest } = note;
+    await db.put('notes', {
+      ...normalizeNote(rest as Note & { category?: string }),
+      categoryId: migrated,
+    });
+  }
+}
+
+export async function listNoteTypes(): Promise<NoteType[]> {
+  await ensureDefaultNoteTypes();
+  const db = await getDb();
+  const types = await db.getAll('noteTypes');
+  return types.sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  );
+}
+
+export async function createNoteType(name: string): Promise<NoteType> {
+  await ensureDefaultNoteTypes();
+  const db = await getDb();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Type name is required');
+
+  const existing = await db.getAllFromIndex('noteTypes', 'by-name', trimmed);
+  if (existing[0]) return existing[0];
+
+  const all = await db.getAll('noteTypes');
+  const noteType: NoteType = {
+    id: uid(),
+    name: trimmed,
+    color: nextNoteTypeColor(all),
+    icon: guessIconFromName(trimmed),
+  };
+  await db.put('noteTypes', noteType);
+  return noteType;
+}
+
+export async function deleteNoteType(id: string): Promise<void> {
+  const db = await getDb();
+  await db.delete('noteTypes', id);
+
+  const notes = await db.getAll('notes');
+  for (const note of notes) {
+    const normalized = normalizeNote(note);
+    if (normalized.categoryId !== id) continue;
+    await db.put('notes', {
+      ...normalized,
+      categoryId: null,
+      updatedAt: Date.now(),
+    });
+  }
 }
 
 export async function listStockLocations(): Promise<StockLocation[]> {

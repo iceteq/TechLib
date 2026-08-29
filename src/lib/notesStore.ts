@@ -42,6 +42,15 @@ export const deleteLabel = (...args: Parameters<typeof local.deleteLabel>) =>
 export const setNoteLabels = (
   ...args: Parameters<typeof local.setNoteLabels>
 ) => api().setNoteLabels(...args);
+export const listNoteTypes = (
+  ...args: Parameters<typeof local.listNoteTypes>
+) => api().listNoteTypes(...args);
+export const createNoteType = (
+  ...args: Parameters<typeof local.createNoteType>
+) => api().createNoteType(...args);
+export const deleteNoteType = (
+  ...args: Parameters<typeof local.deleteNoteType>
+) => api().deleteNoteType(...args);
 export const listStockLocations = (
   ...args: Parameters<typeof local.listStockLocations>
 ) => api().listStockLocations(...args);

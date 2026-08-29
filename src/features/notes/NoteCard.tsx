@@ -3,10 +3,12 @@ import { Check } from 'lucide-react';
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
 import { formatNoteAge } from '../../lib/formatNoteAge';
-import { CATEGORIES, DISPOSITIONS } from '../../lib/types';
-import type { Label, NoteWithUrls, StockLocation } from '../../lib/types';
+import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
+import { DISPOSITIONS } from '../../lib/types';
+import type { Label, NoteType, NoteWithUrls, StockLocation } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { LabelChip } from '../labels/LabelChip';
+import { TypeChip } from './TypeChip';
 import styles from './NoteCard.module.css';
 
 const LONG_PRESS_MS = 500;
@@ -17,6 +19,7 @@ const SUPPRESS_MS = 1200;
 interface NoteCardProps {
   note: NoteWithUrls;
   labels: Label[];
+  noteTypes: NoteType[];
   stockLocations: StockLocation[];
   selecting: boolean;
   selected: boolean;
@@ -30,11 +33,13 @@ interface NoteCardProps {
   onToggleSelect: (noteId: string) => void;
   onEnterSelect: (noteId: string) => void;
   onRangeSelect: (noteId: string) => void;
+  onApplyType: (noteId: string, categoryId: string) => void;
 }
 
 export function NoteCard({
   note,
   labels,
+  noteTypes,
   stockLocations,
   selecting,
   selected,
@@ -48,6 +53,7 @@ export function NoteCard({
   onToggleSelect,
   onEnterSelect,
   onRangeSelect,
+  onApplyType,
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
@@ -58,7 +64,11 @@ export function NoteCard({
   const disposition = DISPOSITIONS.find(
     (d) => d.id === (note.disposition ?? 'none'),
   );
-  const category = CATEGORIES.find((c) => c.id === (note.category ?? 'none'));
+  const noteType = noteTypeById(noteTypes, note.categoryId);
+  const suggestedType =
+    !note.categoryId
+      ? suggestNoteType(noteTypes, note.title, note.description)
+      : null;
 
   const cardRef = useRef<HTMLElement | null>(null);
   const longPressTimer = useRef<number | null>(null);
@@ -262,7 +272,8 @@ export function NoteCard({
         )}
         {(
           (disposition && disposition.id !== 'none') ||
-          (category && category.id !== 'none') ||
+          Boolean(noteType) ||
+          Boolean(suggestedType) ||
           Boolean(stock) ||
           (showLabels && noteLabels.length > 0)
         ) && (
@@ -274,8 +285,13 @@ export function NoteCard({
                 {disposition.short}
               </span>
             )}
-            {category && category.id !== 'none' && (
-              <span className={styles.category}>{category.label}</span>
+            {noteType && <TypeChip type={noteType} />}
+            {!noteType && suggestedType && (
+              <TypeChip
+                type={suggestedType}
+                suggested
+                onClick={() => onApplyType(note.id, suggestedType.id)}
+              />
             )}
             {stock && <span className={styles.stock}>{stock.name}</span>}
             {showLabels &&

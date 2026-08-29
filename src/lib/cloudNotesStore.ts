@@ -3,14 +3,17 @@ import type {
   Label,
   Note,
   NoteBackground,
-  NoteCategory,
   NoteDisposition,
+  NoteType,
+  NoteTypeColor,
+  NoteTypeIcon,
   NoteWithUrls,
   Reaction,
   ReactionEmoji,
   StockLocation,
 } from './types';
-import { normalizeCategory } from './types';
+import { DEFAULT_NOTE_TYPES, legacyCategoryToTypeId } from './types';
+import { guessIconFromName, nextNoteTypeColor } from './noteTypes';
 import { getSupabase } from './supabaseClient';
 
 const BUCKET = 'note-images';
@@ -22,7 +25,9 @@ type NoteRow = {
   description: string;
   background: string;
   disposition: string;
+  /** Legacy text category; kept for migration / read fallback. */
   category: string;
+  category_id: string | null;
   stock_id: string | null;
   special_case: string;
   pinned: boolean;
@@ -30,6 +35,13 @@ type NoteRow = {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type NoteTypeRow = {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
 };
 
 type ImageRow = {
@@ -136,7 +148,8 @@ async function hydrateRows(rows: NoteRow[]): Promise<NoteWithUrls[]> {
         description: row.description,
         background: row.background as NoteBackground,
         disposition: (row.disposition as NoteDisposition) ?? 'none',
-        category: normalizeCategory(row.category),
+        categoryId:
+          row.category_id ?? legacyCategoryToTypeId(row.category),
         stockId: row.stock_id ?? null,
         specialCase: row.special_case ?? '',
         pinned: row.pinned,
@@ -173,7 +186,7 @@ async function replaceNoteLabels(noteId: string, labelIds: string[]) {
 }
 
 export async function listNotes(): Promise<NoteWithUrls[]> {
-  await requireUserId();
+  await ensureDefaultNoteTypes();
   const { data, error } = await getSupabase()
     .from('notes')
     .select('*')
@@ -200,12 +213,13 @@ export async function createNote(input?: {
   description?: string;
   background?: NoteBackground;
   disposition?: NoteDisposition;
-  category?: NoteCategory;
+  categoryId?: string | null;
   stockId?: string | null;
   specialCase?: string;
   labelIds?: string[];
 }): Promise<NoteWithUrls> {
   const ownerId = await requireUserId();
+  await ensureDefaultNoteTypes();
   const { data, error } = await getSupabase()
     .from('notes')
     .insert({
@@ -214,7 +228,8 @@ export async function createNote(input?: {
       description: input?.description ?? '',
       background: input?.background ?? 'default',
       disposition: input?.disposition ?? 'none',
-      category: input?.category ?? 'none',
+      category: 'none',
+      category_id: input?.categoryId ?? null,
       stock_id: input?.stockId ?? null,
       special_case: input?.specialCase ?? '',
     })
@@ -242,14 +257,14 @@ export async function updateNote(
       | 'pinned'
       | 'archived'
       | 'disposition'
-      | 'category'
+      | 'categoryId'
       | 'stockId'
       | 'specialCase'
     >
   >,
 ): Promise<NoteWithUrls | undefined> {
   await requireUserId();
-  const { labelIds, specialCase, stockId, ...rest } = patch;
+  const { labelIds, specialCase, stockId, categoryId, ...rest } = patch;
   const update: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
@@ -259,7 +274,7 @@ export async function updateNote(
   if (rest.pinned !== undefined) update.pinned = rest.pinned;
   if (rest.archived !== undefined) update.archived = rest.archived;
   if (rest.disposition !== undefined) update.disposition = rest.disposition;
-  if (rest.category !== undefined) update.category = rest.category;
+  if (categoryId !== undefined) update.category_id = categoryId;
   if (stockId !== undefined) update.stock_id = stockId;
   if (specialCase !== undefined) update.special_case = specialCase;
 
@@ -457,6 +472,104 @@ export async function createLabel(name: string): Promise<Label> {
 export async function deleteLabel(id: string): Promise<void> {
   await requireUserId();
   const { error } = await getSupabase().from('labels').delete().eq('id', id);
+  throwIf(error);
+}
+
+async function ensureDefaultNoteTypes(): Promise<void> {
+  const ownerId = await requireUserId();
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('note_types')
+    .select('id')
+    .eq('owner_id', ownerId);
+  throwIf(error);
+  const existing = new Set(
+    ((data ?? []) as { id: string }[]).map((row) => row.id),
+  );
+  const missing = DEFAULT_NOTE_TYPES.filter((type) => !existing.has(type.id));
+  if (missing.length === 0) return;
+  const { error: insertError } = await supabase.from('note_types').insert(
+    missing.map((type) => ({
+      id: type.id,
+      owner_id: ownerId,
+      name: type.name,
+      color: type.color,
+      icon: type.icon,
+    })),
+  );
+  throwIf(insertError);
+}
+
+function mapNoteTypeRow(row: NoteTypeRow): NoteType {
+  return {
+    id: row.id,
+    name: row.name,
+    color: row.color as NoteTypeColor,
+    icon: row.icon as NoteTypeIcon,
+  };
+}
+
+export async function listNoteTypes(): Promise<NoteType[]> {
+  await ensureDefaultNoteTypes();
+  const { data, error } = await getSupabase()
+    .from('note_types')
+    .select('id, name, color, icon')
+    .order('name');
+  throwIf(error);
+  return ((data ?? []) as NoteTypeRow[])
+    .map(mapNoteTypeRow)
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    );
+}
+
+export async function createNoteType(name: string): Promise<NoteType> {
+  const ownerId = await requireUserId();
+  await ensureDefaultNoteTypes();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Type name required');
+
+  const supabase = getSupabase();
+  const { data: existing, error: existingError } = await supabase
+    .from('note_types')
+    .select('id, name, color, icon')
+    .eq('owner_id', ownerId)
+    .eq('name', trimmed)
+    .maybeSingle();
+  throwIf(existingError);
+  if (existing) return mapNoteTypeRow(existing as NoteTypeRow);
+
+  const all = await listNoteTypes();
+  const noteType: NoteType = {
+    id: crypto.randomUUID(),
+    name: trimmed,
+    color: nextNoteTypeColor(all),
+    icon: guessIconFromName(trimmed),
+  };
+  const { data, error } = await supabase
+    .from('note_types')
+    .insert({
+      id: noteType.id,
+      owner_id: ownerId,
+      name: noteType.name,
+      color: noteType.color,
+      icon: noteType.icon,
+    })
+    .select('id, name, color, icon')
+    .single();
+  throwIf(error);
+  return mapNoteTypeRow(data as NoteTypeRow);
+}
+
+export async function deleteNoteType(id: string): Promise<void> {
+  await requireUserId();
+  const supabase = getSupabase();
+  const { error: clearError } = await supabase
+    .from('notes')
+    .update({ category_id: null, updated_at: new Date().toISOString() })
+    .eq('category_id', id);
+  throwIf(clearError);
+  const { error } = await supabase.from('note_types').delete().eq('id', id);
   throwIf(error);
 }
 

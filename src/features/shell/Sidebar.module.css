@@ -178,3 +178,25 @@
   color: var(--text-muted);
   line-height: 1.4;
 }
+
+.itemText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemCount {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 550;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.active .itemCount {
+  color: inherit;
+  opacity: 0.72;
+}

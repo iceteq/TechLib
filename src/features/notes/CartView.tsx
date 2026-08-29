@@ -1,7 +1,7 @@
 import { Minus, Plus, Printer, ShoppingCart, Trash2, X } from 'lucide-react';
-import type { CartItem, Label, NoteWithUrls } from '../../lib/types';
+import type { CartItem, Label, NoteType, NoteWithUrls } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
-import { categoryIcon } from '../../lib/categoryIcons';
+import { noteTypeById, noteTypeIcon } from '../../lib/noteTypes';
 import { categoryLabel, dispositionLabel } from '../../lib/searchNotes';
 import styles from './CartView.module.css';
 
@@ -13,6 +13,7 @@ export type CartRow = {
 interface CartViewProps {
   rows: CartRow[];
   labels: Label[];
+  noteTypes: NoteType[];
   unitCount: number;
   showBarcodes: boolean;
   onOpenNote: (noteId: string) => void;
@@ -24,6 +25,7 @@ interface CartViewProps {
 export function CartView({
   rows,
   labels,
+  noteTypes,
   unitCount,
   showBarcodes,
   onOpenNote,
@@ -119,12 +121,15 @@ export function CartView({
               </thead>
               <tbody>
                 {rows.map(({ item, note }) => {
-                  const Icon = categoryIcon(note?.category);
+                  const type = note
+                    ? noteTypeById(noteTypes, note.categoryId)
+                    : null;
+                  const Icon = noteTypeIcon(type?.icon);
                   const status = note
                     ? dispositionLabel(note.disposition ?? null)
                     : null;
-                  const type = note
-                    ? categoryLabel(note.category ?? null)
+                  const typeName = note
+                    ? categoryLabel(note.categoryId, noteTypes)
                     : null;
                   const noteLabels = labels.filter((l) =>
                     (note?.labelIds ?? []).includes(l.id),
@@ -158,7 +163,7 @@ export function CartView({
                         )}
                       </td>
                       <td className={styles.colStatus}>{status || '—'}</td>
-                      <td className={styles.colType}>{type || '—'}</td>
+                      <td className={styles.colType}>{typeName || '—'}</td>
                       <td className={styles.colLabels}>
                         {noteLabels.length > 0
                           ? noteLabels.map((l) => `#${l.name}`).join(' ')

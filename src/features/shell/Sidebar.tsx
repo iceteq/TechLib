@@ -2,17 +2,12 @@ import { useState, type ReactNode } from 'react';
 import {
   AlertCircle,
   Archive,
-  Cable,
   ChevronDown,
-  Cpu,
+  CircleOff,
   Lightbulb,
   LogOut,
-  Monitor,
-  Network,
   Package,
   Plus,
-  Printer,
-  ScanBarcode,
   ShoppingCart,
   Tag,
   Trash2,
@@ -21,11 +16,13 @@ import {
 } from 'lucide-react';
 import type {
   Label,
-  NoteCategory,
   NoteDisposition,
+  NoteType,
   NotesView,
   StockLocation,
 } from '../../lib/types';
+import { UNSET_TYPE_FILTER } from '../../lib/types';
+import { noteTypeIcon, typeColorVars } from '../../lib/noteTypes';
 import {
   loadSidebarSections,
   saveSidebarSections,
@@ -36,11 +33,14 @@ import styles from './Sidebar.module.css';
 
 interface SidebarProps {
   labels: Label[];
+  noteTypes: NoteType[];
   stockLocations: StockLocation[];
+  typeCounts: Record<string, number>;
+  unsetCount: number;
   view: NotesView;
   activeLabelIds: string[];
   activeDisposition: NoteDisposition | null;
-  activeCategory: NoteCategory | null;
+  activeCategoryId: string | null;
   activeStockId: string | null;
   specialCasesOnly: boolean;
   cartCount: number;
@@ -48,22 +48,26 @@ interface SidebarProps {
   onSelectArchive: () => void;
   onSelectCart: () => void;
   onSelectDisposition: (disposition: NoteDisposition) => void;
-  onSelectCategory: (category: NoteCategory) => void;
+  onSelectCategoryId: (categoryId: string) => void;
   onSelectStock: (stockId: string) => void;
   onToggleSpecialCases: () => void;
   onToggleLabel: (labelId: string) => void;
   onCreateLabel: (name: string) => Promise<Label>;
+  onCreateType: (name: string) => Promise<NoteType>;
   onCreateStock: (name: string) => Promise<StockLocation>;
   onSignOut?: () => void;
 }
 
 export function Sidebar({
   labels,
+  noteTypes,
   stockLocations,
+  typeCounts,
+  unsetCount,
   view,
   activeLabelIds,
   activeDisposition,
-  activeCategory,
+  activeCategoryId,
   activeStockId,
   specialCasesOnly,
   cartCount,
@@ -71,11 +75,12 @@ export function Sidebar({
   onSelectArchive,
   onSelectCart,
   onSelectDisposition,
-  onSelectCategory,
+  onSelectCategoryId,
   onSelectStock,
   onToggleSpecialCases,
   onToggleLabel,
   onCreateLabel,
+  onCreateType,
   onCreateStock,
   onSignOut,
 }: SidebarProps) {
@@ -83,6 +88,8 @@ export function Sidebar({
     useState<SidebarSectionState>(loadSidebarSections);
   const [creatingLabel, setCreatingLabel] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
+  const [creatingType, setCreatingType] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
   const [creatingStock, setCreatingStock] = useState(false);
   const [newStockName, setNewStockName] = useState('');
   const [creatingBusy, setCreatingBusy] = useState(false);
@@ -91,7 +98,7 @@ export function Sidebar({
     view === 'notes' &&
     activeLabelIds.length === 0 &&
     activeDisposition === null &&
-    activeCategory === null &&
+    activeCategoryId === null &&
     activeStockId === null &&
     !specialCasesOnly;
 
@@ -126,6 +133,20 @@ export function Sidebar({
     }
   }
 
+  async function submitNewType(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newTypeName.trim();
+    if (!name || creatingBusy) return;
+    setCreatingBusy(true);
+    try {
+      await onCreateType(name);
+      setNewTypeName('');
+      setCreatingType(false);
+    } finally {
+      setCreatingBusy(false);
+    }
+  }
+
   async function submitNewStock(e: React.FormEvent) {
     e.preventDefault();
     const name = newStockName.trim();
@@ -143,7 +164,7 @@ export function Sidebar({
   function sectionHasActive(id: SidebarSectionId): boolean {
     if (view !== 'notes') return false;
     if (id === 'guideline') return activeDisposition != null;
-    if (id === 'type') return activeCategory != null;
+    if (id === 'type') return activeCategoryId != null;
     if (id === 'stock') return activeStockId != null;
     if (id === 'labels') return activeLabelIds.length > 0;
     return false;
@@ -236,30 +257,94 @@ export function Sidebar({
         open={sections.type}
         hasActive={sectionHasActive('type')}
         onToggle={() => toggleSection('type')}
-      >
-        {(
-          [
-            ['monitor', Monitor, 'Monitor'],
-            ['computer', Cpu, 'Computer'],
-            ['printer', Printer, 'Printer'],
-            ['network', Network, 'Network'],
-            ['scanner', ScanBarcode, 'Scanner'],
-            ['cables', Cable, 'Cables'],
-            ['other', Package, 'Other'],
-          ] as const
-        ).map(([id, Icon, label]) => (
+        trailing={
           <button
-            key={id}
             type="button"
-            className={`${styles.item} ${
-              view === 'notes' && activeCategory === id ? styles.active : ''
-            }`}
-            onClick={() => onSelectCategory(id)}
+            className={styles.addLabelBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCreatingType((open) => !open);
+              openSection('type');
+            }}
+            aria-label="Create type"
+            title="Create type"
+            aria-expanded={creatingType}
           >
-            <Icon size={18} />
-            <span>{label}</span>
+            <Plus size={16} strokeWidth={2.25} />
           </button>
-        ))}
+        }
+      >
+        {creatingType && (
+          <form
+            className={styles.createLabel}
+            onSubmit={(e) => void submitNewType(e)}
+          >
+            <input
+              className={styles.createLabelInput}
+              value={newTypeName}
+              onChange={(e) => setNewTypeName(e.target.value)}
+              placeholder="e.g. Laptop"
+              aria-label="New type name"
+              autoFocus
+              disabled={creatingBusy}
+            />
+            <button
+              type="submit"
+              className={styles.createLabelSubmit}
+              disabled={creatingBusy || !newTypeName.trim()}
+            >
+              Add
+            </button>
+          </form>
+        )}
+        <ul className={styles.list}>
+          <li>
+            <button
+              type="button"
+              className={`${styles.item} ${
+                view === 'notes' && activeCategoryId === UNSET_TYPE_FILTER
+                  ? styles.active
+                  : ''
+              }`}
+              onClick={() => onSelectCategoryId(UNSET_TYPE_FILTER)}
+              aria-pressed={
+                view === 'notes' && activeCategoryId === UNSET_TYPE_FILTER
+              }
+            >
+              <CircleOff size={18} />
+              <span className={styles.itemText}>No type</span>
+              <span className={styles.itemCount}>{unsetCount}</span>
+            </button>
+          </li>
+          {noteTypes.map((type) => {
+            const Icon = noteTypeIcon(type.icon);
+            const colors = typeColorVars(type.color);
+            const active =
+              view === 'notes' && activeCategoryId === type.id;
+            return (
+              <li key={type.id}>
+                <button
+                  type="button"
+                  className={`${styles.item} ${active ? styles.active : ''}`}
+                  onClick={() => onSelectCategoryId(type.id)}
+                  aria-pressed={active}
+                >
+                  <Icon
+                    size={18}
+                    style={{ color: colors.fg, opacity: 0.9 }}
+                  />
+                  <span className={styles.itemText}>{type.name}</span>
+                  <span className={styles.itemCount}>
+                    {typeCounts[type.id] ?? 0}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {noteTypes.length === 0 && !creatingType && (
+          <p className={styles.empty}>Tap + to add product types.</p>
+        )}
       </CollapsibleSection>
 
       <CollapsibleSection

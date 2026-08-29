@@ -67,6 +67,21 @@
   gap: 0.4rem;
 }
 
+.suggestRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+
+.suggestLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .dispositionBtn {
   padding: 0.4rem 0.75rem;
   border: 1px solid var(--border);
