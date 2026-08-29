@@ -29,6 +29,7 @@ interface NoteCardProps {
   onOpen: (noteId: string) => void;
   onToggleSelect: (noteId: string) => void;
   onEnterSelect: (noteId: string) => void;
+  onRangeSelect: (noteId: string) => void;
 }
 
 export function NoteCard({
@@ -46,6 +47,7 @@ export function NoteCard({
   onOpen,
   onToggleSelect,
   onEnterSelect,
+  onRangeSelect,
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
@@ -131,6 +133,11 @@ export function NoteCard({
     if (longPressActivated.current || isSuppressed()) {
       e.preventDefault();
       e.stopPropagation();
+      return;
+    }
+    if (e.shiftKey) {
+      e.preventDefault();
+      onRangeSelect(note.id);
       return;
     }
     if (selecting || e.ctrlKey || e.metaKey) {

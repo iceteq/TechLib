@@ -89,10 +89,12 @@ export function NoteGrid({
   const [menu, setMenu] = useState<BulkMenu>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const ignoreToggleUntil = useRef(0);
+  const selectionAnchorId = useRef<string | null>(null);
   const selecting = selectedIds.size > 0;
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
+    selectionAnchorId.current = null;
     setMenu(null);
   }, []);
 
@@ -110,9 +112,27 @@ export function NoteGrid({
   ]);
 
   useEffect(() => {
-    if (!selecting) return;
+    function isTypingTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+      if (target.isContentEditable) return true;
+      return Boolean(target.closest('[contenteditable="true"]'));
+    }
+
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
+      if (isTypingTarget(e.target)) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        if (notes.length === 0) return;
+        e.preventDefault();
+        setSelectedIds(new Set(notes.map((n) => n.id)));
+        selectionAnchorId.current = notes[0]?.id ?? null;
+        setMenu(null);
+        return;
+      }
+
+      if (e.key !== 'Escape' || selectedIds.size === 0) return;
       if (menu) {
         setMenu(null);
         return;
@@ -121,7 +141,7 @@ export function NoteGrid({
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selecting, menu, clearSelection]);
+  }, [notes, selectedIds.size, menu, clearSelection]);
 
   useEffect(() => {
     if (!menu) return;
@@ -146,18 +166,47 @@ export function NoteGrid({
   function enterSelect(noteId: string) {
     // Mobile long-press emits follow-up click/contextmenu that would toggle off.
     ignoreToggleUntil.current = Date.now() + 1200;
+    selectionAnchorId.current = noteId;
     setSelectedIds(new Set([noteId]));
     setMenu(null);
   }
 
   function toggleSelect(noteId: string) {
     if (Date.now() < ignoreToggleUntil.current) return;
+    selectionAnchorId.current = noteId;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(noteId)) next.delete(noteId);
       else next.add(noteId);
       return next;
     });
+  }
+
+  function rangeSelect(noteId: string) {
+    if (Date.now() < ignoreToggleUntil.current) return;
+    const anchorId = selectionAnchorId.current;
+    const endIndex = notes.findIndex((n) => n.id === noteId);
+    if (endIndex < 0) return;
+
+    if (!anchorId) {
+      selectionAnchorId.current = noteId;
+      setSelectedIds(new Set([noteId]));
+      setMenu(null);
+      return;
+    }
+
+    const startIndex = notes.findIndex((n) => n.id === anchorId);
+    if (startIndex < 0) {
+      selectionAnchorId.current = noteId;
+      setSelectedIds(new Set([noteId]));
+      setMenu(null);
+      return;
+    }
+
+    const from = Math.min(startIndex, endIndex);
+    const to = Math.max(startIndex, endIndex);
+    setSelectedIds(new Set(notes.slice(from, to + 1).map((n) => n.id)));
+    setMenu(null);
   }
 
   async function runBulk(
@@ -353,6 +402,7 @@ export function NoteGrid({
               onOpen={onOpenNote}
               onToggleSelect={toggleSelect}
               onEnterSelect={enterSelect}
+              onRangeSelect={rangeSelect}
             />
           ))}
         </div>
