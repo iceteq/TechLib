@@ -38,6 +38,8 @@ export interface Note {
   background: NoteBackground;
   disposition: NoteDisposition;
   category: NoteCategory;
+  /** Single stock location (bay/shelf code), or null when unset. */
+  stockId: string | null;
   /** Exception / special-case handling note under guideline. */
   specialCase: string;
   pinned: boolean;
@@ -55,6 +57,12 @@ export interface NoteWithUrls extends Omit<Note, 'images'> {
 }
 
 export interface Label {
+  id: string;
+  name: string;
+}
+
+/** User-defined stock location (e.g. 3209, 3209b). */
+export interface StockLocation {
   id: string;
   name: string;
 }

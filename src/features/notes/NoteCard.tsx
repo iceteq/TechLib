@@ -4,7 +4,7 @@ import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
 import { formatNoteAge } from '../../lib/formatNoteAge';
 import { CATEGORIES, DISPOSITIONS } from '../../lib/types';
-import type { Label, NoteWithUrls } from '../../lib/types';
+import type { Label, NoteWithUrls, StockLocation } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { LabelChip } from '../labels/LabelChip';
 import styles from './NoteCard.module.css';
@@ -17,6 +17,7 @@ const SUPPRESS_MS = 1200;
 interface NoteCardProps {
   note: NoteWithUrls;
   labels: Label[];
+  stockLocations: StockLocation[];
   selecting: boolean;
   selected: boolean;
   showBarcodes: boolean;
@@ -33,6 +34,7 @@ interface NoteCardProps {
 export function NoteCard({
   note,
   labels,
+  stockLocations,
   selecting,
   selected,
   showBarcodes,
@@ -49,6 +51,7 @@ export function NoteCard({
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
   const overflow = Math.max(0, note.images.length - NOTE_PREVIEW_IMAGE_LIMIT);
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
+  const stock = stockLocations.find((s) => s.id === note.stockId);
   const title = note.title.trim() || 'Untitled';
   const disposition = DISPOSITIONS.find(
     (d) => d.id === (note.disposition ?? 'none'),
@@ -253,6 +256,7 @@ export function NoteCard({
         {(
           (disposition && disposition.id !== 'none') ||
           (category && category.id !== 'none') ||
+          Boolean(stock) ||
           (showLabels && noteLabels.length > 0)
         ) && (
           <div className={styles.labels}>
@@ -266,6 +270,7 @@ export function NoteCard({
             {category && category.id !== 'none' && (
               <span className={styles.category}>{category.label}</span>
             )}
+            {stock && <span className={styles.stock}>{stock.name}</span>}
             {showLabels &&
               noteLabels.map((label) => (
                 <LabelChip key={label.id} name={label.name} />

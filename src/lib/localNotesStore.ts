@@ -9,6 +9,7 @@ import type {
   NoteWithUrls,
   Reaction,
   ReactionEmoji,
+  StockLocation,
 } from './types';
 import { normalizeCategory } from './types';
 
@@ -21,6 +22,11 @@ interface TechLibDB extends DBSchema {
   labels: {
     key: string;
     value: Label;
+    indexes: { 'by-name': string };
+  };
+  stockLocations: {
+    key: string;
+    value: StockLocation;
     indexes: { 'by-name': string };
   };
   imageBlobs: {
@@ -44,7 +50,7 @@ interface TechLibDB extends DBSchema {
 }
 
 const DB_NAME = 'techlib';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbPromise: Promise<IDBPDatabase<TechLibDB>> | null = null;
 const urlCache = new Map<string, string>();
@@ -61,6 +67,7 @@ function normalizeNote(note: Note): Note {
     deletedAt: note.deletedAt ?? null,
     disposition: note.disposition ?? 'none',
     category: normalizeCategory(note.category),
+    stockId: note.stockId ?? null,
     specialCase: note.specialCase ?? '',
     labelIds: note.labelIds ?? [],
     images: note.images ?? [],
@@ -93,6 +100,15 @@ function getDb() {
         if (oldVersion < 3) {
           if (!db.objectStoreNames.contains('cartItems')) {
             db.createObjectStore('cartItems', { keyPath: 'noteId' });
+          }
+        }
+
+        if (oldVersion < 4) {
+          if (!db.objectStoreNames.contains('stockLocations')) {
+            const stock = db.createObjectStore('stockLocations', {
+              keyPath: 'id',
+            });
+            stock.createIndex('by-name', 'name', { unique: true });
           }
         }
       },
@@ -165,6 +181,7 @@ export async function createNote(input?: {
   background?: NoteBackground;
   disposition?: NoteDisposition;
   category?: NoteCategory;
+  stockId?: string | null;
   specialCase?: string;
   labelIds?: string[];
 }): Promise<NoteWithUrls> {
@@ -177,6 +194,7 @@ export async function createNote(input?: {
     background: input?.background ?? 'default',
     disposition: input?.disposition ?? 'none',
     category: input?.category ?? 'none',
+    stockId: input?.stockId ?? null,
     specialCase: input?.specialCase ?? '',
     pinned: false,
     archived: false,
@@ -203,6 +221,7 @@ export async function updateNote(
       | 'archived'
       | 'disposition'
       | 'category'
+      | 'stockId'
       | 'specialCase'
     >
   >,
@@ -421,6 +440,43 @@ export async function setNoteLabels(
   labelIds: string[],
 ): Promise<NoteWithUrls | undefined> {
   return updateNote(noteId, { labelIds: [...new Set(labelIds)] });
+}
+
+export async function listStockLocations(): Promise<StockLocation[]> {
+  const db = await getDb();
+  const locations = await db.getAll('stockLocations');
+  return locations.sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  );
+}
+
+export async function createStockLocation(name: string): Promise<StockLocation> {
+  const db = await getDb();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Stock name is required');
+
+  const existing = await db.getAllFromIndex('stockLocations', 'by-name', trimmed);
+  if (existing[0]) return existing[0];
+
+  const location: StockLocation = { id: uid(), name: trimmed };
+  await db.put('stockLocations', location);
+  return location;
+}
+
+export async function deleteStockLocation(id: string): Promise<void> {
+  const db = await getDb();
+  await db.delete('stockLocations', id);
+
+  const notes = await db.getAll('notes');
+  for (const note of notes) {
+    const normalized = normalizeNote(note);
+    if (normalized.stockId !== id) continue;
+    await db.put('notes', {
+      ...normalized,
+      stockId: null,
+      updatedAt: Date.now(),
+    });
+  }
 }
 
 export async function listReactionsForNote(noteId: string): Promise<Reaction[]> {

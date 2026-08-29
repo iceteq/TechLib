@@ -42,6 +42,15 @@ export const deleteLabel = (...args: Parameters<typeof local.deleteLabel>) =>
 export const setNoteLabels = (
   ...args: Parameters<typeof local.setNoteLabels>
 ) => api().setNoteLabels(...args);
+export const listStockLocations = (
+  ...args: Parameters<typeof local.listStockLocations>
+) => api().listStockLocations(...args);
+export const createStockLocation = (
+  ...args: Parameters<typeof local.createStockLocation>
+) => api().createStockLocation(...args);
+export const deleteStockLocation = (
+  ...args: Parameters<typeof local.deleteStockLocation>
+) => api().deleteStockLocation(...args);
 export const listReactionsForNote = (
   ...args: Parameters<typeof local.listReactionsForNote>
 ) => api().listReactionsForNote(...args);

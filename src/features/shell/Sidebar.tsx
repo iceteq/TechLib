@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   AlertCircle,
   Archive,
   Cable,
+  ChevronDown,
   Cpu,
   Lightbulb,
   LogOut,
@@ -15,6 +16,7 @@ import {
   ShoppingCart,
   Tag,
   Trash2,
+  Warehouse,
   Wrench,
 } from 'lucide-react';
 import type {
@@ -22,15 +24,24 @@ import type {
   NoteCategory,
   NoteDisposition,
   NotesView,
+  StockLocation,
 } from '../../lib/types';
+import {
+  loadSidebarSections,
+  saveSidebarSections,
+  type SidebarSectionId,
+  type SidebarSectionState,
+} from '../../lib/sidebarSections';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
   labels: Label[];
+  stockLocations: StockLocation[];
   view: NotesView;
   activeLabelIds: string[];
   activeDisposition: NoteDisposition | null;
   activeCategory: NoteCategory | null;
+  activeStockId: string | null;
   specialCasesOnly: boolean;
   cartCount: number;
   onSelectNotes: () => void;
@@ -38,18 +49,22 @@ interface SidebarProps {
   onSelectCart: () => void;
   onSelectDisposition: (disposition: NoteDisposition) => void;
   onSelectCategory: (category: NoteCategory) => void;
+  onSelectStock: (stockId: string) => void;
   onToggleSpecialCases: () => void;
   onToggleLabel: (labelId: string) => void;
   onCreateLabel: (name: string) => Promise<Label>;
+  onCreateStock: (name: string) => Promise<StockLocation>;
   onSignOut?: () => void;
 }
 
 export function Sidebar({
   labels,
+  stockLocations,
   view,
   activeLabelIds,
   activeDisposition,
   activeCategory,
+  activeStockId,
   specialCasesOnly,
   cartCount,
   onSelectNotes,
@@ -57,13 +72,19 @@ export function Sidebar({
   onSelectCart,
   onSelectDisposition,
   onSelectCategory,
+  onSelectStock,
   onToggleSpecialCases,
   onToggleLabel,
   onCreateLabel,
+  onCreateStock,
   onSignOut,
 }: SidebarProps) {
+  const [sections, setSections] =
+    useState<SidebarSectionState>(loadSidebarSections);
   const [creatingLabel, setCreatingLabel] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
+  const [creatingStock, setCreatingStock] = useState(false);
+  const [newStockName, setNewStockName] = useState('');
   const [creatingBusy, setCreatingBusy] = useState(false);
 
   const allActive =
@@ -71,7 +92,25 @@ export function Sidebar({
     activeLabelIds.length === 0 &&
     activeDisposition === null &&
     activeCategory === null &&
+    activeStockId === null &&
     !specialCasesOnly;
+
+  function toggleSection(id: SidebarSectionId) {
+    setSections((current) => {
+      const next = { ...current, [id]: !current[id] };
+      saveSidebarSections(next);
+      return next;
+    });
+  }
+
+  function openSection(id: SidebarSectionId) {
+    setSections((current) => {
+      if (current[id]) return current;
+      const next = { ...current, [id]: true };
+      saveSidebarSections(next);
+      return next;
+    });
+  }
 
   async function submitNewLabel(e: React.FormEvent) {
     e.preventDefault();
@@ -85,6 +124,29 @@ export function Sidebar({
     } finally {
       setCreatingBusy(false);
     }
+  }
+
+  async function submitNewStock(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newStockName.trim();
+    if (!name || creatingBusy) return;
+    setCreatingBusy(true);
+    try {
+      await onCreateStock(name);
+      setNewStockName('');
+      setCreatingStock(false);
+    } finally {
+      setCreatingBusy(false);
+    }
+  }
+
+  function sectionHasActive(id: SidebarSectionId): boolean {
+    if (view !== 'notes') return false;
+    if (id === 'guideline') return activeDisposition != null;
+    if (id === 'type') return activeCategory != null;
+    if (id === 'stock') return activeStockId != null;
+    if (id === 'labels') return activeLabelIds.length > 0;
+    return false;
   }
 
   return (
@@ -127,8 +189,13 @@ export function Sidebar({
         <span>Special cases</span>
       </button>
 
-      <div className={styles.section}>
-        <p className={styles.sectionTitle}>Guideline</p>
+      <CollapsibleSection
+        id="guideline"
+        title="Guideline"
+        open={sections.guideline}
+        hasActive={sectionHasActive('guideline')}
+        onToggle={() => toggleSection('guideline')}
+      >
         <button
           type="button"
           className={`${styles.item} ${
@@ -137,12 +204,14 @@ export function Sidebar({
           onClick={() => onSelectDisposition('stock')}
         >
           <Package size={18} />
-          <span>Stock</span>
+          <span>To stock</span>
         </button>
         <button
           type="button"
           className={`${styles.item} ${
-            view === 'notes' && activeDisposition === 'repair' ? styles.active : ''
+            view === 'notes' && activeDisposition === 'repair'
+              ? styles.active
+              : ''
           }`}
           onClick={() => onSelectDisposition('repair')}
         >
@@ -159,98 +228,139 @@ export function Sidebar({
           <Trash2 size={18} />
           <span>Throw away</span>
         </button>
-      </div>
+      </CollapsibleSection>
 
-      <div className={styles.section}>
-        <p className={styles.sectionTitle}>Type</p>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeCategory === 'monitor' ? styles.active : ''
-          }`}
-          onClick={() => onSelectCategory('monitor')}
-        >
-          <Monitor size={18} />
-          <span>Monitor</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeCategory === 'computer' ? styles.active : ''
-          }`}
-          onClick={() => onSelectCategory('computer')}
-        >
-          <Cpu size={18} />
-          <span>Computer</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeCategory === 'printer' ? styles.active : ''
-          }`}
-          onClick={() => onSelectCategory('printer')}
-        >
-          <Printer size={18} />
-          <span>Printer</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeCategory === 'network' ? styles.active : ''
-          }`}
-          onClick={() => onSelectCategory('network')}
-        >
-          <Network size={18} />
-          <span>Network</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeCategory === 'scanner' ? styles.active : ''
-          }`}
-          onClick={() => onSelectCategory('scanner')}
-        >
-          <ScanBarcode size={18} />
-          <span>Scanner</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeCategory === 'cables' ? styles.active : ''
-          }`}
-          onClick={() => onSelectCategory('cables')}
-        >
-          <Cable size={18} />
-          <span>Cables</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeCategory === 'other' ? styles.active : ''
-          }`}
-          onClick={() => onSelectCategory('other')}
-        >
-          <Package size={18} />
-          <span>Other</span>
-        </button>
-      </div>
+      <CollapsibleSection
+        id="type"
+        title="Type"
+        open={sections.type}
+        hasActive={sectionHasActive('type')}
+        onToggle={() => toggleSection('type')}
+      >
+        {(
+          [
+            ['monitor', Monitor, 'Monitor'],
+            ['computer', Cpu, 'Computer'],
+            ['printer', Printer, 'Printer'],
+            ['network', Network, 'Network'],
+            ['scanner', ScanBarcode, 'Scanner'],
+            ['cables', Cable, 'Cables'],
+            ['other', Package, 'Other'],
+          ] as const
+        ).map(([id, Icon, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={`${styles.item} ${
+              view === 'notes' && activeCategory === id ? styles.active : ''
+            }`}
+            onClick={() => onSelectCategory(id)}
+          >
+            <Icon size={18} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </CollapsibleSection>
 
-      <div className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <p className={styles.sectionTitle}>Labels</p>
+      <CollapsibleSection
+        id="stock"
+        title="Stock"
+        open={sections.stock}
+        hasActive={sectionHasActive('stock')}
+        onToggle={() => toggleSection('stock')}
+        trailing={
           <button
             type="button"
             className={styles.addLabelBtn}
-            onClick={() => setCreatingLabel((open) => !open)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCreatingStock((open) => !open);
+              openSection('stock');
+            }}
+            aria-label="Create stock location"
+            title="Create stock location"
+            aria-expanded={creatingStock}
+          >
+            <Plus size={16} strokeWidth={2.25} />
+          </button>
+        }
+      >
+        {creatingStock && (
+          <form
+            className={styles.createLabel}
+            onSubmit={(e) => void submitNewStock(e)}
+          >
+            <input
+              className={styles.createLabelInput}
+              value={newStockName}
+              onChange={(e) => setNewStockName(e.target.value)}
+              placeholder="e.g. 3209"
+              aria-label="New stock location"
+              autoFocus
+              disabled={creatingBusy}
+            />
+            <button
+              type="submit"
+              className={styles.createLabelSubmit}
+              disabled={creatingBusy || !newStockName.trim()}
+            >
+              Add
+            </button>
+          </form>
+        )}
+        {stockLocations.length === 0 && !creatingStock ? (
+          <p className={styles.empty}>Tap + to add stock locations.</p>
+        ) : (
+          <ul className={styles.list}>
+            {stockLocations.map((stock) => (
+              <li key={stock.id}>
+                <button
+                  type="button"
+                  className={`${styles.item} ${
+                    view === 'notes' && activeStockId === stock.id
+                      ? styles.active
+                      : ''
+                  }`}
+                  onClick={() => onSelectStock(stock.id)}
+                  aria-pressed={view === 'notes' && activeStockId === stock.id}
+                >
+                  <Warehouse size={18} />
+                  <span>{stock.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        id="labels"
+        title="Labels"
+        open={sections.labels}
+        hasActive={sectionHasActive('labels')}
+        onToggle={() => toggleSection('labels')}
+        trailing={
+          <button
+            type="button"
+            className={styles.addLabelBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCreatingLabel((open) => !open);
+              openSection('labels');
+            }}
             aria-label="Create label"
             title="Create label"
             aria-expanded={creatingLabel}
           >
             <Plus size={16} strokeWidth={2.25} />
           </button>
-        </div>
+        }
+      >
         {creatingLabel && (
-          <form className={styles.createLabel} onSubmit={(e) => void submitNewLabel(e)}>
+          <form
+            className={styles.createLabel}
+            onSubmit={(e) => void submitNewLabel(e)}
+          >
             <input
               className={styles.createLabelInput}
               value={newLabelName}
@@ -294,7 +404,7 @@ export function Sidebar({
             ))}
           </ul>
         )}
-      </div>
+      </CollapsibleSection>
 
       {onSignOut && (
         <div className={styles.section}>
@@ -305,5 +415,55 @@ export function Sidebar({
         </div>
       )}
     </nav>
+  );
+}
+
+function CollapsibleSection({
+  id,
+  title,
+  open,
+  hasActive,
+  onToggle,
+  trailing,
+  children,
+}: {
+  id: SidebarSectionId;
+  title: string;
+  open: boolean;
+  hasActive: boolean;
+  onToggle: () => void;
+  trailing?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className={styles.section}>
+      <div className={styles.sectionHeader}>
+        <button
+          type="button"
+          className={`${styles.sectionToggle} ${
+            hasActive ? styles.sectionToggleActive : ''
+          }`}
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={`sidebar-section-${id}`}
+        >
+          <ChevronDown
+            size={16}
+            className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}
+            aria-hidden
+          />
+          <span className={styles.sectionTitle}>{title}</span>
+          {hasActive && !open && (
+            <span className={styles.activeDot} aria-label="Filter active" />
+          )}
+        </button>
+        {trailing}
+      </div>
+      {open && (
+        <div id={`sidebar-section-${id}`} className={styles.sectionBody}>
+          {children}
+        </div>
+      )}
+    </div>
   );
 }

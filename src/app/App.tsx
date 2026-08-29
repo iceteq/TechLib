@@ -10,6 +10,7 @@ import { UndoToast } from '../features/notes/UndoToast';
 import type {
   CartItem,
   Label,
+  StockLocation,
   NoteBackground,
   NoteCategory,
   NoteDisposition,
@@ -20,6 +21,7 @@ import {
   categoryLabel,
   dispositionLabel,
   filterNotes,
+  stockLabel,
 } from '../lib/searchNotes';
 import { parsePastedNotes } from '../lib/parsePastedNotes';
 import * as store from '../lib/notesStore';
@@ -53,12 +55,14 @@ function clipboardImageFiles(clipboardData: DataTransfer | null): File[] {
 export default function App() {
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
+  const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [view, setView] = useState<NotesView>('notes');
   const [filterLabelIds, setFilterLabelIds] = useState<string[]>([]);
   const [filterDisposition, setFilterDisposition] =
     useState<NoteDisposition | null>(null);
   const [filterCategory, setFilterCategory] = useState<NoteCategory | null>(null);
+  const [filterStockId, setFilterStockId] = useState<string | null>(null);
   const [specialCasesOnly, setSpecialCasesOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
@@ -75,13 +79,15 @@ export default function App() {
   }
 
   const refresh = useCallback(async () => {
-    const [nextNotes, nextLabels, nextCart] = await Promise.all([
+    const [nextNotes, nextLabels, nextStock, nextCart] = await Promise.all([
       store.listNotes(),
       store.listLabels(),
+      store.listStockLocations(),
       store.listCartItems(),
     ]);
     setNotes(nextNotes);
     setLabels(nextLabels);
+    setStockLocations(nextStock);
     setCartItems(nextCart);
   }, []);
 
@@ -95,20 +101,23 @@ export default function App() {
 
   const visibleNotes = useMemo(
     () =>
-      filterNotes(notes, labels, {
+      filterNotes(notes, labels, stockLocations, {
         labelIds: view === 'notes' ? filterLabelIds : [],
         search,
         view: view === 'cart' ? 'notes' : view,
         disposition: view === 'notes' ? filterDisposition : null,
         category: view === 'notes' ? filterCategory : null,
+        stockId: view === 'notes' ? filterStockId : null,
         specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
       }),
     [
       notes,
       labels,
+      stockLocations,
       filterLabelIds,
       filterDisposition,
       filterCategory,
+      filterStockId,
       specialCasesOnly,
       search,
       view,
@@ -130,6 +139,7 @@ export default function App() {
     const parts: string[] = [];
     const status = dispositionLabel(filterDisposition);
     const type = categoryLabel(filterCategory);
+    const stock = stockLabel(filterStockId, stockLocations);
     const labelNames = labels
       .filter((l) => filterLabelIds.includes(l.id))
       .sort((a, b) =>
@@ -138,21 +148,25 @@ export default function App() {
       .map((l) => `#${l.name}`);
     if (status) parts.push(status);
     if (type) parts.push(type);
+    if (stock) parts.push(stock);
     if (specialCasesOnly) parts.push('Special cases');
     parts.push(...labelNames);
     return parts.length > 0 ? parts.join(' · ') : 'No filters';
   }, [
     filterDisposition,
     filterCategory,
+    filterStockId,
     filterLabelIds,
     specialCasesOnly,
     labels,
+    stockLocations,
   ]);
 
   function clearAllFilters() {
     setFilterLabelIds([]);
     setFilterDisposition(null);
     setFilterCategory(null);
+    setFilterStockId(null);
     setSpecialCasesOnly(false);
   }
 
@@ -206,6 +220,7 @@ export default function App() {
     const note = await store.createNote({
       disposition: filterDisposition ?? 'none',
       category: filterCategory ?? 'none',
+      stockId: filterStockId,
       labelIds: filterLabelIds,
     });
     await refresh();
@@ -224,6 +239,7 @@ export default function App() {
         specialCase: draft.specialCase,
         disposition: filterDisposition ?? 'none',
         category: filterCategory ?? 'none',
+        stockId: filterStockId,
         labelIds: filterLabelIds,
       });
       createdIds.push(note.id);
@@ -282,6 +298,7 @@ export default function App() {
     archived?: boolean;
     disposition?: NoteDisposition;
     category?: NoteCategory;
+    stockId?: string | null;
     specialCase?: string;
   }) {
     if (!activeNoteId) return;
@@ -363,6 +380,7 @@ export default function App() {
     patch: {
       disposition?: NoteDisposition;
       category?: NoteCategory;
+      stockId?: string | null;
       labelIds?: string[];
     },
   ) {
@@ -387,6 +405,19 @@ export default function App() {
     return label;
   }
 
+  async function handleCreateStock(name: string) {
+    const location = await store.createStockLocation(name);
+    setStockLocations(await store.listStockLocations());
+    setView('notes');
+    setFilterStockId(location.id);
+    return location;
+  }
+
+  async function handleSidebarCreateStock(name: string) {
+    return handleCreateStock(name);
+  }
+
+
   useEffect(() => {
     async function onPaste(e: ClipboardEvent) {
       if (activeNoteId || pasteOpen || view !== 'notes') return;
@@ -399,6 +430,7 @@ export default function App() {
       const note = await store.createNote({
         disposition: filterDisposition ?? 'none',
         category: filterCategory ?? 'none',
+        stockId: filterStockId,
         labelIds: filterLabelIds,
       });
       for (const file of images) {
@@ -417,6 +449,7 @@ export default function App() {
     view,
     filterDisposition,
     filterCategory,
+    filterStockId,
     filterLabelIds,
     refresh,
   ]);
@@ -443,10 +476,12 @@ export default function App() {
       sidebar={
         <Sidebar
           labels={labels}
+          stockLocations={stockLocations}
           view={view}
           activeLabelIds={filterLabelIds}
           activeDisposition={filterDisposition}
           activeCategory={filterCategory}
+          activeStockId={filterStockId}
           specialCasesOnly={specialCasesOnly}
           cartCount={cartUnitCount}
           onSelectNotes={() => {
@@ -478,6 +513,13 @@ export default function App() {
             );
             setSidebarOpen(false);
           }}
+          onSelectStock={(stockId) => {
+            setView('notes');
+            setFilterStockId((current) =>
+              current === stockId ? null : stockId,
+            );
+            // keep sidebar open for multi-hop browsing of stock
+          }}
           onToggleSpecialCases={() => {
             setView('notes');
             setSpecialCasesOnly((value) => !value);
@@ -485,6 +527,7 @@ export default function App() {
           }}
           onToggleLabel={toggleFilterLabel}
           onCreateLabel={handleSidebarCreateLabel}
+          onCreateStock={handleSidebarCreateStock}
           onSignOut={
             isCloudConfigured()
               ? () => {
@@ -518,8 +561,10 @@ export default function App() {
           filterLabelIds={filterLabelIds}
           filterDisposition={filterDisposition}
           filterCategory={filterCategory}
+          filterStockId={filterStockId}
           specialCasesOnly={specialCasesOnly}
           search={search}
+          stockLocations={stockLocations}
           showBarcodes={viewPrefs.barcodes}
           showPhotos={viewPrefs.photos}
           showDescription={viewPrefs.description}
@@ -537,6 +582,7 @@ export default function App() {
           }
           onClearDisposition={() => setFilterDisposition(null)}
           onClearCategory={() => setFilterCategory(null)}
+          onClearStock={() => setFilterStockId(null)}
           onClearSpecialCases={() => setSpecialCasesOnly(false)}
           onClearAllFilters={clearAllFilters}
         />
@@ -562,6 +608,7 @@ export default function App() {
         <NoteEditor
           note={activeNote}
           labels={labels}
+          stockLocations={stockLocations}
           showBarcodes={viewPrefs.barcodes}
           onClose={() => void handleCloseEditor()}
           onSaveMeta={handleSaveMeta}

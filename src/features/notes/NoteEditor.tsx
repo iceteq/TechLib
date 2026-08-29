@@ -18,6 +18,7 @@ import type {
   NoteCategory,
   NoteDisposition,
   NoteWithUrls,
+  StockLocation,
 } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
@@ -28,6 +29,7 @@ import styles from './NoteEditor.module.css';
 interface NoteEditorProps {
   note: NoteWithUrls;
   labels: Label[];
+  stockLocations: StockLocation[];
   showBarcodes: boolean;
   onClose: () => void;
   onSaveMeta: (patch: {
@@ -39,6 +41,7 @@ interface NoteEditorProps {
     archived?: boolean;
     disposition?: NoteDisposition;
     category?: NoteCategory;
+    stockId?: string | null;
     specialCase?: string;
   }) => Promise<void>;
   onAddImages: (files: FileList | File[]) => Promise<void>;
@@ -52,6 +55,7 @@ interface NoteEditorProps {
 export function NoteEditor({
   note,
   labels,
+  stockLocations,
   showBarcodes,
   onClose,
   onSaveMeta,
@@ -82,6 +86,7 @@ export function NoteEditor({
     !note.archived &&
     (note.disposition ?? 'none') === 'none' &&
     (note.category ?? 'none') === 'none' &&
+    !note.stockId &&
     !(note.specialCase ?? '').trim();
 
   useEffect(() => {
@@ -346,6 +351,32 @@ export function NoteEditor({
                 onClick={() => void onSaveMeta({ category: option.id })}
               >
                 {option.id === 'none' ? 'None' : option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.section}>
+          <div className={styles.dispositionRow} role="group" aria-label="Stock location">
+            <button
+              type="button"
+              className={`${styles.dispositionBtn} ${
+                !note.stockId ? styles.dispositionActive : ''
+              }`}
+              onClick={() => void onSaveMeta({ stockId: null })}
+            >
+              None
+            </button>
+            {stockLocations.map((stock) => (
+              <button
+                key={stock.id}
+                type="button"
+                className={`${styles.dispositionBtn} ${
+                  note.stockId === stock.id ? styles.dispositionActive : ''
+                }`}
+                onClick={() => void onSaveMeta({ stockId: stock.id })}
+              >
+                {stock.name}
               </button>
             ))}
           </div>

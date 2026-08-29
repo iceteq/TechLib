@@ -8,6 +8,7 @@ import type {
   NoteWithUrls,
   Reaction,
   ReactionEmoji,
+  StockLocation,
 } from './types';
 import { normalizeCategory } from './types';
 import { getSupabase } from './supabaseClient';
@@ -22,6 +23,7 @@ type NoteRow = {
   background: string;
   disposition: string;
   category: string;
+  stock_id: string | null;
   special_case: string;
   pinned: boolean;
   archived: boolean;
@@ -135,6 +137,7 @@ async function hydrateRows(rows: NoteRow[]): Promise<NoteWithUrls[]> {
         background: row.background as NoteBackground,
         disposition: (row.disposition as NoteDisposition) ?? 'none',
         category: normalizeCategory(row.category),
+        stockId: row.stock_id ?? null,
         specialCase: row.special_case ?? '',
         pinned: row.pinned,
         archived: row.archived,
@@ -198,6 +201,7 @@ export async function createNote(input?: {
   background?: NoteBackground;
   disposition?: NoteDisposition;
   category?: NoteCategory;
+  stockId?: string | null;
   specialCase?: string;
   labelIds?: string[];
 }): Promise<NoteWithUrls> {
@@ -211,6 +215,7 @@ export async function createNote(input?: {
       background: input?.background ?? 'default',
       disposition: input?.disposition ?? 'none',
       category: input?.category ?? 'none',
+      stock_id: input?.stockId ?? null,
       special_case: input?.specialCase ?? '',
     })
     .select('*')
@@ -238,12 +243,13 @@ export async function updateNote(
       | 'archived'
       | 'disposition'
       | 'category'
+      | 'stockId'
       | 'specialCase'
     >
   >,
 ): Promise<NoteWithUrls | undefined> {
   await requireUserId();
-  const { labelIds, specialCase, ...rest } = patch;
+  const { labelIds, specialCase, stockId, ...rest } = patch;
   const update: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
@@ -254,6 +260,7 @@ export async function updateNote(
   if (rest.archived !== undefined) update.archived = rest.archived;
   if (rest.disposition !== undefined) update.disposition = rest.disposition;
   if (rest.category !== undefined) update.category = rest.category;
+  if (stockId !== undefined) update.stock_id = stockId;
   if (specialCase !== undefined) update.special_case = specialCase;
 
   const { error } = await getSupabase().from('notes').update(update).eq('id', id);
@@ -450,6 +457,42 @@ export async function createLabel(name: string): Promise<Label> {
 export async function deleteLabel(id: string): Promise<void> {
   await requireUserId();
   const { error } = await getSupabase().from('labels').delete().eq('id', id);
+  throwIf(error);
+}
+
+export async function listStockLocations(): Promise<StockLocation[]> {
+  await requireUserId();
+  const { data, error } = await getSupabase()
+    .from('stock_locations')
+    .select('id, name')
+    .order('name');
+  throwIf(error);
+  return ((data ?? []) as LabelRow[]).map((l) => ({ id: l.id, name: l.name }));
+}
+
+export async function createStockLocation(name: string): Promise<StockLocation> {
+  const ownerId = await requireUserId();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Stock name required');
+  const { data, error } = await getSupabase()
+    .from('stock_locations')
+    .insert({ owner_id: ownerId, name: trimmed })
+    .select('id, name')
+    .single();
+  throwIf(error);
+  const row = data as LabelRow;
+  return { id: row.id, name: row.name };
+}
+
+export async function deleteStockLocation(id: string): Promise<void> {
+  await requireUserId();
+  const supabase = getSupabase();
+  const { error: clearError } = await supabase
+    .from('notes')
+    .update({ stock_id: null, updated_at: new Date().toISOString() })
+    .eq('stock_id', id);
+  throwIf(clearError);
+  const { error } = await supabase.from('stock_locations').delete().eq('id', id);
   throwIf(error);
 }
 

@@ -41,22 +41,69 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.35rem;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.15rem;
   padding-right: 0.35rem;
 }
 
-.sectionHeader .sectionTitle {
-  margin: 0;
+.sectionToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0.55rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sectionToggle:hover {
+  background: color-mix(in srgb, var(--accent-soft) 60%, transparent);
+  color: var(--text);
+}
+
+.sectionToggleActive {
+  color: var(--accent);
 }
 
 .sectionTitle {
-  margin: 0 0 0.35rem;
-  padding: 0 0.9rem;
+  margin: 0;
+  padding: 0;
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-muted);
+}
+
+.chevron {
+  flex-shrink: 0;
+  transition: transform 160ms ease;
+  transform: rotate(-90deg);
+}
+
+.chevronOpen {
+  transform: rotate(0deg);
+}
+
+.activeDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sectionHeader .sectionTitle {
+  margin: 0;
 }
 
 .addLabelBtn {

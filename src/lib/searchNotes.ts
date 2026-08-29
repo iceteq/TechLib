@@ -5,12 +5,14 @@ import type {
   NoteWithUrls,
   NotesView,
   Reaction,
+  StockLocation,
 } from './types';
 import { CATEGORIES, DISPOSITIONS } from './types';
 
 export function matchesNoteSearch(
   note: NoteWithUrls,
   labels: Label[],
+  stockLocations: StockLocation[],
   query: string,
 ): boolean {
   const q = query.trim().toLowerCase();
@@ -30,6 +32,9 @@ export function matchesNoteSearch(
     return true;
   }
 
+  const stock = stockLocations.find((s) => s.id === note.stockId);
+  if (stock && stock.name.toLowerCase().includes(q)) return true;
+
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   return noteLabels.some((l) => {
     const name = l.name.toLowerCase();
@@ -40,12 +45,14 @@ export function matchesNoteSearch(
 export function filterNotes(
   notes: NoteWithUrls[],
   labels: Label[],
+  stockLocations: StockLocation[],
   options: {
     labelIds: string[];
     search: string;
     view: NotesView;
     disposition: NoteDisposition | null;
     category: NoteCategory | null;
+    stockId: string | null;
     specialCasesOnly?: boolean;
   },
 ): NoteWithUrls[] {
@@ -66,10 +73,13 @@ export function filterNotes(
     if (options.category && (note.category ?? 'none') !== options.category) {
       return false;
     }
+    if (options.stockId && note.stockId !== options.stockId) {
+      return false;
+    }
     if (options.specialCasesOnly && !(note.specialCase ?? '').trim()) {
       return false;
     }
-    return matchesNoteSearch(note, labels, options.search);
+    return matchesNoteSearch(note, labels, stockLocations, options.search);
   });
 }
 
@@ -88,4 +98,12 @@ export function dispositionLabel(id: NoteDisposition | null): string | null {
 export function categoryLabel(id: NoteCategory | null): string | null {
   if (!id || id === 'none') return null;
   return CATEGORIES.find((c) => c.id === id)?.label ?? null;
+}
+
+export function stockLabel(
+  stockId: string | null,
+  stockLocations: StockLocation[],
+): string | null {
+  if (!stockId) return null;
+  return stockLocations.find((s) => s.id === stockId)?.name ?? null;
 }

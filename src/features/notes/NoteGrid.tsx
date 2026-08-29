@@ -6,9 +6,10 @@ import type {
   NoteDisposition,
   NotesView,
   NoteWithUrls,
+  StockLocation,
 } from '../../lib/types';
 import { CATEGORIES, DISPOSITIONS } from '../../lib/types';
-import { categoryLabel, dispositionLabel } from '../../lib/searchNotes';
+import { categoryLabel, dispositionLabel, stockLabel } from '../../lib/searchNotes';
 import { NoteCard } from './NoteCard';
 import styles from './NoteGrid.module.css';
 
@@ -21,8 +22,10 @@ interface NoteGridProps {
   filterLabelIds: string[];
   filterDisposition: NoteDisposition | null;
   filterCategory: NoteCategory | null;
+  filterStockId: string | null;
   specialCasesOnly: boolean;
   search: string;
+  stockLocations: StockLocation[];
   showBarcodes: boolean;
   showPhotos: boolean;
   showDescription: boolean;
@@ -39,12 +42,14 @@ interface NoteGridProps {
     patch: {
       disposition?: NoteDisposition;
       category?: NoteCategory;
+      stockId?: string | null;
       labelIds?: string[];
     },
   ) => Promise<void>;
   onClearLabel: (labelId: string) => void;
   onClearDisposition: () => void;
   onClearCategory: () => void;
+  onClearStock: () => void;
   onClearSpecialCases: () => void;
   onClearAllFilters: () => void;
 }
@@ -56,8 +61,10 @@ export function NoteGrid({
   filterLabelIds,
   filterDisposition,
   filterCategory,
+  filterStockId,
   specialCasesOnly,
   search,
+  stockLocations,
   showBarcodes,
   showPhotos,
   showDescription,
@@ -73,6 +80,7 @@ export function NoteGrid({
   onClearLabel,
   onClearDisposition,
   onClearCategory,
+  onClearStock,
   onClearSpecialCases,
   onClearAllFilters,
 }: NoteGridProps) {
@@ -95,6 +103,7 @@ export function NoteGrid({
     filterLabelIds,
     filterDisposition,
     filterCategory,
+    filterStockId,
     specialCasesOnly,
     search,
     clearSelection,
@@ -207,10 +216,12 @@ export function NoteGrid({
   const canCreate = view === 'notes' && !selecting;
   const statusText = dispositionLabel(filterDisposition);
   const typeText = categoryLabel(filterCategory);
+  const stockText = stockLabel(filterStockId, stockLocations);
   const hasFilters = Boolean(
     filterLabelIds.length > 0 ||
       filterDisposition ||
       filterCategory ||
+      filterStockId ||
       specialCasesOnly,
   );
   const sortedLabels = [...labels].sort((a, b) =>
@@ -269,6 +280,16 @@ export function NoteGrid({
               <X size={14} />
             </button>
           )}
+          {stockText && (
+            <button
+              type="button"
+              className={`${styles.chip} ${styles.chipMeta}`}
+              onClick={onClearStock}
+            >
+              {stockText}
+              <X size={14} />
+            </button>
+          )}
           {specialCasesOnly && (
             <button
               type="button"
@@ -280,7 +301,7 @@ export function NoteGrid({
             </button>
           )}
           {filterLabels.length > 0 &&
-            (statusText || typeText || specialCasesOnly) && (
+            (statusText || typeText || stockText || specialCasesOnly) && (
               <span className={styles.chipDivider} aria-hidden />
             )}
           {[...filterLabels]
@@ -320,6 +341,7 @@ export function NoteGrid({
               key={note.id}
               note={note}
               labels={labels}
+              stockLocations={stockLocations}
               selecting={selecting}
               selected={selectedIds.has(note.id)}
               showBarcodes={showBarcodes}
