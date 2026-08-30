@@ -27,6 +27,8 @@ interface NoteGridProps {
   specialCasesOnly: boolean;
   search: string;
   stockLocations: StockLocation[];
+  /** noteId → quantity in cart */
+  cartQuantities: Record<string, number>;
   showBarcodes: boolean;
   showPhotos: boolean;
   showDescription: boolean;
@@ -67,6 +69,7 @@ export function NoteGrid({
   specialCasesOnly,
   search,
   stockLocations,
+  cartQuantities,
   showBarcodes,
   showPhotos,
   showDescription,
@@ -396,6 +399,7 @@ export function NoteGrid({
               stockLocations={stockLocations}
               selecting={selecting}
               selected={selectedIds.has(note.id)}
+              cartQuantity={cartQuantities[note.id] ?? 0}
               showBarcodes={showBarcodes}
               showPhotos={showPhotos}
               showDescription={showDescription}

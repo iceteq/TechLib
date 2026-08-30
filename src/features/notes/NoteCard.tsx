@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check } from 'lucide-react';
+import { Check, ShoppingCart } from 'lucide-react';
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
 import { formatNoteAge } from '../../lib/formatNoteAge';
@@ -23,6 +23,8 @@ interface NoteCardProps {
   stockLocations: StockLocation[];
   selecting: boolean;
   selected: boolean;
+  /** Quantity in cart; 0 means not in cart. */
+  cartQuantity: number;
   showBarcodes: boolean;
   showPhotos: boolean;
   showDescription: boolean;
@@ -43,6 +45,7 @@ export function NoteCard({
   stockLocations,
   selecting,
   selected,
+  cartQuantity,
   showBarcodes,
   showPhotos,
   showDescription,
@@ -218,9 +221,31 @@ export function NoteCard({
         </span>
       )}
 
-      {note.pinned && (
+      {(note.pinned || cartQuantity > 0) && (
         <div className={styles.badges}>
-          <span className={styles.pinDot} title="Pinned" aria-label="Pinned" />
+          {cartQuantity > 0 && (
+            <span
+              className={styles.cartBadge}
+              title={
+                cartQuantity === 1
+                  ? 'In cart'
+                  : `In cart ×${cartQuantity}`
+              }
+              aria-label={
+                cartQuantity === 1
+                  ? 'In cart'
+                  : `In cart, quantity ${cartQuantity}`
+              }
+            >
+              <ShoppingCart size={12} strokeWidth={2.4} aria-hidden />
+              {cartQuantity > 1 && (
+                <span className={styles.cartQty}>{cartQuantity}</span>
+              )}
+            </span>
+          )}
+          {note.pinned && (
+            <span className={styles.pinDot} title="Pinned" aria-label="Pinned" />
+          )}
         </div>
       )}
 

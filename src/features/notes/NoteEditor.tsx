@@ -52,6 +52,7 @@ interface NoteEditorProps {
   onReorderImages: (orderedImageIds: string[]) => Promise<void>;
   onDelete: () => Promise<void>;
   onAddToCart: () => Promise<void>;
+  cartQuantity: number;
   onCreateLabel: (name: string) => Promise<Label>;
 }
 
@@ -68,6 +69,7 @@ export function NoteEditor({
   onReorderImages,
   onDelete,
   onAddToCart,
+  cartQuantity,
   onCreateLabel,
 }: NoteEditorProps) {
   const [title, setTitle] = useState(note.title);
@@ -238,12 +240,29 @@ export function NoteEditor({
 
             <button
               type="button"
-              className={styles.iconBtn}
+              className={`${styles.iconBtn} ${
+                cartQuantity > 0 ? styles.iconActive : ''
+              }`}
               onClick={() => void onAddToCart()}
-              aria-label="Add to cart"
-              title="Add to cart"
+              aria-label={
+                cartQuantity > 0
+                  ? cartQuantity === 1
+                    ? 'In cart — add another'
+                    : `In cart ×${cartQuantity} — add another`
+                  : 'Add to cart'
+              }
+              title={
+                cartQuantity > 0
+                  ? cartQuantity === 1
+                    ? 'In cart — click to add another'
+                    : `In cart ×${cartQuantity} — click to add another`
+                  : 'Add to cart'
+              }
             >
               <ShoppingCart size={18} />
+              {cartQuantity > 0 && (
+                <span className={styles.cartBadge}>{cartQuantity}</span>
+              )}
             </button>
 
             <button

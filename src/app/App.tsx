@@ -140,6 +140,13 @@ export default function App() {
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
   const cartUnitCount = store.cartUnitCount(cartItems);
+  const cartQuantities = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const item of cartItems) {
+      map[item.noteId] = item.quantity;
+    }
+    return map;
+  }, [cartItems]);
   const cartRows = useMemo(
     () =>
       cartItems.map((item) => ({
@@ -601,6 +608,7 @@ export default function App() {
           specialCasesOnly={specialCasesOnly}
           search={search}
           stockLocations={stockLocations}
+          cartQuantities={cartQuantities}
           showBarcodes={viewPrefs.barcodes}
           showPhotos={viewPrefs.photos}
           showDescription={viewPrefs.description}
@@ -655,6 +663,7 @@ export default function App() {
           onDelete={handleDelete}
           onCreateLabel={handleCreateLabel}
           onAddToCart={handleAddActiveToCart}
+          cartQuantity={cartQuantities[activeNote.id] ?? 0}
         />
       )}
     </AppShell>
