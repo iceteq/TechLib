@@ -4,15 +4,18 @@ import {
   Archive,
   ChevronDown,
   CircleOff,
+  Hash,
   Lightbulb,
   LogOut,
   Package,
+  Minus,
   Plus,
   ShoppingCart,
   Tag,
   Trash2,
   Warehouse,
   Wrench,
+  X,
 } from 'lucide-react';
 import type {
   Label,
@@ -29,6 +32,12 @@ import {
   type SidebarSectionId,
   type SidebarSectionState,
 } from '../../lib/sidebarSections';
+import {
+  loadSidebarCounts,
+  saveSidebarCounts,
+  type SidebarCountSectionId,
+  type SidebarCountState,
+} from '../../lib/sidebarCounts';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -37,6 +46,8 @@ interface SidebarProps {
   stockLocations: StockLocation[];
   typeCounts: Record<string, number>;
   unsetCount: number;
+  labelCounts: Record<string, number>;
+  stockCounts: Record<string, number>;
   view: NotesView;
   activeLabelIds: string[];
   activeDisposition: NoteDisposition | null;
@@ -55,7 +66,26 @@ interface SidebarProps {
   onCreateLabel: (name: string) => Promise<Label>;
   onCreateType: (name: string) => Promise<NoteType>;
   onCreateStock: (name: string) => Promise<StockLocation>;
+  onDeleteLabel: (labelId: string) => Promise<void>;
   onSignOut?: () => void;
+}
+
+function noteWord(count: number): string {
+  return count === 1 ? 'note' : 'notes';
+}
+
+function confirmDelete(
+  kind: 'label' | 'type' | 'stock location',
+  name: string,
+  noteCount: number,
+): boolean {
+  const effect =
+    noteCount === 0
+      ? 'No notes currently use it.'
+      : kind === 'label'
+        ? `It will be removed from ${noteCount} ${noteWord(noteCount)}.`
+        : `It will be cleared from ${noteCount} ${noteWord(noteCount)}.`;
+  return window.confirm(`Delete ${kind} "${name}"?\n\n${effect}`);
 }
 
 export function Sidebar({
@@ -64,6 +94,8 @@ export function Sidebar({
   stockLocations,
   typeCounts,
   unsetCount,
+  labelCounts,
+  stockCounts,
   view,
   activeLabelIds,
   activeDisposition,
@@ -82,10 +114,13 @@ export function Sidebar({
   onCreateLabel,
   onCreateType,
   onCreateStock,
+  onDeleteLabel,
   onSignOut,
 }: SidebarProps) {
   const [sections, setSections] =
     useState<SidebarSectionState>(loadSidebarSections);
+  const [showCounts, setShowCounts] =
+    useState<SidebarCountState>(loadSidebarCounts);
   const [creatingLabel, setCreatingLabel] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
   const [creatingType, setCreatingType] = useState(false);
@@ -93,6 +128,7 @@ export function Sidebar({
   const [creatingStock, setCreatingStock] = useState(false);
   const [newStockName, setNewStockName] = useState('');
   const [creatingBusy, setCreatingBusy] = useState(false);
+  const [editingSection, setEditingSection] = useState<'labels' | null>(null);
 
   const allActive =
     view === 'notes' &&
@@ -168,6 +204,99 @@ export function Sidebar({
     if (id === 'stock') return activeStockId != null;
     if (id === 'labels') return activeLabelIds.length > 0;
     return false;
+  }
+
+  function toggleCreate(
+    section: 'type' | 'stock' | 'labels',
+    setCreating: (value: boolean | ((open: boolean) => boolean)) => void,
+  ) {
+    setEditingSection(null);
+    setCreating((open) => !open);
+    openSection(section);
+  }
+
+  function toggleEditing(section: 'labels') {
+    setCreatingType(false);
+    setCreatingStock(false);
+    setCreatingLabel(false);
+    setEditingSection((current) => (current === section ? null : section));
+    openSection(section);
+  }
+
+  function toggleCounts(section: SidebarCountSectionId) {
+    setShowCounts((current) => {
+      const next = { ...current, [section]: !current[section] };
+      saveSidebarCounts(next);
+      return next;
+    });
+  }
+
+  function sectionActions(
+    section: SidebarCountSectionId,
+    options: {
+      canEdit?: boolean;
+      creating: boolean;
+      onToggleCreate: () => void;
+      createLabel: string;
+    },
+  ) {
+    const editing = editingSection === section;
+    const countsOn = showCounts[section];
+    return (
+      <div className={styles.sectionActions}>
+        <button
+          type="button"
+          className={`${styles.addLabelBtn} ${
+            countsOn ? styles.addLabelBtnActive : ''
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleCounts(section);
+          }}
+          aria-label={
+            countsOn ? `Hide ${section} counts` : `Show ${section} counts`
+          }
+          title={countsOn ? 'Hide counts' : 'Show counts'}
+          aria-pressed={countsOn}
+        >
+          <Hash size={15} strokeWidth={2.25} />
+        </button>
+        {options.canEdit && (
+          <button
+            type="button"
+            className={`${styles.addLabelBtn} ${
+              editing ? styles.addLabelBtnActive : ''
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleEditing(section as 'labels');
+            }}
+            aria-label={
+              editing ? `Done editing ${section}` : `Remove ${section}`
+            }
+            title={editing ? 'Done' : 'Remove'}
+            aria-pressed={editing}
+          >
+            <Minus size={16} strokeWidth={2.25} />
+          </button>
+        )}
+        <button
+          type="button"
+          className={`${styles.addLabelBtn} ${
+            options.creating ? styles.addLabelBtnActive : ''
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            options.onToggleCreate();
+          }}
+          aria-label={options.createLabel}
+          title={options.createLabel}
+          aria-expanded={options.creating}
+        >
+          <Plus size={16} strokeWidth={2.25} />
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -258,20 +387,11 @@ export function Sidebar({
         hasActive={sectionHasActive('type')}
         onToggle={() => toggleSection('type')}
         trailing={
-          <button
-            type="button"
-            className={styles.addLabelBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              setCreatingType((open) => !open);
-              openSection('type');
-            }}
-            aria-label="Create type"
-            title="Create type"
-            aria-expanded={creatingType}
-          >
-            <Plus size={16} strokeWidth={2.25} />
-          </button>
+          sectionActions('type', {
+            creating: creatingType,
+            onToggleCreate: () => toggleCreate('type', setCreatingType),
+            createLabel: 'Create type',
+          })
         }
       >
         {creatingType && (
@@ -313,7 +433,9 @@ export function Sidebar({
             >
               <CircleOff size={18} />
               <span className={styles.itemText}>No type</span>
+              {showCounts.type && (
               <span className={styles.itemCount}>{unsetCount}</span>
+            )}
             </button>
           </li>
           {noteTypes.map((type) => {
@@ -322,7 +444,7 @@ export function Sidebar({
             const active =
               view === 'notes' && activeCategoryId === type.id;
             return (
-              <li key={type.id}>
+              <li key={type.id} className={`${styles.row} ${active ? styles.rowActive : ''}`}>
                 <button
                   type="button"
                   className={`${styles.item} ${active ? styles.active : ''}`}
@@ -334,9 +456,11 @@ export function Sidebar({
                     style={{ color: colors.fg, opacity: 0.9 }}
                   />
                   <span className={styles.itemText}>{type.name}</span>
-                  <span className={styles.itemCount}>
-                    {typeCounts[type.id] ?? 0}
-                  </span>
+                  {showCounts.type && (
+                    <span className={styles.itemCount}>
+                      {typeCounts[type.id] ?? 0}
+                    </span>
+                  )}
                 </button>
               </li>
             );
@@ -354,20 +478,11 @@ export function Sidebar({
         hasActive={sectionHasActive('stock')}
         onToggle={() => toggleSection('stock')}
         trailing={
-          <button
-            type="button"
-            className={styles.addLabelBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              setCreatingStock((open) => !open);
-              openSection('stock');
-            }}
-            aria-label="Create stock location"
-            title="Create stock location"
-            aria-expanded={creatingStock}
-          >
-            <Plus size={16} strokeWidth={2.25} />
-          </button>
+          sectionActions('stock', {
+            creating: creatingStock,
+            onToggleCreate: () => toggleCreate('stock', setCreatingStock),
+            createLabel: 'Create stock location',
+          })
         }
       >
         {creatingStock && (
@@ -397,23 +512,31 @@ export function Sidebar({
           <p className={styles.empty}>Tap + to add stock locations.</p>
         ) : (
           <ul className={styles.list}>
-            {stockLocations.map((stock) => (
-              <li key={stock.id}>
-                <button
-                  type="button"
-                  className={`${styles.item} ${
-                    view === 'notes' && activeStockId === stock.id
-                      ? styles.active
-                      : ''
-                  }`}
-                  onClick={() => onSelectStock(stock.id)}
-                  aria-pressed={view === 'notes' && activeStockId === stock.id}
+            {stockLocations.map((stock) => {
+              const active =
+                view === 'notes' && activeStockId === stock.id;
+              return (
+                <li
+                  key={stock.id}
+                  className={`${styles.row} ${active ? styles.rowActive : ''}`}
                 >
-                  <Warehouse size={18} />
-                  <span>{stock.name}</span>
-                </button>
-              </li>
-            ))}
+                  <button
+                    type="button"
+                    className={`${styles.item} ${active ? styles.active : ''}`}
+                    onClick={() => onSelectStock(stock.id)}
+                    aria-pressed={active}
+                  >
+                    <Warehouse size={18} />
+                    <span className={styles.itemText}>{stock.name}</span>
+                    {showCounts.stock && (
+                      <span className={styles.itemCount}>
+                        {stockCounts[stock.id] ?? 0}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </CollapsibleSection>
@@ -425,20 +548,12 @@ export function Sidebar({
         hasActive={sectionHasActive('labels')}
         onToggle={() => toggleSection('labels')}
         trailing={
-          <button
-            type="button"
-            className={styles.addLabelBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              setCreatingLabel((open) => !open);
-              openSection('labels');
-            }}
-            aria-label="Create label"
-            title="Create label"
-            aria-expanded={creatingLabel}
-          >
-            <Plus size={16} strokeWidth={2.25} />
-          </button>
+          sectionActions('labels', {
+            canEdit: labels.length > 0,
+            creating: creatingLabel,
+            onToggleCreate: () => toggleCreate('labels', setCreatingLabel),
+            createLabel: 'Create label',
+          })
         }
       >
         {creatingLabel && (
@@ -468,25 +583,47 @@ export function Sidebar({
           <p className={styles.empty}>Type # in a note or tap + to add labels.</p>
         ) : (
           <ul className={styles.list}>
-            {labels.map((label) => (
-              <li key={label.id}>
-                <button
-                  type="button"
-                  className={`${styles.item} ${
-                    view === 'notes' && activeLabelIds.includes(label.id)
-                      ? styles.active
-                      : ''
-                  }`}
-                  onClick={() => onToggleLabel(label.id)}
-                  aria-pressed={
-                    view === 'notes' && activeLabelIds.includes(label.id)
-                  }
+            {labels.map((label) => {
+              const active =
+                view === 'notes' && activeLabelIds.includes(label.id);
+              return (
+                <li
+                  key={label.id}
+                  className={`${styles.row} ${active ? styles.rowActive : ''}`}
                 >
-                  <Tag size={18} />
-                  <span>{label.name}</span>
-                </button>
-              </li>
-            ))}
+                  <button
+                    type="button"
+                    className={`${styles.item} ${active ? styles.active : ''}`}
+                    onClick={() => onToggleLabel(label.id)}
+                    aria-pressed={active}
+                  >
+                    <Tag size={18} />
+                    <span className={styles.itemText}>{label.name}</span>
+                    {showCounts.labels && (
+                      <span className={styles.itemCount}>
+                        {labelCounts[label.id] ?? 0}
+                      </span>
+                    )}
+                  </button>
+                  {editingSection === 'labels' && (
+                  <button
+                    type="button"
+                    className={styles.deleteBtn}
+                    aria-label={`Delete label ${label.name}`}
+                    title="Delete label"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const count = labelCounts[label.id] ?? 0;
+                      if (!confirmDelete('label', label.name, count)) return;
+                      void onDeleteLabel(label.id);
+                    }}
+                  >
+                    <X size={14} strokeWidth={2.25} />
+                  </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </CollapsibleSection>

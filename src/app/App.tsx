@@ -20,6 +20,8 @@ import type {
 import { UNSET_TYPE_FILTER } from '../lib/types';
 import {
   categoryLabel,
+  countNotesByLabel,
+  countNotesByStock,
   countNotesByType,
   dispositionLabel,
   filterNotes,
@@ -137,6 +139,8 @@ export default function App() {
   );
 
   const typeCounts = useMemo(() => countNotesByType(notes), [notes]);
+  const labelCounts = useMemo(() => countNotesByLabel(notes), [notes]);
+  const stockCounts = useMemo(() => countNotesByStock(notes), [notes]);
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
   const cartUnitCount = store.cartUnitCount(cartItems);
@@ -454,6 +458,12 @@ export default function App() {
     return handleCreateStock(name);
   }
 
+  async function handleDeleteLabel(labelId: string) {
+    await store.deleteLabel(labelId);
+    setLabels(await store.listLabels());
+    setFilterLabelIds((current) => current.filter((id) => id !== labelId));
+    await refresh();
+  }
 
   useEffect(() => {
     async function onPaste(e: ClipboardEvent) {
@@ -517,6 +527,8 @@ export default function App() {
           stockLocations={stockLocations}
           typeCounts={typeCounts.byTypeId}
           unsetCount={typeCounts.unset}
+          labelCounts={labelCounts}
+          stockCounts={stockCounts}
           view={view}
           activeLabelIds={filterLabelIds}
           activeDisposition={filterDisposition}
@@ -569,6 +581,7 @@ export default function App() {
           onCreateLabel={handleSidebarCreateLabel}
           onCreateType={handleCreateNoteType}
           onCreateStock={handleSidebarCreateStock}
+          onDeleteLabel={(id) => handleDeleteLabel(id)}
           onSignOut={
             isCloudConfigured()
               ? () => {

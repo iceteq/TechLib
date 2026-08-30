@@ -123,6 +123,18 @@
   color: var(--accent);
 }
 
+.addLabelBtnActive {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sectionActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  flex-shrink: 0;
+}
+
 .createLabel {
   display: flex;
   gap: 0.35rem;
@@ -199,4 +211,53 @@
 .active .itemCount {
   color: inherit;
   opacity: 0.72;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  border-radius: 999px;
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--accent-soft) 70%, white);
+}
+
+.row .item {
+  flex: 1;
+  min-width: 0;
+}
+
+.row .item:hover {
+  background: transparent;
+}
+
+.rowActive {
+  background: var(--accent-soft);
+}
+
+.rowActive .item {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.deleteBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin-right: 0.3rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.deleteBtn:hover,
+.deleteBtn:focus-visible {
+  background: rgba(197, 34, 31, 0.12);
+  color: #c5221f;
 }

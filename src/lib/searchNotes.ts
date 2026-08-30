@@ -136,3 +136,26 @@ export function countNotesByType(notes: NoteWithUrls[]): {
   }
   return { byTypeId, unset };
 }
+
+/** Counts of active notes per label id. */
+export function countNotesByLabel(notes: NoteWithUrls[]): Record<string, number> {
+  const byLabelId: Record<string, number> = {};
+  for (const note of notes) {
+    if (note.archived || note.deletedAt != null) continue;
+    for (const labelId of note.labelIds) {
+      byLabelId[labelId] = (byLabelId[labelId] ?? 0) + 1;
+    }
+  }
+  return byLabelId;
+}
+
+/** Counts of active notes per stock location id. */
+export function countNotesByStock(notes: NoteWithUrls[]): Record<string, number> {
+  const byStockId: Record<string, number> = {};
+  for (const note of notes) {
+    if (note.archived || note.deletedAt != null) continue;
+    if (!note.stockId) continue;
+    byStockId[note.stockId] = (byStockId[note.stockId] ?? 0) + 1;
+  }
+  return byStockId;
+}
