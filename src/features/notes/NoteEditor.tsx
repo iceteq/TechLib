@@ -290,8 +290,8 @@ export function NoteEditor({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => void persistTitle()}
-            placeholder="Title"
-            aria-label="Note title"
+            placeholder="Part number"
+            aria-label="Part number"
           />
           <DescriptionField
             value={description}

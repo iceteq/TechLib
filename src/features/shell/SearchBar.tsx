@@ -15,8 +15,8 @@ export function SearchBar({ value, onChange }: SearchBarProps) {
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Search notes…"
-        aria-label="Search notes"
+        placeholder="Search part numbers…"
+        aria-label="Search part numbers and notes"
       />
       {value && (
         <button

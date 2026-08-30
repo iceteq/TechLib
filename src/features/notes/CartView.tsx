@@ -100,7 +100,7 @@ export function CartView({
                     <span className={styles.srOnly}>Type</span>
                   </th>
                   <th className={styles.colBarcode} scope="col">
-                    {showBarcodes ? 'Barcode' : 'Title'}
+                    {showBarcodes ? 'Barcode' : 'Part number'}
                   </th>
                   <th className={styles.colStatus} scope="col">
                     Guideline

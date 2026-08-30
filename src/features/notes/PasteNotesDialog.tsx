@@ -64,7 +64,7 @@ export function PasteNotesDialog({
               Paste notes
             </h2>
             <p className={styles.subtitle}>
-              One note per line from Excel. Columns: barcode, description
+              One note per line from Excel. Columns: part number, description
               (optional), guidelines (optional).
             </p>
           </div>
@@ -96,7 +96,7 @@ export function PasteNotesDialog({
 
         <p className={styles.meta}>
           {drafts.length === 0
-            ? 'No barcodes yet'
+            ? 'No part numbers yet'
             : `${drafts.length} note${drafts.length === 1 ? '' : 's'} will be created`}
           <span className={styles.dot}>·</span>
           {filterSummary}

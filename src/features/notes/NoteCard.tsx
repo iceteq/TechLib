@@ -63,7 +63,7 @@ export function NoteCard({
   const overflow = Math.max(0, note.images.length - NOTE_PREVIEW_IMAGE_LIMIT);
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const stock = stockLocations.find((s) => s.id === note.stockId);
-  const title = note.title.trim() || 'Untitled';
+  const title = note.title.trim() || 'No part number';
   const disposition = DISPOSITIONS.find(
     (d) => d.id === (note.disposition ?? 'none'),
   );

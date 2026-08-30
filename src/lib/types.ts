@@ -45,6 +45,7 @@ export interface NoteImageWithUrl extends NoteImage {
 
 export interface Note {
   id: string;
+  /** Warehouse part number (shown as “Part number” in the UI). */
   title: string;
   description: string;
   background: NoteBackground;
