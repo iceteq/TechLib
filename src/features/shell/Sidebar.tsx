@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type DragEvent, type ReactNode } from 'react';
 import {
   AlertCircle,
   Archive,
@@ -38,6 +38,11 @@ import {
   type SidebarCountSectionId,
   type SidebarCountState,
 } from '../../lib/sidebarCounts';
+import {
+  getNoteDragIds,
+  isNoteDrag,
+  type NoteAssignTarget,
+} from '../../lib/noteDrag';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -68,6 +73,10 @@ interface SidebarProps {
   onCreateStock: (name: string) => Promise<StockLocation>;
   onDeleteLabel: (labelId: string) => Promise<void>;
   onSignOut?: () => void;
+  onAssignNotes?: (
+    noteIds: string[],
+    target: NoteAssignTarget,
+  ) => void | Promise<void>;
 }
 
 function noteWord(count: number): string {
@@ -116,6 +125,7 @@ export function Sidebar({
   onCreateStock,
   onDeleteLabel,
   onSignOut,
+  onAssignNotes,
 }: SidebarProps) {
   const [sections, setSections] =
     useState<SidebarSectionState>(loadSidebarSections);
@@ -128,6 +138,42 @@ export function Sidebar({
   const [creatingStock, setCreatingStock] = useState(false);
   const [newStockName, setNewStockName] = useState('');
   const [creatingBusy, setCreatingBusy] = useState(false);
+
+  const [dropKey, setDropKey] = useState<string | null>(null);
+
+  function dropClass(key: string): string {
+    return dropKey === key ? ` ${styles.dropOver}` : '';
+  }
+
+  function noteDropHandlers(key: string, target: NoteAssignTarget) {
+    if (!onAssignNotes) {
+      return {};
+    }
+    return {
+      onDragOver: (e: DragEvent) => {
+        if (!isNoteDrag(e.dataTransfer)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setDropKey(key);
+      },
+      onDragLeave: (e: DragEvent) => {
+        const related = e.relatedTarget;
+        if (related instanceof Node && e.currentTarget.contains(related)) {
+          return;
+        }
+        setDropKey((current) => (current === key ? null : current));
+      },
+      onDrop: (e: DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDropKey(null);
+        const ids = getNoteDragIds(e.dataTransfer);
+        if (!ids || ids.length === 0) return;
+        void onAssignNotes(ids, target);
+      },
+    };
+  }
+
   const [editingSection, setEditingSection] = useState<'labels' | null>(null);
 
   const allActive =
@@ -355,8 +401,13 @@ export function Sidebar({
           type="button"
           className={`${styles.item} ${
             view === 'notes' && activeDisposition === 'stock' ? styles.active : ''
-          }`}
+          }${dropClass('disposition:stock')}`}
           onClick={() => onSelectDisposition('stock')}
+          {...noteDropHandlers('disposition:stock', {
+            field: 'disposition',
+            value: 'stock',
+            label: 'To stock',
+          })}
         >
           <Package size={18} />
           <span>To stock</span>
@@ -367,8 +418,13 @@ export function Sidebar({
             view === 'notes' && activeDisposition === 'repair'
               ? styles.active
               : ''
-          }`}
+          }${dropClass('disposition:repair')}`}
           onClick={() => onSelectDisposition('repair')}
+          {...noteDropHandlers('disposition:repair', {
+            field: 'disposition',
+            value: 'repair',
+            label: 'Repair',
+          })}
         >
           <Wrench size={18} />
           <span>Repair</span>
@@ -377,8 +433,13 @@ export function Sidebar({
           type="button"
           className={`${styles.item} ${
             view === 'notes' && activeDisposition === 'scrap' ? styles.active : ''
-          }`}
+          }${dropClass('disposition:scrap')}`}
           onClick={() => onSelectDisposition('scrap')}
+          {...noteDropHandlers('disposition:scrap', {
+            field: 'disposition',
+            value: 'scrap',
+            label: 'Throw away',
+          })}
         >
           <Trash2 size={18} />
           <span>Throw away</span>
@@ -440,11 +501,16 @@ export function Sidebar({
                 view === 'notes' && activeCategoryId === UNSET_TYPE_FILTER
                   ? styles.active
                   : ''
-              }`}
+              }${dropClass('category:unset')}`}
               onClick={() => onSelectCategoryId(UNSET_TYPE_FILTER)}
               aria-pressed={
                 view === 'notes' && activeCategoryId === UNSET_TYPE_FILTER
               }
+              {...noteDropHandlers('category:unset', {
+                field: 'categoryId',
+                value: null,
+                label: 'No type',
+              })}
             >
               <CircleOff size={18} />
               <span className={styles.itemText}>No type</span>
@@ -462,9 +528,14 @@ export function Sidebar({
               <li key={type.id} className={`${styles.row} ${active ? styles.rowActive : ''}`}>
                 <button
                   type="button"
-                  className={`${styles.item} ${active ? styles.active : ''}`}
+                  className={`${styles.item} ${active ? styles.active : ''}${dropClass(`category:${type.id}`)}`}
                   onClick={() => onSelectCategoryId(type.id)}
                   aria-pressed={active}
+                  {...noteDropHandlers(`category:${type.id}`, {
+                    field: 'categoryId',
+                    value: type.id,
+                    label: type.name,
+                  })}
                 >
                   <Icon
                     size={18}
@@ -537,9 +608,14 @@ export function Sidebar({
                 >
                   <button
                     type="button"
-                    className={`${styles.item} ${active ? styles.active : ''}`}
+                    className={`${styles.item} ${active ? styles.active : ''}${dropClass(`stock:${stock.id}`)}`}
                     onClick={() => onSelectStock(stock.id)}
                     aria-pressed={active}
+                    {...noteDropHandlers(`stock:${stock.id}`, {
+                      field: 'stockId',
+                      value: stock.id,
+                      label: stock.name,
+                    })}
                   >
                     <Warehouse size={18} />
                     <span className={styles.itemText}>{stock.name}</span>

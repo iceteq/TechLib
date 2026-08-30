@@ -9,6 +9,7 @@ import type { Label, NoteType, NoteWithUrls, StockLocation } from '../../lib/typ
 import { Barcode } from '../barcodes/Barcode';
 import { LabelChip } from '../labels/LabelChip';
 import { TypeChip } from './TypeChip';
+import { setNoteDragData } from '../../lib/noteDrag';
 import styles from './NoteCard.module.css';
 
 const LONG_PRESS_MS = 500;
@@ -36,6 +37,9 @@ interface NoteCardProps {
   onEnterSelect: (noteId: string) => void;
   onRangeSelect: (noteId: string) => void;
   onApplyType: (noteId: string, categoryId: string) => void;
+  /** IDs included when this card is dragged (selected set). */
+  dragNoteIds?: string[];
+  onNotesDragStart?: () => void;
 }
 
 export function NoteCard({
@@ -57,6 +61,8 @@ export function NoteCard({
   onEnterSelect,
   onRangeSelect,
   onApplyType,
+  dragNoteIds,
+  onNotesDragStart,
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
@@ -191,11 +197,29 @@ export function NoteCard({
     }
   }
 
+
+  function handleDragStart(e: React.DragEvent) {
+    const ids =
+      dragNoteIds && dragNoteIds.length > 0 ? dragNoteIds : [note.id];
+    setNoteDragData(e.dataTransfer, ids);
+    armSuppress();
+    onNotesDragStart?.();
+  }
+
+  function handleDragEnd() {
+    armSuppress();
+  }
+
   return (
     <article
       ref={cardRef}
-      className={`${styles.card} ${selected ? styles.selected : ''}`}
+      className={`${styles.card} ${selected ? styles.selected : ''} ${
+        selecting && selected ? styles.draggable : ''
+      }`}
       style={{ background: bg.surface, borderColor: bg.border }}
+      draggable={selecting && selected}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
       onPointerDown={handlePointerDown}

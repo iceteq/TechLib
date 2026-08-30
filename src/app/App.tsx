@@ -28,6 +28,11 @@ import {
   stockLabel,
 } from '../lib/searchNotes';
 import { parsePastedNotes } from '../lib/parsePastedNotes';
+import {
+  confirmNoteAssign,
+  noteAssignPatch,
+  type NoteAssignTarget,
+} from '../lib/noteDrag';
 import * as store from '../lib/notesStore';
 import { isCloudConfigured } from '../lib/supabaseClient';
 import { signOutCloud } from '../features/auth/AuthGate';
@@ -80,6 +85,7 @@ export default function App() {
   const [undoAction, setUndoAction] = useState<UndoAction | null>(null);
   const undoActionRef = useRef<UndoAction | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectionClearNonce, setSelectionClearNonce] = useState(0);
   const [ready, setReady] = useState(false);
   const [viewPrefs, setViewPrefs] = useState(loadViewPrefs);
 
@@ -423,6 +429,17 @@ export default function App() {
     await refresh();
   }
 
+
+  async function handleAssignNotes(
+    noteIds: string[],
+    target: NoteAssignTarget,
+  ) {
+    if (!confirmNoteAssign(noteIds, target)) return;
+    await handleUpdateNotes(noteIds, noteAssignPatch(target));
+    setSelectionClearNonce((n) => n + 1);
+  }
+
+
   async function handleCreateLabel(name: string) {
     const label = await store.createLabel(name);
     setLabels(await store.listLabels());
@@ -582,6 +599,7 @@ export default function App() {
           onCreateType={handleCreateNoteType}
           onCreateStock={handleSidebarCreateStock}
           onDeleteLabel={(id) => handleDeleteLabel(id)}
+          onAssignNotes={handleAssignNotes}
           onSignOut={
             isCloudConfigured()
               ? () => {
@@ -642,6 +660,8 @@ export default function App() {
           onClearStock={() => setFilterStockId(null)}
           onClearSpecialCases={() => setSpecialCasesOnly(false)}
           onClearAllFilters={clearAllFilters}
+          selectionClearNonce={selectionClearNonce}
+          onNotesDragStart={() => setSidebarOpen(true)}
         />
       )}
 

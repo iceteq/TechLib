@@ -307,3 +307,9 @@
   background: rgba(197, 34, 31, 0.12);
   color: #c5221f;
 }
+
+.dropOver {
+  background: color-mix(in srgb, var(--accent-soft) 85%, white);
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}

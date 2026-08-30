@@ -55,6 +55,9 @@ interface NoteGridProps {
   onClearStock: () => void;
   onClearSpecialCases: () => void;
   onClearAllFilters: () => void;
+  /** Bump to clear selection after sidebar drop-assign. */
+  selectionClearNonce?: number;
+  onNotesDragStart?: () => void;
 }
 
 export function NoteGrid({
@@ -88,6 +91,8 @@ export function NoteGrid({
   onClearStock,
   onClearSpecialCases,
   onClearAllFilters,
+  selectionClearNonce = 0,
+  onNotesDragStart,
 }: NoteGridProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -102,6 +107,10 @@ export function NoteGrid({
     selectionAnchorId.current = null;
     setMenu(null);
   }, []);
+
+  useEffect(() => {
+    if (selectionClearNonce > 0) clearSelection();
+  }, [selectionClearNonce, clearSelection]);
 
   useEffect(() => {
     clearSelection();
@@ -413,6 +422,10 @@ export function NoteGrid({
               onApplyType={(noteId, categoryId) =>
                 void onUpdateNotes([noteId], { categoryId })
               }
+              dragNoteIds={
+                selectedIds.has(note.id) ? [...selectedIds] : undefined
+              }
+              onNotesDragStart={onNotesDragStart}
             />
           ))}
         </div>

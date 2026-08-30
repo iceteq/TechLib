@@ -260,3 +260,11 @@
   gap: 0.3rem;
   margin-top: 0.1rem;
 }
+
+.draggable {
+  cursor: grab;
+}
+
+.draggable:active {
+  cursor: grabbing;
+}
