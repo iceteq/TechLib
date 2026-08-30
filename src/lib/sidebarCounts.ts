@@ -4,11 +4,11 @@ export type SidebarCountSectionId = 'type' | 'stock' | 'labels';
 
 export type SidebarCountState = Record<SidebarCountSectionId, boolean>;
 
-/** Counts visible by default; user can hide per section. */
+/** Counts hidden by default; toggle with # in each section. */
 export const DEFAULT_SIDEBAR_COUNTS: SidebarCountState = {
-  type: true,
-  stock: true,
-  labels: true,
+  type: false,
+  stock: false,
+  labels: false,
 };
 
 export function loadSidebarCounts(): SidebarCountState {

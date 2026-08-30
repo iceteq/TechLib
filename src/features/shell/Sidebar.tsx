@@ -140,16 +140,30 @@ export function Sidebar({
 
   function toggleSection(id: SidebarSectionId) {
     setSections((current) => {
-      const next = { ...current, [id]: !current[id] };
+      const opening = !current[id];
+      const next: SidebarSectionState = {
+        guideline: false,
+        type: false,
+        stock: false,
+        labels: false,
+      };
+      if (opening) next[id] = true;
       saveSidebarSections(next);
       return next;
     });
+    if (id !== 'labels') setEditingSection(null);
   }
 
   function openSection(id: SidebarSectionId) {
     setSections((current) => {
       if (current[id]) return current;
-      const next = { ...current, [id]: true };
+      const next: SidebarSectionState = {
+        guideline: false,
+        type: false,
+        stock: false,
+        labels: false,
+        [id]: true,
+      };
       saveSidebarSections(next);
       return next;
     });
@@ -199,7 +213,9 @@ export function Sidebar({
 
   function sectionHasActive(id: SidebarSectionId): boolean {
     if (view !== 'notes') return false;
-    if (id === 'guideline') return activeDisposition != null;
+    if (id === 'guideline') {
+      return activeDisposition != null || specialCasesOnly;
+    }
     if (id === 'type') return activeCategoryId != null;
     if (id === 'stock') return activeStockId != null;
     if (id === 'labels') return activeLabelIds.length > 0;
@@ -242,8 +258,13 @@ export function Sidebar({
   ) {
     const editing = editingSection === section;
     const countsOn = showCounts[section];
+    const forceVisible = options.creating || editing;
     return (
-      <div className={styles.sectionActions}>
+      <div
+        className={`${styles.sectionActions} ${
+          forceVisible ? styles.sectionActionsVisible : ''
+        }`}
+      >
         <button
           type="button"
           className={`${styles.addLabelBtn} ${
@@ -299,6 +320,8 @@ export function Sidebar({
     );
   }
 
+  const showCart = cartCount > 0 || view === 'cart';
+
   return (
     <nav className={styles.nav} aria-label="Notes navigation">
       <button
@@ -310,34 +333,16 @@ export function Sidebar({
         <span>All notes</span>
       </button>
 
-      <button
-        type="button"
-        className={`${styles.item} ${view === 'archive' ? styles.active : ''}`}
-        onClick={onSelectArchive}
-      >
-        <Archive size={18} />
-        <span>Archive</span>
-      </button>
-
-      <button
-        type="button"
-        className={`${styles.item} ${view === 'cart' ? styles.active : ''}`}
-        onClick={onSelectCart}
-      >
-        <ShoppingCart size={18} />
-        <span>Cart{cartCount > 0 ? ` (${cartCount})` : ''}</span>
-      </button>
-
-      <button
-        type="button"
-        className={`${styles.item} ${
-          view === 'notes' && specialCasesOnly ? styles.active : ''
-        }`}
-        onClick={onToggleSpecialCases}
-      >
-        <AlertCircle size={18} />
-        <span>Special cases</span>
-      </button>
+      {showCart && (
+        <button
+          type="button"
+          className={`${styles.item} ${view === 'cart' ? styles.active : ''}`}
+          onClick={onSelectCart}
+        >
+          <ShoppingCart size={18} />
+          <span>Cart{cartCount > 0 ? ` (${cartCount})` : ''}</span>
+        </button>
+      )}
 
       <CollapsibleSection
         id="guideline"
@@ -377,6 +382,16 @@ export function Sidebar({
         >
           <Trash2 size={18} />
           <span>Throw away</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && specialCasesOnly ? styles.active : ''
+          }`}
+          onClick={onToggleSpecialCases}
+        >
+          <AlertCircle size={18} />
+          <span>Special cases</span>
         </button>
       </CollapsibleSection>
 
@@ -628,14 +643,28 @@ export function Sidebar({
         )}
       </CollapsibleSection>
 
-      {onSignOut && (
-        <div className={styles.section}>
-          <button type="button" className={styles.item} onClick={onSignOut}>
-            <LogOut size={18} />
+      <div className={styles.footer}>
+        <button
+          type="button"
+          className={`${styles.itemQuiet} ${
+            view === 'archive' ? styles.itemQuietActive : ''
+          }`}
+          onClick={onSelectArchive}
+        >
+          <Archive size={16} />
+          <span>Archive</span>
+        </button>
+        {onSignOut && (
+          <button
+            type="button"
+            className={styles.itemQuiet}
+            onClick={onSignOut}
+          >
+            <LogOut size={16} />
             <span>Sign out</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </nav>
   );
 }
