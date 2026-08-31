@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Archive,
   ArchiveRestore,
+  Camera,
   ImagePlus,
+  Loader2,
   Palette,
   Pin,
   PinOff,
@@ -11,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
+import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
 import { DISPOSITIONS } from '../../lib/types';
 import type {
@@ -54,6 +57,8 @@ interface NoteEditorProps {
   onAddToCart: () => Promise<void>;
   cartQuantity: number;
   onCreateLabel: (name: string) => Promise<Label>;
+  /** > 0 while images are being saved. */
+  imageBusyCount?: number;
 }
 
 export function NoteEditor({
@@ -71,6 +76,7 @@ export function NoteEditor({
   onAddToCart,
   cartQuantity,
   onCreateLabel,
+  imageBusyCount = 0,
 }: NoteEditorProps) {
   const [title, setTitle] = useState(note.title);
   const [description, setDescription] = useState(note.description);
@@ -79,8 +85,11 @@ export function NoteEditor({
     Boolean((note.specialCase ?? '').trim()),
   );
   const [colorOpen, setColorOpen] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const dropDepth = useRef(0);
   const bg = getBackground(note.background);
   const selectedLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const selectedType = noteTypeById(noteTypes, note.categoryId);
@@ -100,6 +109,8 @@ export function NoteEditor({
     !note.stockId &&
     !(note.specialCase ?? '').trim();
 
+  const imageBusy = imageBusyCount > 0;
+
   useEffect(() => {
     setTitle(note.title);
     setDescription(note.description);
@@ -110,6 +121,54 @@ export function NoteEditor({
   useEffect(() => {
     titleRef.current?.focus();
   }, [note.id]);
+
+  function handleFileInput(
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    if (e.target.files?.length) {
+      void onAddImages(e.target.files);
+      e.target.value = '';
+    }
+  }
+
+  function handleDialogDragEnter(e: React.DragEvent) {
+    const files = dataTransferImageFiles(e.dataTransfer);
+    if (files.length === 0 && !Array.from(e.dataTransfer.types).includes('Files')) {
+      return;
+    }
+    if (
+      Array.from(e.dataTransfer.types).includes('Files') ||
+      files.length > 0
+    ) {
+      e.preventDefault();
+      dropDepth.current += 1;
+      setDropActive(true);
+    }
+  }
+
+  function handleDialogDragLeave(e: React.DragEvent) {
+    if (!dropActive) return;
+    e.preventDefault();
+    dropDepth.current = Math.max(0, dropDepth.current - 1);
+    if (dropDepth.current === 0) setDropActive(false);
+  }
+
+  function handleDialogDragOver(e: React.DragEvent) {
+    const files = dataTransferImageFiles(e.dataTransfer);
+    if (files.length === 0 && !Array.from(e.dataTransfer.types).includes('Files')) {
+      return;
+    }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+
+  function handleDialogDrop(e: React.DragEvent) {
+    e.preventDefault();
+    dropDepth.current = 0;
+    setDropActive(false);
+    const files = dataTransferImageFiles(e.dataTransfer);
+    if (files.length > 0) void onAddImages(files);
+  }
 
   async function persistTitle(next = title) {
     if (next === note.title) return;
@@ -138,6 +197,7 @@ export function NoteEditor({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        if (imageBusy) return;
         if (colorOpen) {
           setColorOpen(false);
           return;
@@ -146,6 +206,7 @@ export function NoteEditor({
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        if (imageBusy) return;
         e.preventDefault();
         void finish();
       }
@@ -168,12 +229,16 @@ export function NoteEditor({
   return (
     <div className={styles.overlay} role="presentation" onClick={() => void finish()}>
       <div
-        className={styles.dialog}
+        className={`${styles.dialog} ${dropActive ? styles.dialogDrop : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={isBlank ? 'Create note' : 'Edit note'}
         style={{ background: bg.surface, borderColor: bg.border }}
         onClick={(e) => e.stopPropagation()}
+        onDragEnter={handleDialogDragEnter}
+        onDragLeave={handleDialogDragLeave}
+        onDragOver={handleDialogDragOver}
+        onDrop={handleDialogDrop}
       >
         <div className={styles.topActions}>
           <button
@@ -282,6 +347,15 @@ export function NoteEditor({
           onRemove={(id) => void onRemoveImage(id)}
           onReorder={(ids) => void onReorderImages(ids)}
         />
+        {imageBusy && (
+          <div className={styles.imageBusy} role="status" aria-live="polite">
+            <Loader2 size={16} className={styles.spinner} aria-hidden />
+            <span>
+              Adding {imageBusyCount} image
+              {imageBusyCount === 1 ? '' : 's'}…
+            </span>
+          </div>
+        )}
 
         <div className={styles.fields}>
           <input
@@ -441,26 +515,51 @@ export function NoteEditor({
             accept="image/*"
             multiple
             hidden
-            onChange={(e) => {
-              if (e.target.files?.length) {
-                void onAddImages(e.target.files);
-                e.target.value = '';
-              }
-            }}
+            onChange={handleFileInput}
           />
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={handleFileInput}
+          />
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={() => cameraRef.current?.click()}
+            aria-label="Take photo"
+            title="Take photo"
+            disabled={imageBusy}
+          >
+            <Camera size={18} />
+          </button>
           <button
             type="button"
             className={styles.iconBtn}
             onClick={() => fileRef.current?.click()}
             aria-label="Add images"
             title="Add images"
+            disabled={imageBusy}
           >
             <ImagePlus size={18} />
           </button>
+          {imageBusy ? (
+            <span className={styles.imageBusyInline} role="status">
+              <Loader2 size={15} className={styles.spinner} aria-hidden />
+              Adding…
+            </span>
+          ) : (
+            dropActive && (
+              <span className={styles.dropHint}>Drop images to add</span>
+            )
+          )}
           <button
             type="button"
             className={styles.primaryBtn}
             onClick={() => void finish()}
+            disabled={imageBusy}
           >
             Done
           </button>

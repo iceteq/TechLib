@@ -10,6 +10,7 @@ import type {
 } from '../../lib/types';
 import { DISPOSITIONS } from '../../lib/types';
 import { categoryLabel, dispositionLabel, stockLabel } from '../../lib/searchNotes';
+import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { NoteCard } from './NoteCard';
 import styles from './NoteGrid.module.css';
 
@@ -59,6 +60,10 @@ interface NoteGridProps {
   /** Bump to clear selection after sidebar drop-assign. */
   selectionClearNonce?: number;
   onNotesDragStart?: () => void;
+  /** Drop image files onto the grid to create a note. */
+  onDropImages?: (files: File[]) => void;
+  /** > 0 while images are being saved (drop / paste create). */
+  imageBusyCount?: number;
 }
 
 export function NoteGrid({
@@ -95,13 +100,17 @@ export function NoteGrid({
   onClearAllFilters,
   selectionClearNonce = 0,
   onNotesDragStart,
+  onDropImages,
+  imageBusyCount = 0,
 }: NoteGridProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<BulkMenu>(null);
+  const [imageDropActive, setImageDropActive] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
   const ignoreToggleUntil = useRef(0);
   const selectionAnchorId = useRef<string | null>(null);
+  const imageDropDepth = useRef(0);
   const selecting = selectedIds.size > 0;
 
   const clearSelection = useCallback(() => {
@@ -281,6 +290,37 @@ export function NoteGrid({
     setMenu((current) => (current === next ? null : next));
   }
 
+  function handleImageDragEnter(e: React.DragEvent) {
+    if (!onDropImages) return;
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    e.preventDefault();
+    imageDropDepth.current += 1;
+    setImageDropActive(true);
+  }
+
+  function handleImageDragLeave(e: React.DragEvent) {
+    if (!imageDropActive) return;
+    e.preventDefault();
+    imageDropDepth.current = Math.max(0, imageDropDepth.current - 1);
+    if (imageDropDepth.current === 0) setImageDropActive(false);
+  }
+
+  function handleImageDragOver(e: React.DragEvent) {
+    if (!onDropImages) return;
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+
+  function handleImageDrop(e: React.DragEvent) {
+    if (!onDropImages) return;
+    e.preventDefault();
+    imageDropDepth.current = 0;
+    setImageDropActive(false);
+    const files = dataTransferImageFiles(e.dataTransfer);
+    if (files.length > 0) onDropImages(files);
+  }
+
   const filterLabels = labels.filter((l) => filterLabelIds.includes(l.id));
   const hasSearch = search.trim().length > 0;
   const canCreate = view === 'notes' && !selecting;
@@ -314,7 +354,25 @@ export function NoteGrid({
   }
 
   return (
-    <section className={styles.section}>
+    <section
+      className={`${styles.section} ${
+        imageDropActive ? styles.sectionDrop : ''
+      }`}
+      onDragEnter={handleImageDragEnter}
+      onDragLeave={handleImageDragLeave}
+      onDragOver={handleImageDragOver}
+      onDrop={handleImageDrop}
+    >
+      {imageBusyCount > 0 && (
+        <div className={styles.imageBusyBanner} role="status" aria-live="polite">
+          Adding {imageBusyCount} image{imageBusyCount === 1 ? '' : 's'}…
+        </div>
+      )}
+      {imageDropActive && (
+        <div className={styles.dropBanner} aria-live="polite">
+          Drop images to create a note
+        </div>
+      )}
       <div className={styles.toolbar}>
         <div>
           <h2 className={styles.heading}>{heading}</h2>

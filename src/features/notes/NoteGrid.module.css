@@ -7,6 +7,41 @@
   min-height: calc(100vh - 8rem);
 }
 
+.sectionDrop {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius);
+}
+
+.dropBanner {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 5;
+  margin: 0;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+
+.imageBusyBanner {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 5;
+  margin: 0;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
 .toolbar {
   display: flex;
   align-items: flex-end;

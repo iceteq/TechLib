@@ -33,6 +33,10 @@ import {
   noteAssignPatch,
   type NoteAssignTarget,
 } from '../lib/noteDrag';
+import {
+  clipboardHasPlainText,
+  clipboardImageFiles,
+} from '../lib/imageFiles';
 import * as store from '../lib/notesStore';
 import { isCloudConfigured } from '../lib/supabaseClient';
 import { signOutCloud } from '../features/auth/AuthGate';
@@ -47,18 +51,6 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
   if (target.isContentEditable) return true;
   return Boolean(target.closest('[contenteditable="true"]'));
-}
-
-function clipboardImageFiles(clipboardData: DataTransfer | null): File[] {
-  if (!clipboardData) return [];
-  const fromItems = Array.from(clipboardData.items)
-    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => Boolean(file));
-  if (fromItems.length > 0) return fromItems;
-  return Array.from(clipboardData.files).filter((file) =>
-    file.type.startsWith('image/'),
-  );
 }
 
 function inheritCategoryId(filterCategoryId: string | null): string | null {
@@ -86,6 +78,7 @@ export default function App() {
   const undoActionRef = useRef<UndoAction | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectionClearNonce, setSelectionClearNonce] = useState(0);
+  const [imageBusyCount, setImageBusyCount] = useState(0);
   const [ready, setReady] = useState(false);
   const [viewPrefs, setViewPrefs] = useState(loadViewPrefs);
 
@@ -357,12 +350,42 @@ export default function App() {
 
   async function handleAddImages(files: FileList | File[]) {
     if (!activeNoteId) return;
-    let updated: NoteWithUrls | undefined;
-    for (const file of Array.from(files)) {
-      updated = await store.addImage(activeNoteId, file);
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    setImageBusyCount(list.length);
+    try {
+      let updated: NoteWithUrls | undefined;
+      for (const file of list) {
+        updated = await store.addImage(activeNoteId, file);
+      }
+      if (updated) {
+        setNotes((prev) =>
+          prev.map((n) => (n.id === updated!.id ? updated! : n)),
+        );
+      }
+    } finally {
+      setImageBusyCount(0);
     }
-    if (updated) {
-      setNotes((prev) => prev.map((n) => (n.id === updated!.id ? updated! : n)));
+  }
+
+  async function createNoteFromImages(files: File[]) {
+    if (files.length === 0) return;
+    setImageBusyCount(files.length);
+    try {
+      const note = await store.createNote({
+        disposition: filterDisposition ?? 'none',
+        categoryId: inheritCategoryId(filterCategoryId),
+        stockId: filterStockId,
+        labelIds: filterLabelIds,
+      });
+      for (const file of files) {
+        await store.addImage(note.id, file);
+      }
+      await refresh();
+      setActiveNoteId(note.id);
+      setSidebarOpen(false);
+    } finally {
+      setImageBusyCount(0);
     }
   }
 
@@ -484,25 +507,23 @@ export default function App() {
 
   useEffect(() => {
     async function onPaste(e: ClipboardEvent) {
-      if (activeNoteId || pasteOpen || view !== 'notes') return;
-      if (isEditableTarget(e.target)) return;
+      if (pasteOpen || view !== 'notes') return;
 
       const images = clipboardImageFiles(e.clipboardData);
       if (images.length === 0) return;
 
-      e.preventDefault();
-      const note = await store.createNote({
-        disposition: filterDisposition ?? 'none',
-        categoryId: inheritCategoryId(filterCategoryId),
-        stockId: filterStockId,
-        labelIds: filterLabelIds,
-      });
-      for (const file of images) {
-        await store.addImage(note.id, file);
+      // Prefer normal text paste inside fields when clipboard has text.
+      if (isEditableTarget(e.target) && clipboardHasPlainText(e.clipboardData)) {
+        return;
       }
-      await refresh();
-      setActiveNoteId(note.id);
-      setSidebarOpen(false);
+
+      e.preventDefault();
+      if (activeNoteId) {
+        await handleAddImages(images);
+        return;
+      }
+
+      await createNoteFromImages(images);
     }
 
     window.addEventListener('paste', onPaste);
@@ -663,6 +684,8 @@ export default function App() {
           onClearAllFilters={clearAllFilters}
           selectionClearNonce={selectionClearNonce}
           onNotesDragStart={() => setSidebarOpen(true)}
+          onDropImages={(files) => void createNoteFromImages(files)}
+          imageBusyCount={imageBusyCount}
         />
       )}
 
@@ -698,6 +721,7 @@ export default function App() {
           onCreateLabel={handleCreateLabel}
           onAddToCart={handleAddActiveToCart}
           cartQuantity={cartQuantities[activeNote.id] ?? 0}
+          imageBusyCount={imageBusyCount}
         />
       )}
     </AppShell>
