@@ -119,11 +119,11 @@
   padding: 0.12rem 0.45rem;
   border-radius: 8px;
   font-size: 0.68rem;
-  font-weight: 650;
+  font-weight: 550;
   letter-spacing: 0.02em;
-  background: color-mix(in srgb, var(--accent-soft) 80%, white);
-  color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  background: rgba(31, 35, 40, 0.05);
+  color: var(--text-muted);
+  border: 1px solid rgba(31, 35, 40, 0.1);
 }
 
 .disposition_stock {

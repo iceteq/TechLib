@@ -46,7 +46,7 @@
 
 .primaryBtn {
   border: none;
-  background: var(--text);
+  background: var(--accent);
   color: white;
 }
 

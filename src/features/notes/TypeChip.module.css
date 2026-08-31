@@ -27,6 +27,13 @@ button.chip {
   opacity: 1;
 }
 
+.muted {
+  background: rgba(31, 35, 40, 0.06);
+  color: var(--text-muted);
+  border-color: rgba(31, 35, 40, 0.1);
+  font-weight: 550;
+}
+
 .chip span {
   overflow: hidden;
   text-overflow: ellipsis;

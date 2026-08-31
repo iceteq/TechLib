@@ -5,6 +5,8 @@ export type ViewPrefs = {
   specialCase: boolean;
   labels: boolean;
   age: boolean;
+  /** Show type chip on cards (muted style). */
+  typeChip: boolean;
 };
 
 export const DEFAULT_VIEW_PREFS: ViewPrefs = {
@@ -14,6 +16,7 @@ export const DEFAULT_VIEW_PREFS: ViewPrefs = {
   specialCase: true,
   labels: true,
   age: true,
+  typeChip: true,
 };
 
 export const VIEW_PREFS_STORAGE_KEY = 'techlib.viewPrefs';

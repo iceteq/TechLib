@@ -20,6 +20,20 @@
   box-shadow: 0 10px 30px rgba(20, 24, 30, 0.06);
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.brandMark {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 0.4rem;
+  background: linear-gradient(145deg, #1a73e8, #34a853);
+  flex-shrink: 0;
+}
+
 .title {
   margin: 0;
   font-size: 1.6rem;
@@ -68,7 +82,7 @@
   padding: 0.7rem 1rem;
   border: none;
   border-radius: 999px;
-  background: var(--text, #202124);
+  background: var(--accent, #1a73e8);
   color: #fff;
   font-weight: 600;
   font-size: 0.95rem;

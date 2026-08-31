@@ -13,7 +13,7 @@ import { categoryLabel, dispositionLabel, stockLabel } from '../../lib/searchNot
 import { NoteCard } from './NoteCard';
 import styles from './NoteGrid.module.css';
 
-type BulkMenu = 'guideline' | 'type' | 'label' | null;
+type BulkMenu = 'guideline' | 'type' | 'stock' | 'label' | null;
 
 interface NoteGridProps {
   notes: NoteWithUrls[];
@@ -35,6 +35,7 @@ interface NoteGridProps {
   showSpecialCase: boolean;
   showLabels: boolean;
   showAge: boolean;
+  showTypeChip: boolean;
   onOpenNote: (noteId: string) => void;
   onCreateNote: () => void;
   onPasteNotes: () => void;
@@ -79,6 +80,7 @@ export function NoteGrid({
   showSpecialCase,
   showLabels,
   showAge,
+  showTypeChip,
   onOpenNote,
   onCreateNote,
   onPasteNotes,
@@ -263,6 +265,11 @@ export function NoteGrid({
     await runBulk(() => onUpdateNotes(ids, { categoryId }));
   }
 
+  async function applyStock(stockId: string | null) {
+    const ids = [...selectedIds];
+    await runBulk(() => onUpdateNotes(ids, { stockId }));
+  }
+
   async function applyLabel(labelId: string | null) {
     const ids = [...selectedIds];
     await runBulk(() =>
@@ -302,7 +309,7 @@ export function NoteGrid({
     emptyTitle = 'Archive is empty';
     emptyText = 'Archived notes will show up here.';
   } else if (hasSearch || hasFilters) {
-    emptyTitle = 'No matching notes';
+    emptyTitle = 'No matching part numbers';
     emptyText = 'Try clearing a filter or adjusting search.';
   }
 
@@ -415,6 +422,7 @@ export function NoteGrid({
               showSpecialCase={showSpecialCase}
               showLabels={showLabels}
               showAge={showAge}
+              showTypeChip={showTypeChip}
               onOpen={onOpenNote}
               onToggleSelect={toggleSelect}
               onEnterSelect={enterSelect}
@@ -438,9 +446,14 @@ export function NoteGrid({
           role="toolbar"
           aria-label="Selection"
         >
-          <p className={styles.selectionCount}>
-            {selectedIds.size} selected
-          </p>
+          <div className={styles.selectionMeta}>
+            <p className={styles.selectionCount}>
+              {selectedIds.size} selected
+            </p>
+            <p className={styles.selectionHint}>
+              Drag onto Type, Stock, or Guideline
+            </p>
+          </div>
 
           <div className={styles.selectionActions}>
             <div className={styles.menuWrap}>
@@ -516,6 +529,49 @@ export function NoteGrid({
               <button
                 type="button"
                 className={`${styles.selectionAction} ${
+                  menu === 'stock' ? styles.selectionActionOpen : ''
+                }`}
+                onClick={() => toggleMenu('stock')}
+                disabled={busy}
+                aria-expanded={menu === 'stock'}
+              >
+                Stock
+              </button>
+              {menu === 'stock' && (
+                <div className={styles.menu} role="menu">
+                  <button
+                    type="button"
+                    className={styles.menuItem}
+                    role="menuitem"
+                    disabled={busy}
+                    onClick={() => void applyStock(null)}
+                  >
+                    No stock
+                  </button>
+                  {stockLocations.length === 0 ? (
+                    <p className={styles.menuEmpty}>No stock yet</p>
+                  ) : (
+                    stockLocations.map((stock) => (
+                      <button
+                        key={stock.id}
+                        type="button"
+                        className={styles.menuItem}
+                        role="menuitem"
+                        disabled={busy}
+                        onClick={() => void applyStock(stock.id)}
+                      >
+                        {stock.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.menuWrap}>
+              <button
+                type="button"
+                className={`${styles.selectionAction} ${
                   menu === 'label' ? styles.selectionActionOpen : ''
                 }`}
                 onClick={() => toggleMenu('label')}
@@ -523,7 +579,7 @@ export function NoteGrid({
                 aria-expanded={menu === 'label'}
               >
                 <Tag size={14} />
-                Label
+                Set label
               </button>
               {menu === 'label' && (
                 <div className={styles.menu} role="menu">

@@ -646,6 +646,7 @@ export default function App() {
           showSpecialCase={viewPrefs.specialCase}
           showLabels={viewPrefs.labels}
           showAge={viewPrefs.age}
+          showTypeChip={viewPrefs.typeChip}
           onOpenNote={(id) => setActiveNoteId(id)}
           onCreateNote={() => void handleCreateNote()}
           onPasteNotes={() => setPasteOpen(true)}

@@ -32,6 +32,7 @@ interface NoteCardProps {
   showSpecialCase: boolean;
   showLabels: boolean;
   showAge: boolean;
+  showTypeChip: boolean;
   onOpen: (noteId: string) => void;
   onToggleSelect: (noteId: string) => void;
   onEnterSelect: (noteId: string) => void;
@@ -56,6 +57,7 @@ export function NoteCard({
   showSpecialCase,
   showLabels,
   showAge,
+  showTypeChip,
   onOpen,
   onToggleSelect,
   onEnterSelect,
@@ -321,8 +323,8 @@ export function NoteCard({
         )}
         {(
           (disposition && disposition.id !== 'none') ||
-          Boolean(noteType) ||
-          Boolean(suggestedType) ||
+          (showTypeChip && Boolean(noteType)) ||
+          (showTypeChip && Boolean(suggestedType)) ||
           Boolean(stock) ||
           (showLabels && noteLabels.length > 0)
         ) && (
@@ -334,10 +336,11 @@ export function NoteCard({
                 {disposition.short}
               </span>
             )}
-            {noteType && <TypeChip type={noteType} />}
-            {!noteType && suggestedType && (
+            {showTypeChip && noteType && <TypeChip type={noteType} muted />}
+            {showTypeChip && !noteType && suggestedType && (
               <TypeChip
                 type={suggestedType}
+                muted
                 suggested
                 onClick={() => onApplyType(note.id, suggestedType.id)}
               />

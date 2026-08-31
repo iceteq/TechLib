@@ -77,7 +77,10 @@ export function AuthGate({ children }: AuthGateProps) {
     return (
       <div className={styles.screen}>
         <form className={styles.card} onSubmit={(e) => void submit(e)}>
-          <h1 className={styles.title}>TechLib</h1>
+          <div className={styles.brand}>
+            <span className={styles.brandMark} aria-hidden />
+            <h1 className={styles.title}>TechLib</h1>
+          </div>
           <p className={styles.muted}>
             Sign in to sync notes between your phone and PC.
           </p>

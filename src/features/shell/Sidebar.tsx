@@ -764,7 +764,11 @@ function CollapsibleSection({
 }) {
   return (
     <div className={styles.section}>
-      <div className={styles.sectionHeader}>
+      <div
+        className={`${styles.sectionHeader} ${
+          open ? styles.sectionHeaderOpen : ''
+        }`}
+      >
         <button
           type="button"
           className={`${styles.sectionToggle} ${

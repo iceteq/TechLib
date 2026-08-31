@@ -7,6 +7,8 @@ interface TypeChipProps {
   className?: string;
   showLabel?: boolean;
   suggested?: boolean;
+  /** Neutral gray chip — for browse cards so Guideline color wins. */
+  muted?: boolean;
   onClick?: () => void;
 }
 
@@ -15,16 +17,21 @@ export function TypeChip({
   className = '',
   showLabel = true,
   suggested = false,
+  muted = false,
   onClick,
 }: TypeChipProps) {
   const Icon = noteTypeIcon(type.icon);
   const colors = typeColorVars(type.color);
-  const classNames = `${styles.chip} ${suggested ? styles.suggested : ''} ${className}`;
-  const style = {
-    background: colors.bg,
-    color: colors.fg,
-    borderColor: colors.border,
-  };
+  const classNames = `${styles.chip} ${suggested ? styles.suggested : ''} ${
+    muted ? styles.muted : ''
+  } ${className}`;
+  const style = muted
+    ? undefined
+    : {
+        background: colors.bg,
+        color: colors.fg,
+        borderColor: colors.border,
+      };
   const content = (
     <>
       <Icon size={12} strokeWidth={2.25} aria-hidden />
