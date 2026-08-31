@@ -1,11 +1,17 @@
 import { useEffect, useRef } from 'react';
-import { Check, ShoppingCart } from 'lucide-react';
+import { Check, Package, ShoppingCart, Trash2, Wrench } from 'lucide-react';
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
 import { formatNoteAge } from '../../lib/formatNoteAge';
 import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
 import { DISPOSITIONS } from '../../lib/types';
-import type { Label, NoteType, NoteWithUrls, StockLocation } from '../../lib/types';
+import type {
+  Label,
+  NoteDisposition,
+  NoteType,
+  NoteWithUrls,
+  StockLocation,
+} from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { LabelChip } from '../labels/LabelChip';
 import { TypeChip } from './TypeChip';
@@ -16,6 +22,13 @@ const LONG_PRESS_MS = 500;
 const MOVE_CANCEL_PX = 12;
 /** Ignore click/contextmenu after long-press (mobile fires several of these). */
 const SUPPRESS_MS = 1200;
+
+function dispositionIcon(id: NoteDisposition) {
+  if (id === 'stock') return Package;
+  if (id === 'repair') return Wrench;
+  if (id === 'scrap') return Trash2;
+  return null;
+}
 
 interface NoteCardProps {
   note: NoteWithUrls;
@@ -75,6 +88,10 @@ export function NoteCard({
   const disposition = DISPOSITIONS.find(
     (d) => d.id === (note.disposition ?? 'none'),
   );
+  const DispositionIcon =
+    disposition && disposition.id !== 'none'
+      ? dispositionIcon(disposition.id)
+      : null;
   const noteType = noteTypeById(noteTypes, note.categoryId);
   const suggestedType =
     !note.categoryId
@@ -330,10 +347,11 @@ export function NoteCard({
         ) && (
           <div className={styles.labels}>
             {disposition && disposition.id !== 'none' && (
-              <span
-                className={`${styles.disposition} ${styles[`disposition_${disposition.id}`]}`}
-              >
-                {disposition.short}
+              <span className={styles.disposition}>
+                {DispositionIcon && (
+                  <DispositionIcon size={12} strokeWidth={2.25} aria-hidden />
+                )}
+                <span>{disposition.short}</span>
               </span>
             )}
             {showTypeChip && noteType && <TypeChip type={noteType} muted />}

@@ -95,13 +95,17 @@
 }
 
 .disposition {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
   padding: 0.12rem 0.45rem;
   border-radius: 999px;
   font-size: 0.68rem;
-  font-weight: 650;
+  font-weight: 550;
   letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: white;
+  background: rgba(31, 35, 40, 0.06);
+  color: var(--text-muted);
+  border: 1px solid rgba(31, 35, 40, 0.1);
 }
 
 .category {
@@ -124,18 +128,6 @@
   background: rgba(31, 35, 40, 0.05);
   color: var(--text-muted);
   border: 1px solid rgba(31, 35, 40, 0.1);
-}
-
-.disposition_stock {
-  background: #1e8e3e;
-}
-
-.disposition_repair {
-  background: #e37400;
-}
-
-.disposition_scrap {
-  background: #d93025;
 }
 
 .images {
