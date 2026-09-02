@@ -257,10 +257,6 @@ export function NoteGrid({
   async function handleDelete() {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    const ok = window.confirm(
-      `Delete ${ids.length} note${ids.length === 1 ? '' : 's'}? This cannot be undone.`,
-    );
-    if (!ok) return;
     await runBulk(() => onDeleteNotes(ids), { clearAfter: true });
   }
 

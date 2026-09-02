@@ -55,12 +55,12 @@ export function noteAssignPatch(target: NoteAssignTarget): {
   return { stockId: target.value };
 }
 
-export function confirmNoteAssign(
+/** Short toast message after assigning notes via sidebar drop. */
+export function describeNoteAssign(
   noteIds: string[],
   target: NoteAssignTarget,
-): boolean {
+): string {
   const count = noteIds.length;
-  if (count === 0) return false;
   const noteWord = count === 1 ? 'note' : 'notes';
   const fieldLabel =
     target.field === 'disposition'
@@ -69,12 +69,8 @@ export function confirmNoteAssign(
         ? 'Type'
         : 'Stock';
 
-  const headline =
-    target.field === 'categoryId' && target.value === null
-      ? `Clear Type on ${count} ${noteWord}?`
-      : `Change ${fieldLabel} to "${target.label}" on ${count} ${noteWord}?`;
-
-  return window.confirm(
-    `${headline}\n\nThis may replace the current ${fieldLabel.toLowerCase()} on those notes.`,
-  );
+  if (target.field === 'categoryId' && target.value === null) {
+    return `Cleared Type on ${count} ${noteWord}`;
+  }
+  return `Set ${fieldLabel} to “${target.label}” on ${count} ${noteWord}`;
 }

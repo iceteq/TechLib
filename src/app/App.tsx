@@ -17,7 +17,7 @@ import type {
   NotesView,
   NoteWithUrls,
 } from '../lib/types';
-import { UNSET_TYPE_FILTER } from '../lib/types';
+import { UNSET_TYPE_FILTER, DISPOSITIONS } from '../lib/types';
 import {
   categoryLabel,
   countNotesByLabel,
@@ -29,7 +29,7 @@ import {
 } from '../lib/searchNotes';
 import { parsePastedNotes } from '../lib/parsePastedNotes';
 import {
-  confirmNoteAssign,
+  describeNoteAssign,
   noteAssignPatch,
   type NoteAssignTarget,
 } from '../lib/noteDrag';
@@ -41,9 +41,21 @@ import * as store from '../lib/notesStore';
 import { isCloudConfigured } from '../lib/supabaseClient';
 import { signOutCloud } from '../features/auth/AuthGate';
 
+type NoteFieldPatch = {
+  disposition?: NoteDisposition;
+  categoryId?: string | null;
+  stockId?: string | null;
+  labelIds?: string[];
+};
+
 type UndoAction =
   | { kind: 'import'; ids: string[] }
-  | { kind: 'delete'; ids: string[] };
+  | { kind: 'delete'; ids: string[] }
+  | {
+      kind: 'patch';
+      message: string;
+      before: Array<{ id: string; patch: NoteFieldPatch }>;
+    };
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -56,6 +68,67 @@ function isEditableTarget(target: EventTarget | null): boolean {
 function inheritCategoryId(filterCategoryId: string | null): string | null {
   if (!filterCategoryId || filterCategoryId === UNSET_TYPE_FILTER) return null;
   return filterCategoryId;
+}
+
+function snapshotNotePatch(
+  note: NoteWithUrls,
+  patch: NoteFieldPatch,
+): NoteFieldPatch {
+  const before: NoteFieldPatch = {};
+  if (patch.disposition !== undefined) {
+    before.disposition = note.disposition ?? 'none';
+  }
+  if ('categoryId' in patch) {
+    before.categoryId = note.categoryId;
+  }
+  if ('stockId' in patch) {
+    before.stockId = note.stockId;
+  }
+  if (patch.labelIds !== undefined) {
+    before.labelIds = [...note.labelIds];
+  }
+  return before;
+}
+
+function describeBulkPatch(
+  count: number,
+  patch: NoteFieldPatch,
+  noteTypes: NoteType[],
+  stockLocations: StockLocation[],
+): string {
+  const noteWord = count === 1 ? 'note' : 'notes';
+  if (patch.disposition !== undefined) {
+    if (patch.disposition === 'none') {
+      return `Cleared Guideline on ${count} ${noteWord}`;
+    }
+    const short =
+      DISPOSITIONS.find((d) => d.id === patch.disposition)?.short ||
+      patch.disposition;
+    return `Set Guideline to “${short}” on ${count} ${noteWord}`;
+  }
+  if ('categoryId' in patch) {
+    if (!patch.categoryId) {
+      return `Cleared Type on ${count} ${noteWord}`;
+    }
+    const name =
+      noteTypes.find((t) => t.id === patch.categoryId)?.name ?? 'Type';
+    return `Set Type to “${name}” on ${count} ${noteWord}`;
+  }
+  if ('stockId' in patch) {
+    if (!patch.stockId) {
+      return `Cleared Stock on ${count} ${noteWord}`;
+    }
+    const name =
+      stockLocations.find((s) => s.id === patch.stockId)?.name ?? 'Stock';
+    return `Set Stock to “${name}” on ${count} ${noteWord}`;
+  }
+  if (patch.labelIds !== undefined) {
+    if (patch.labelIds.length === 0) {
+      return `Cleared labels on ${count} ${noteWord}`;
+    }
+    return `Set label on ${count} ${noteWord}`;
+  }
+  return `Updated ${count} ${noteWord}`;
 }
 
 export default function App() {
@@ -293,17 +366,24 @@ export default function App() {
 
   async function handleUndo() {
     const action = undoActionRef.current;
-    if (!action?.ids.length) return;
+    if (!action) return;
     undoActionRef.current = null;
     setUndoAction(null);
 
     if (action.kind === 'import') {
+      if (!action.ids.length) return;
       if (activeNoteId && action.ids.includes(activeNoteId)) {
         setActiveNoteId(null);
       }
       await store.purgeNotes(action.ids);
-    } else {
+    } else if (action.kind === 'delete') {
+      if (!action.ids.length) return;
       await store.restoreNotes(action.ids);
+    } else if (action.kind === 'patch') {
+      if (action.before.length === 0) return;
+      for (const entry of action.before) {
+        await store.updateNote(entry.id, entry.patch);
+      }
     }
     await refresh();
   }
@@ -439,26 +519,40 @@ export default function App() {
 
   async function handleUpdateNotes(
     noteIds: string[],
-    patch: {
-      disposition?: NoteDisposition;
-      categoryId?: string | null;
-      stockId?: string | null;
-      labelIds?: string[];
-    },
+    patch: NoteFieldPatch,
+    options?: { message?: string },
   ) {
-    for (const id of noteIds) {
+    const ids = [...new Set(noteIds)].filter(Boolean);
+    if (ids.length === 0) return;
+
+    const before: Array<{ id: string; patch: NoteFieldPatch }> = [];
+    for (const id of ids) {
+      const note = notes.find((n) => n.id === id);
+      if (!note) continue;
+      before.push({ id, patch: snapshotNotePatch(note, patch) });
+    }
+    if (before.length === 0) return;
+
+    for (const id of ids) {
       await store.updateNote(id, patch);
     }
     await refresh();
+    await replaceUndoAction({
+      kind: 'patch',
+      message:
+        options?.message ??
+        describeBulkPatch(before.length, patch, noteTypes, stockLocations),
+      before,
+    });
   }
-
 
   async function handleAssignNotes(
     noteIds: string[],
     target: NoteAssignTarget,
   ) {
-    if (!confirmNoteAssign(noteIds, target)) return;
-    await handleUpdateNotes(noteIds, noteAssignPatch(target));
+    await handleUpdateNotes(noteIds, noteAssignPatch(target), {
+      message: describeNoteAssign(noteIds, target),
+    });
     setSelectionClearNonce((n) => n + 1);
   }
 
@@ -546,9 +640,17 @@ export default function App() {
         ? `Imported ${undoAction.ids.length} note${
             undoAction.ids.length === 1 ? '' : 's'
           }`
-        : `Deleted ${undoAction.ids.length} note${
-            undoAction.ids.length === 1 ? '' : 's'
-          }`;
+        : undoAction.kind === 'delete'
+          ? `Deleted ${undoAction.ids.length} note${
+              undoAction.ids.length === 1 ? '' : 's'
+            }`
+          : undoAction.message;
+
+  const undoToastVisible =
+    undoAction != null &&
+    (undoAction.kind === 'patch'
+      ? undoAction.before.length > 0
+      : undoAction.ids.length > 0);
 
   return (
     <AppShell
@@ -697,7 +799,7 @@ export default function App() {
         />
       )}
 
-      {undoAction && undoAction.ids.length > 0 && (
+      {undoToastVisible && (
         <UndoToast
           message={undoMessage}
           onUndo={() => void handleUndo()}
