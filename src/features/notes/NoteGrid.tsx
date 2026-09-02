@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ClipboardPaste, Plus, ShoppingCart, Tag, Trash2, X } from 'lucide-react';
+import {
+  Camera,
+  ClipboardPaste,
+  ImagePlus,
+  Plus,
+  ShoppingCart,
+  Tag,
+  Trash2,
+  X,
+} from 'lucide-react';
 import type {
   Label,
   NoteDisposition,
@@ -108,10 +117,13 @@ export function NoteGrid({
   const [menu, setMenu] = useState<BulkMenu>(null);
   const [imageDropActive, setImageDropActive] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const ignoreToggleUntil = useRef(0);
   const selectionAnchorId = useRef<string | null>(null);
   const imageDropDepth = useRef(0);
   const selecting = selectedIds.size > 0;
+  const imageBusy = imageBusyCount > 0;
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
@@ -315,6 +327,13 @@ export function NoteGrid({
     setImageDropActive(false);
     const files = dataTransferImageFiles(e.dataTransfer);
     if (files.length > 0) onDropImages(files);
+  }
+
+  function handleCreateFromFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = '';
+    if (files.length === 0 || !onDropImages) return;
+    onDropImages(files);
   }
 
   const filterLabels = labels.filter((l) => filterLabelIds.includes(l.id));
@@ -700,14 +719,51 @@ export function NoteGrid({
 
       {canCreate && (
         <div className={styles.fabStack}>
+          <input
+            ref={galleryRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={handleCreateFromFiles}
+          />
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={handleCreateFromFiles}
+          />
           <button
             type="button"
             className={styles.fabSecondary}
             onClick={onPasteNotes}
             aria-label="Paste notes"
             title="Paste notes"
+            disabled={imageBusy}
           >
             <ClipboardPaste size={20} strokeWidth={2.25} />
+          </button>
+          <button
+            type="button"
+            className={styles.fabSecondary}
+            onClick={() => galleryRef.current?.click()}
+            aria-label="Add images"
+            title="Add images — creates a note"
+            disabled={imageBusy || !onDropImages}
+          >
+            <ImagePlus size={20} strokeWidth={2.25} />
+          </button>
+          <button
+            type="button"
+            className={styles.fabSecondary}
+            onClick={() => cameraRef.current?.click()}
+            aria-label="Take photo"
+            title="Take photo — creates a note"
+            disabled={imageBusy || !onDropImages}
+          >
+            <Camera size={20} strokeWidth={2.25} />
           </button>
           <button
             type="button"
@@ -715,6 +771,7 @@ export function NoteGrid({
             onClick={onCreateNote}
             aria-label="New note"
             title="New note"
+            disabled={imageBusy}
           >
             <Plus size={24} strokeWidth={2.25} />
           </button>

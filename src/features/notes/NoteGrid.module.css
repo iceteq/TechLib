@@ -186,6 +186,13 @@
   opacity: 0.95;
 }
 
+.fab:disabled,
+.fabSecondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .selectionBar {
   position: fixed;
   /* Center in the main column (to the right of the sidebar), not the full viewport */
