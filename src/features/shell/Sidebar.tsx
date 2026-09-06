@@ -10,6 +10,7 @@ import {
   Package,
   Minus,
   Plus,
+  Settings2,
   ShoppingCart,
   Tag,
   Trash2,
@@ -428,6 +429,23 @@ export function Sidebar({
         >
           <Wrench size={18} />
           <span>Repair</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeDisposition === 'config'
+              ? styles.active
+              : ''
+          }${dropClass('disposition:config')}`}
+          onClick={() => onSelectDisposition('config')}
+          {...noteDropHandlers('disposition:config', {
+            field: 'disposition',
+            value: 'config',
+            label: 'Config center',
+          })}
+        >
+          <Settings2 size={18} />
+          <span>Config center</span>
         </button>
         <button
           type="button"

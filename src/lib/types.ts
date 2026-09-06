@@ -7,7 +7,12 @@ export type NoteBackground =
   | 'gray';
 
 /** What to do with the product on this note. */
-export type NoteDisposition = 'none' | 'stock' | 'repair' | 'scrap';
+export type NoteDisposition =
+  | 'none'
+  | 'stock'
+  | 'repair'
+  | 'config'
+  | 'scrap';
 
 export type NoteTypeColor =
   | 'blue'
@@ -113,6 +118,11 @@ export const DISPOSITIONS: {
   { id: 'none', label: 'No guideline', short: '' },
   { id: 'stock', label: 'Return to stock', short: 'Stock' },
   { id: 'repair', label: 'Go to repair', short: 'Repair' },
+  {
+    id: 'config',
+    label: 'Send to configuration center',
+    short: 'Config',
+  },
   { id: 'scrap', label: 'Throw away', short: 'Scrap' },
 ];
 

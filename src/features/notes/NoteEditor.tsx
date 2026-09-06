@@ -423,7 +423,7 @@ export function NoteEditor({
                   void persistSpecialCase();
                   if (!specialCase.trim()) setSpecialCaseOpen(false);
                 }}
-                placeholder="Only when it isn’t a normal stock / repair / scrap path…"
+                placeholder="Only when it isn’t a normal stock / repair / config / scrap path…"
                 rows={2}
                 aria-label="Special case handling note"
               />

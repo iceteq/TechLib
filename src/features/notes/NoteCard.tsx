@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { Check, Package, ShoppingCart, Trash2, Wrench } from 'lucide-react';
+import {
+  Check,
+  Package,
+  Settings2,
+  ShoppingCart,
+  Trash2,
+  Wrench,
+} from 'lucide-react';
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
 import { formatNoteAge } from '../../lib/formatNoteAge';
@@ -26,6 +33,7 @@ const SUPPRESS_MS = 1200;
 function dispositionIcon(id: NoteDisposition) {
   if (id === 'stock') return Package;
   if (id === 'repair') return Wrench;
+  if (id === 'config') return Settings2;
   if (id === 'scrap') return Trash2;
   return null;
 }
