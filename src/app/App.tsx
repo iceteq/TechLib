@@ -17,7 +17,7 @@ import type {
   NotesView,
   NoteWithUrls,
 } from '../lib/types';
-import { UNSET_TYPE_FILTER, DISPOSITIONS } from '../lib/types';
+import { DISPOSITIONS } from '../lib/types';
 import {
   categoryLabel,
   countNotesByLabel,
@@ -63,11 +63,6 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
   if (target.isContentEditable) return true;
   return Boolean(target.closest('[contenteditable="true"]'));
-}
-
-function inheritCategoryId(filterCategoryId: string | null): string | null {
-  if (!filterCategoryId || filterCategoryId === UNSET_TYPE_FILTER) return null;
-  return filterCategoryId;
 }
 
 function snapshotNotePatch(
@@ -294,6 +289,7 @@ export default function App() {
       !note.archived &&
       (note.disposition ?? 'none') === 'none' &&
       !note.categoryId &&
+      !note.stockId &&
       !(note.specialCase ?? '').trim()
     );
   }
@@ -323,9 +319,9 @@ export default function App() {
 
   async function handleCreateNote() {
     const note = await store.createNote({
-      disposition: filterDisposition ?? 'none',
-      categoryId: inheritCategoryId(filterCategoryId),
-      stockId: filterStockId,
+      disposition: 'none',
+      categoryId: null,
+      stockId: null,
       labelIds: filterLabelIds,
     });
     await refresh();
@@ -342,9 +338,9 @@ export default function App() {
         title: draft.title,
         description: draft.description,
         specialCase: draft.specialCase,
-        disposition: filterDisposition ?? 'none',
-        categoryId: inheritCategoryId(filterCategoryId),
-        stockId: filterStockId,
+        disposition: 'none',
+        categoryId: null,
+        stockId: null,
         labelIds: filterLabelIds,
       });
       createdIds.push(note.id);
@@ -453,9 +449,9 @@ export default function App() {
     setImageBusyCount(files.length);
     try {
       const note = await store.createNote({
-        disposition: filterDisposition ?? 'none',
-        categoryId: inheritCategoryId(filterCategoryId),
-        stockId: filterStockId,
+        disposition: 'none',
+        categoryId: null,
+        stockId: null,
         labelIds: filterLabelIds,
       });
       for (const file of files) {

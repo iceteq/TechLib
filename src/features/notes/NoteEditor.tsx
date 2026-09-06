@@ -405,7 +405,7 @@ export function NoteEditor({
                 }`}
                 onClick={() => void onSaveMeta({ disposition: option.id })}
               >
-                {option.id === 'none' ? 'None' : option.short}
+                {option.id === 'none' ? 'No guideline' : option.short}
               </button>
             ))}
           </div>
@@ -448,7 +448,7 @@ export function NoteEditor({
               }`}
               onClick={() => void onSaveMeta({ categoryId: null })}
             >
-              None
+              No type
             </button>
             {noteTypes.map((option) => (
               <button
@@ -484,7 +484,7 @@ export function NoteEditor({
               }`}
               onClick={() => void onSaveMeta({ stockId: null })}
             >
-              None
+              No stock
             </button>
             {stockLocations.map((stock) => (
               <button
