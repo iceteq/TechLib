@@ -37,6 +37,9 @@ export type NoteTypeIcon =
 /** Sentinel filter value: notes with no type set. */
 export const UNSET_TYPE_FILTER = '__unset__';
 
+/** Sentinel filter value: notes with no stock location set. */
+export const UNSET_STOCK_FILTER = '__unset_stock__';
+
 export type ReactionEmoji = '👍' | '❤️' | '🔥' | '✅';
 
 export interface NoteImage {
@@ -115,7 +118,7 @@ export const DISPOSITIONS: {
   label: string;
   short: string;
 }[] = [
-  { id: 'none', label: 'No guideline', short: '' },
+  { id: 'none', label: 'No guideline', short: 'No guideline' },
   { id: 'stock', label: 'Return to stock', short: 'Stock' },
   { id: 'repair', label: 'Go to repair', short: 'Repair' },
   {

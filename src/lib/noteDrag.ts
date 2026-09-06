@@ -5,7 +5,7 @@ export const NOTE_DRAG_MIME = 'application/x-techlib-notes';
 export type NoteAssignTarget =
   | { field: 'disposition'; value: NoteDisposition; label: string }
   | { field: 'categoryId'; value: string | null; label: string }
-  | { field: 'stockId'; value: string; label: string };
+  | { field: 'stockId'; value: string | null; label: string };
 
 interface NoteDragPayload {
   noteIds: string[];
@@ -71,6 +71,12 @@ export function describeNoteAssign(
 
   if (target.field === 'categoryId' && target.value === null) {
     return `Cleared Type on ${count} ${noteWord}`;
+  }
+  if (target.field === 'stockId' && target.value === null) {
+    return `Cleared Stock on ${count} ${noteWord}`;
+  }
+  if (target.field === 'disposition' && target.value === 'none') {
+    return `Cleared Guideline on ${count} ${noteWord}`;
   }
   return `Set ${fieldLabel} to “${target.label}” on ${count} ${noteWord}`;
 }

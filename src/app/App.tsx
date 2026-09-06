@@ -661,7 +661,8 @@ export default function App() {
           typeCounts={typeCounts.byTypeId}
           unsetCount={typeCounts.unset}
           labelCounts={labelCounts}
-          stockCounts={stockCounts}
+          stockCounts={stockCounts.byStockId}
+          unsetStockCount={stockCounts.unset}
           view={view}
           activeLabelIds={filterLabelIds}
           activeDisposition={filterDisposition}

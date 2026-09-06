@@ -25,7 +25,7 @@ import type {
   NotesView,
   StockLocation,
 } from '../../lib/types';
-import { UNSET_TYPE_FILTER } from '../../lib/types';
+import { UNSET_STOCK_FILTER, UNSET_TYPE_FILTER } from '../../lib/types';
 import { noteTypeIcon, typeColorVars } from '../../lib/noteTypes';
 import {
   loadSidebarSections,
@@ -54,6 +54,7 @@ interface SidebarProps {
   unsetCount: number;
   labelCounts: Record<string, number>;
   stockCounts: Record<string, number>;
+  unsetStockCount: number;
   view: NotesView;
   activeLabelIds: string[];
   activeDisposition: NoteDisposition | null;
@@ -106,6 +107,7 @@ export function Sidebar({
   unsetCount,
   labelCounts,
   stockCounts,
+  unsetStockCount,
   view,
   activeLabelIds,
   activeDisposition,
@@ -401,6 +403,21 @@ export function Sidebar({
         <button
           type="button"
           className={`${styles.item} ${
+            view === 'notes' && activeDisposition === 'none' ? styles.active : ''
+          }${dropClass('disposition:none')}`}
+          onClick={() => onSelectDisposition('none')}
+          {...noteDropHandlers('disposition:none', {
+            field: 'disposition',
+            value: 'none',
+            label: 'No guideline',
+          })}
+        >
+          <CircleOff size={18} />
+          <span>No guideline</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
             view === 'notes' && activeDisposition === 'stock' ? styles.active : ''
           }${dropClass('disposition:stock')}`}
           onClick={() => onSelectDisposition('stock')}
@@ -612,41 +629,64 @@ export function Sidebar({
             </button>
           </form>
         )}
-        {stockLocations.length === 0 && !creatingStock ? (
-          <p className={styles.empty}>Tap + to add stock locations.</p>
-        ) : (
-          <ul className={styles.list}>
-            {stockLocations.map((stock) => {
-              const active =
-                view === 'notes' && activeStockId === stock.id;
-              return (
-                <li
-                  key={stock.id}
-                  className={`${styles.row} ${active ? styles.rowActive : ''}`}
+        <ul className={styles.list}>
+          <li>
+            <button
+              type="button"
+              className={`${styles.item} ${
+                view === 'notes' && activeStockId === UNSET_STOCK_FILTER
+                  ? styles.active
+                  : ''
+              }${dropClass('stock:unset')}`}
+              onClick={() => onSelectStock(UNSET_STOCK_FILTER)}
+              aria-pressed={
+                view === 'notes' && activeStockId === UNSET_STOCK_FILTER
+              }
+              {...noteDropHandlers('stock:unset', {
+                field: 'stockId',
+                value: null,
+                label: 'No stock',
+              })}
+            >
+              <CircleOff size={18} />
+              <span className={styles.itemText}>No stock</span>
+              {showCounts.stock && (
+                <span className={styles.itemCount}>{unsetStockCount}</span>
+              )}
+            </button>
+          </li>
+          {stockLocations.map((stock) => {
+            const active = view === 'notes' && activeStockId === stock.id;
+            return (
+              <li
+                key={stock.id}
+                className={`${styles.row} ${active ? styles.rowActive : ''}`}
+              >
+                <button
+                  type="button"
+                  className={`${styles.item} ${active ? styles.active : ''}${dropClass(`stock:${stock.id}`)}`}
+                  onClick={() => onSelectStock(stock.id)}
+                  aria-pressed={active}
+                  {...noteDropHandlers(`stock:${stock.id}`, {
+                    field: 'stockId',
+                    value: stock.id,
+                    label: stock.name,
+                  })}
                 >
-                  <button
-                    type="button"
-                    className={`${styles.item} ${active ? styles.active : ''}${dropClass(`stock:${stock.id}`)}`}
-                    onClick={() => onSelectStock(stock.id)}
-                    aria-pressed={active}
-                    {...noteDropHandlers(`stock:${stock.id}`, {
-                      field: 'stockId',
-                      value: stock.id,
-                      label: stock.name,
-                    })}
-                  >
-                    <Warehouse size={18} />
-                    <span className={styles.itemText}>{stock.name}</span>
-                    {showCounts.stock && (
-                      <span className={styles.itemCount}>
-                        {stockCounts[stock.id] ?? 0}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                  <Warehouse size={18} />
+                  <span className={styles.itemText}>{stock.name}</span>
+                  {showCounts.stock && (
+                    <span className={styles.itemCount}>
+                      {stockCounts[stock.id] ?? 0}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {stockLocations.length === 0 && !creatingStock && (
+          <p className={styles.empty}>Tap + to add stock locations.</p>
         )}
       </CollapsibleSection>
 

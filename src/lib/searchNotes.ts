@@ -7,7 +7,7 @@ import type {
   Reaction,
   StockLocation,
 } from './types';
-import { DISPOSITIONS, UNSET_TYPE_FILTER } from './types';
+import { DISPOSITIONS, UNSET_STOCK_FILTER, UNSET_TYPE_FILTER } from './types';
 import { noteTypeLabel } from './noteTypes';
 
 export function matchesNoteSearch(
@@ -50,6 +50,7 @@ export function filterNotes(
     disposition: NoteDisposition | null;
     /** Type id, UNSET_TYPE_FILTER for no type, or null for any. */
     categoryId: string | null;
+    /** Stock id, UNSET_STOCK_FILTER for no stock, or null for any. */
     stockId: string | null;
     specialCasesOnly?: boolean;
   },
@@ -73,7 +74,9 @@ export function filterNotes(
     } else if (options.categoryId && note.categoryId !== options.categoryId) {
       return false;
     }
-    if (options.stockId && note.stockId !== options.stockId) {
+    if (options.stockId === UNSET_STOCK_FILTER) {
+      if (note.stockId) return false;
+    } else if (options.stockId && note.stockId !== options.stockId) {
       return false;
     }
     if (options.specialCasesOnly && !(note.specialCase ?? '').trim()) {
@@ -115,7 +118,9 @@ export function stockLabel(
   stockId: string | null,
   stockLocations: StockLocation[],
 ): string | null {
-  if (!stockId) return null;
+  if (!stockId || stockId === UNSET_STOCK_FILTER) {
+    return stockId === UNSET_STOCK_FILTER ? 'No stock' : null;
+  }
   return stockLocations.find((s) => s.id === stockId)?.name ?? null;
 }
 
@@ -149,13 +154,20 @@ export function countNotesByLabel(notes: NoteWithUrls[]): Record<string, number>
   return byLabelId;
 }
 
-/** Counts of active notes per stock location id. */
-export function countNotesByStock(notes: NoteWithUrls[]): Record<string, number> {
+/** Counts of active notes per stock location id + unset. */
+export function countNotesByStock(notes: NoteWithUrls[]): {
+  byStockId: Record<string, number>;
+  unset: number;
+} {
   const byStockId: Record<string, number> = {};
+  let unset = 0;
   for (const note of notes) {
     if (note.archived || note.deletedAt != null) continue;
-    if (!note.stockId) continue;
+    if (!note.stockId) {
+      unset += 1;
+      continue;
+    }
     byStockId[note.stockId] = (byStockId[note.stockId] ?? 0) + 1;
   }
-  return byStockId;
+  return { byStockId, unset };
 }
