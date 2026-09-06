@@ -622,9 +622,6 @@ export default function App() {
     activeNoteId,
     pasteOpen,
     view,
-    filterDisposition,
-    filterCategoryId,
-    filterStockId,
     filterLabelIds,
     refresh,
   ]);
