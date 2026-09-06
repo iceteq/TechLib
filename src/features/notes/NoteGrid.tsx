@@ -65,6 +65,7 @@ interface NoteGridProps {
   onClearCategory: () => void;
   onClearStock: () => void;
   onClearSpecialCases: () => void;
+  onClearSearch: () => void;
   onClearAllFilters: () => void;
   /** Bump to clear selection after sidebar drop-assign. */
   selectionClearNonce?: number;
@@ -106,6 +107,7 @@ export function NoteGrid({
   onClearCategory,
   onClearStock,
   onClearSpecialCases,
+  onClearSearch,
   onClearAllFilters,
   selectionClearNonce = 0,
   onNotesDragStart,
@@ -347,7 +349,8 @@ export function NoteGrid({
       filterDisposition ||
       filterCategoryId ||
       filterStockId ||
-      specialCasesOnly,
+      specialCasesOnly ||
+      hasSearch,
   );
   const sortedLabels = [...labels].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
@@ -403,6 +406,17 @@ export function NoteGrid({
 
       {view === 'notes' && hasFilters && (
         <div className={styles.chips} aria-label="Active filters">
+          {hasSearch && (
+            <button
+              type="button"
+              className={`${styles.chip} ${styles.chipMeta}`}
+              onClick={onClearSearch}
+              title="Clear search"
+            >
+              Search: {search.trim()}
+              <X size={14} />
+            </button>
+          )}
           {statusText && (
             <button
               type="button"
@@ -444,7 +458,11 @@ export function NoteGrid({
             </button>
           )}
           {filterLabels.length > 0 &&
-            (statusText || typeText || stockText || specialCasesOnly) && (
+            (statusText ||
+              typeText ||
+              stockText ||
+              specialCasesOnly ||
+                      hasSearch) && (
               <span className={styles.chipDivider} aria-hidden />
             )}
           {[...filterLabels]

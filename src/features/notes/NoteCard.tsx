@@ -346,38 +346,39 @@ export function NoteCard({
             {note.specialCase.trim()}
           </p>
         )}
-        {(
-          (disposition && disposition.id !== 'none') ||
-          (showTypeChip && Boolean(noteType)) ||
-          (showTypeChip && Boolean(suggestedType)) ||
-          Boolean(stock) ||
-          (showLabels && noteLabels.length > 0)
-        ) && (
-          <div className={styles.labels}>
-            {disposition && disposition.id !== 'none' && (
-              <span className={styles.disposition}>
-                {DispositionIcon && (
-                  <DispositionIcon size={12} strokeWidth={2.25} aria-hidden />
-                )}
-                <span>{disposition.short}</span>
-              </span>
-            )}
-            {showTypeChip && noteType && <TypeChip type={noteType} muted />}
-            {showTypeChip && !noteType && suggestedType && (
-              <TypeChip
-                type={suggestedType}
-                muted
-                suggested
-                onClick={() => onApplyType(note.id, suggestedType.id)}
-              />
-            )}
-            {stock && <span className={styles.stock}>{stock.name}</span>}
-            {showLabels &&
-              noteLabels.map((label) => (
-                <LabelChip key={label.id} name={label.name} />
-              ))}
-          </div>
-        )}
+        <div className={styles.labels}>
+          {disposition && disposition.id !== 'none' ? (
+            <span className={styles.disposition}>
+              {DispositionIcon && (
+                <DispositionIcon size={12} strokeWidth={2.25} aria-hidden />
+              )}
+              <span>{disposition.short}</span>
+            </span>
+          ) : (
+            <span className={styles.missingMeta}>No guideline</span>
+          )}
+          {noteType && showTypeChip ? (
+            <TypeChip type={noteType} muted />
+          ) : !noteType && suggestedType && showTypeChip ? (
+            <TypeChip
+              type={suggestedType}
+              muted
+              suggested
+              onClick={() => onApplyType(note.id, suggestedType.id)}
+            />
+          ) : !noteType ? (
+            <span className={styles.missingMeta}>No type</span>
+          ) : null}
+          {stock ? (
+            <span className={styles.stock}>{stock.name}</span>
+          ) : (
+            <span className={styles.missingMeta}>No stock</span>
+          )}
+          {showLabels &&
+            noteLabels.map((label) => (
+              <LabelChip key={label.id} name={label.name} />
+            ))}
+        </div>
       </div>
     </article>
   );

@@ -17,25 +17,60 @@ export function matchesNoteSearch(
   noteTypes: NoteType[],
   query: string,
 ): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
+  return noteSearchRank(note, labels, stockLocations, noteTypes, query) >= 0;
+}
 
-  if (note.title.toLowerCase().includes(q)) return true;
-  if (note.description.toLowerCase().includes(q)) return true;
-  if (note.specialCase?.toLowerCase().includes(q)) return true;
-  if (note.disposition !== 'none' && note.disposition.includes(q)) return true;
+/** Higher is better; -1 means no match. Prefer part-number/title hits. */
+export function noteSearchRank(
+  note: NoteWithUrls,
+  labels: Label[],
+  stockLocations: StockLocation[],
+  noteTypes: NoteType[],
+  query: string,
+): number {
+  const q = query.trim().toLowerCase();
+  if (!q) return 0;
+
+  const title = note.title.toLowerCase();
+  if (title === q) return 100;
+  if (title.startsWith(q)) return 90;
+  if (title.includes(q)) return 80;
+
+  const description = note.description.toLowerCase();
+  if (description.includes(q)) return 50;
+
+  if ((note.specialCase ?? '').toLowerCase().includes(q)) return 40;
+
+  const disposition = DISPOSITIONS.find(
+    (d) => d.id === (note.disposition ?? 'none'),
+  );
+  if (disposition) {
+    if (
+      disposition.label.toLowerCase().includes(q) ||
+      disposition.short.toLowerCase().includes(q) ||
+      (disposition.id !== 'none' && disposition.id.includes(q))
+    ) {
+      return 35;
+    }
+  }
 
   const typeName = noteTypeLabel(noteTypes, note.categoryId);
-  if (typeName && typeName.toLowerCase().includes(q)) return true;
+  if (typeName && typeName.toLowerCase().includes(q)) return 30;
 
   const stock = stockLocations.find((s) => s.id === note.stockId);
-  if (stock && stock.name.toLowerCase().includes(q)) return true;
+  if (stock && stock.name.toLowerCase().includes(q)) return 30;
 
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
-  return noteLabels.some((l) => {
-    const name = l.name.toLowerCase();
-    return name.includes(q) || `#${name}`.includes(q);
-  });
+  if (
+    noteLabels.some((l) => {
+      const name = l.name.toLowerCase();
+      return name.includes(q) || `#${name}`.includes(q);
+    })
+  ) {
+    return 20;
+  }
+
+  return -1;
 }
 
 export function filterNotes(
@@ -55,7 +90,7 @@ export function filterNotes(
     specialCasesOnly?: boolean;
   },
 ): NoteWithUrls[] {
-  return notes.filter((note) => {
+  const filtered = notes.filter((note) => {
     if (options.view === 'cart') return false;
     if (options.view === 'archive' ? !note.archived : note.archived) {
       return false;
@@ -89,6 +124,18 @@ export function filterNotes(
       noteTypes,
       options.search,
     );
+  });
+
+  const q = options.search.trim();
+  if (!q) {
+    return [...filtered].sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  return [...filtered].sort((a, b) => {
+    const rankA = noteSearchRank(a, labels, stockLocations, noteTypes, q);
+    const rankB = noteSearchRank(b, labels, stockLocations, noteTypes, q);
+    if (rankB !== rankA) return rankB - rankA;
+    return b.updatedAt - a.updatedAt;
   });
 }
 
@@ -143,7 +190,9 @@ export function countNotesByType(notes: NoteWithUrls[]): {
 }
 
 /** Counts of active notes per label id. */
-export function countNotesByLabel(notes: NoteWithUrls[]): Record<string, number> {
+export function countNotesByLabel(
+  notes: NoteWithUrls[],
+): Record<string, number> {
   const byLabelId: Record<string, number> = {};
   for (const note of notes) {
     if (note.archived || note.deletedAt != null) continue;

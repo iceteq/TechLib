@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadViewPrefs, saveViewPrefs } from '../lib/viewPrefs';
+import {
+  loadFilterSession,
+  saveFilterSession,
+} from '../lib/filterSession';
 import { AppShell } from '../features/shell/AppShell';
 import { Sidebar } from '../features/shell/Sidebar';
 import { CartView } from '../features/notes/CartView';
@@ -159,14 +163,23 @@ export default function App() {
   const [noteTypes, setNoteTypes] = useState<NoteType[]>([]);
   const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [view, setView] = useState<NotesView>('notes');
-  const [filterLabelIds, setFilterLabelIds] = useState<string[]>([]);
+  const initialSession = useMemo(() => loadFilterSession(), []);
+  const [view, setView] = useState<NotesView>(initialSession.view);
+  const [filterLabelIds, setFilterLabelIds] = useState<string[]>(
+    initialSession.labelIds,
+  );
   const [filterDisposition, setFilterDisposition] =
-    useState<NoteDisposition | null>(null);
-  const [filterCategoryId, setFilterCategoryId] = useState<string | null>(null);
-  const [filterStockId, setFilterStockId] = useState<string | null>(null);
-  const [specialCasesOnly, setSpecialCasesOnly] = useState(false);
-  const [search, setSearch] = useState('');
+    useState<NoteDisposition | null>(initialSession.disposition);
+  const [filterCategoryId, setFilterCategoryId] = useState<string | null>(
+    initialSession.categoryId,
+  );
+  const [filterStockId, setFilterStockId] = useState<string | null>(
+    initialSession.stockId,
+  );
+  const [specialCasesOnly, setSpecialCasesOnly] = useState(
+    initialSession.specialCasesOnly,
+  );
+  const [search, setSearch] = useState(initialSession.search);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [undoAction, setUndoAction] = useState<UndoAction | null>(null);
@@ -232,9 +245,112 @@ export default function App() {
     ],
   );
 
-  const typeCounts = useMemo(() => countNotesByType(notes), [notes]);
-  const labelCounts = useMemo(() => countNotesByLabel(notes), [notes]);
-  const stockCounts = useMemo(() => countNotesByStock(notes), [notes]);
+  useEffect(() => {
+    saveFilterSession({
+      view,
+      search,
+      labelIds: filterLabelIds,
+      disposition: filterDisposition,
+      categoryId: filterCategoryId,
+      stockId: filterStockId,
+      specialCasesOnly,
+    });
+  }, [
+    view,
+    search,
+    filterLabelIds,
+    filterDisposition,
+    filterCategoryId,
+    filterStockId,
+    specialCasesOnly,
+  ]);
+
+  /** Faceted counts: apply all filters except the section being counted. */
+  const typeCountNotes = useMemo(
+    () =>
+      filterNotes(notes, labels, stockLocations, noteTypes, {
+        labelIds: view === 'notes' ? filterLabelIds : [],
+        search: view === 'notes' ? search : '',
+        view: 'notes',
+        disposition: view === 'notes' ? filterDisposition : null,
+        categoryId: null,
+        stockId: view === 'notes' ? filterStockId : null,
+        specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
+      }),
+    [
+      notes,
+      labels,
+      stockLocations,
+      noteTypes,
+      filterLabelIds,
+      filterDisposition,
+      filterStockId,
+      specialCasesOnly,
+      search,
+      view,
+    ],
+  );
+  const stockCountNotes = useMemo(
+    () =>
+      filterNotes(notes, labels, stockLocations, noteTypes, {
+        labelIds: view === 'notes' ? filterLabelIds : [],
+        search: view === 'notes' ? search : '',
+        view: 'notes',
+        disposition: view === 'notes' ? filterDisposition : null,
+        categoryId: view === 'notes' ? filterCategoryId : null,
+        stockId: null,
+        specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
+      }),
+    [
+      notes,
+      labels,
+      stockLocations,
+      noteTypes,
+      filterLabelIds,
+      filterDisposition,
+      filterCategoryId,
+      specialCasesOnly,
+      search,
+      view,
+    ],
+  );
+  const labelCountNotes = useMemo(
+    () =>
+      filterNotes(notes, labels, stockLocations, noteTypes, {
+        labelIds: [],
+        search: view === 'notes' ? search : '',
+        view: 'notes',
+        disposition: view === 'notes' ? filterDisposition : null,
+        categoryId: view === 'notes' ? filterCategoryId : null,
+        stockId: view === 'notes' ? filterStockId : null,
+        specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
+      }),
+    [
+      notes,
+      labels,
+      stockLocations,
+      noteTypes,
+      filterDisposition,
+      filterCategoryId,
+      filterStockId,
+      specialCasesOnly,
+      search,
+      view,
+    ],
+  );
+
+  const typeCounts = useMemo(
+    () => countNotesByType(typeCountNotes),
+    [typeCountNotes],
+  );
+  const labelCounts = useMemo(
+    () => countNotesByLabel(labelCountNotes),
+    [labelCountNotes],
+  );
+  const stockCounts = useMemo(
+    () => countNotesByStock(stockCountNotes),
+    [stockCountNotes],
+  );
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
   const cartUnitCount = store.cartUnitCount(cartItems);
@@ -295,6 +411,7 @@ export default function App() {
     setFilterCategoryId(null);
     setFilterStockId(null);
     setSpecialCasesOnly(false);
+    setSearch('');
   }
 
   function toggleFilterLabel(labelId: string) {
@@ -812,6 +929,7 @@ export default function App() {
           onClearStock={() => setFilterStockId(null)}
           onClearSpecialCases={() => setSpecialCasesOnly(false)}
           onClearAllFilters={clearAllFilters}
+          onClearSearch={() => setSearch('')}
           selectionClearNonce={selectionClearNonce}
           onNotesDragStart={() => setSidebarOpen(true)}
           onDropImages={(files) => void createNoteFromImages(files)}
