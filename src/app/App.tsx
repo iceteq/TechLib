@@ -17,7 +17,11 @@ import type {
   NotesView,
   NoteWithUrls,
 } from '../lib/types';
-import { DISPOSITIONS } from '../lib/types';
+import {
+  DISPOSITIONS,
+  UNSET_STOCK_FILTER,
+  UNSET_TYPE_FILTER,
+} from '../lib/types';
 import {
   categoryLabel,
   countNotesByLabel,
@@ -63,6 +67,29 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
   if (target.isContentEditable) return true;
   return Boolean(target.closest('[contenteditable="true"]'));
+}
+
+/** Inherit active sidebar filters; otherwise preset No type / No guideline / No stock. */
+function createMetaFromFilters(options: {
+  disposition: NoteDisposition | null;
+  categoryId: string | null;
+  stockId: string | null;
+}): {
+  disposition: NoteDisposition;
+  categoryId: string | null;
+  stockId: string | null;
+} {
+  return {
+    disposition: options.disposition ?? 'none',
+    categoryId:
+      !options.categoryId || options.categoryId === UNSET_TYPE_FILTER
+        ? null
+        : options.categoryId,
+    stockId:
+      !options.stockId || options.stockId === UNSET_STOCK_FILTER
+        ? null
+        : options.stockId,
+  };
 }
 
 function snapshotNotePatch(
@@ -319,9 +346,11 @@ export default function App() {
 
   async function handleCreateNote() {
     const note = await store.createNote({
-      disposition: 'none',
-      categoryId: null,
-      stockId: null,
+      ...createMetaFromFilters({
+        disposition: filterDisposition,
+        categoryId: filterCategoryId,
+        stockId: filterStockId,
+      }),
       labelIds: filterLabelIds,
     });
     await refresh();
@@ -333,14 +362,17 @@ export default function App() {
   async function handlePasteImport(text: string) {
     const drafts = parsePastedNotes(text);
     const createdIds: string[] = [];
+    const meta = createMetaFromFilters({
+      disposition: filterDisposition,
+      categoryId: filterCategoryId,
+      stockId: filterStockId,
+    });
     for (const draft of drafts) {
       const note = await store.createNote({
         title: draft.title,
         description: draft.description,
         specialCase: draft.specialCase,
-        disposition: 'none',
-        categoryId: null,
-        stockId: null,
+        ...meta,
         labelIds: filterLabelIds,
       });
       createdIds.push(note.id);
@@ -449,9 +481,11 @@ export default function App() {
     setImageBusyCount(files.length);
     try {
       const note = await store.createNote({
-        disposition: 'none',
-        categoryId: null,
-        stockId: null,
+        ...createMetaFromFilters({
+          disposition: filterDisposition,
+          categoryId: filterCategoryId,
+          stockId: filterStockId,
+        }),
         labelIds: filterLabelIds,
       });
       for (const file of files) {
