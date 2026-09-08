@@ -354,6 +354,9 @@ export default function App() {
   );
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
+  const activeNavIndex = activeNoteId
+    ? visibleNotes.findIndex((n) => n.id === activeNoteId)
+    : -1;
   const cartUnitCount = store.cartUnitCount(cartItems);
   const cartQuantities = useMemo(() => {
     const map: Record<string, number> = {};
@@ -540,12 +543,40 @@ export default function App() {
     if (ids.length === 0) return;
 
     if (activeNoteId && ids.includes(activeNoteId)) {
-      setActiveNoteId(null);
+      const idx = visibleNotes.findIndex((n) => n.id === activeNoteId);
+      let nextId: string | null = null;
+      if (idx >= 0) {
+        for (let i = idx + 1; i < visibleNotes.length; i += 1) {
+          if (!ids.includes(visibleNotes[i].id)) {
+            nextId = visibleNotes[i].id;
+            break;
+          }
+        }
+        if (!nextId) {
+          for (let i = idx - 1; i >= 0; i -= 1) {
+            if (!ids.includes(visibleNotes[i].id)) {
+              nextId = visibleNotes[i].id;
+              break;
+            }
+          }
+        }
+      }
+      setActiveNoteId(nextId);
     }
 
     await store.softDeleteNotes(ids);
     await replaceUndoAction({ kind: 'delete', ids });
     await refresh();
+  }
+
+  function handleNavigatePrev() {
+    if (activeNavIndex <= 0) return;
+    setActiveNoteId(visibleNotes[activeNavIndex - 1].id);
+  }
+
+  function handleNavigateNext() {
+    if (activeNavIndex < 0 || activeNavIndex >= visibleNotes.length - 1) return;
+    setActiveNoteId(visibleNotes[activeNavIndex + 1].id);
   }
 
   async function handleSaveMeta(patch: {
@@ -999,6 +1030,10 @@ export default function App() {
           noteTypes={noteTypes}
           stockLocations={stockLocations}
           showBarcodes={viewPrefs.barcodes}
+          navIndex={activeNavIndex}
+          navTotal={visibleNotes.length}
+          onNavigatePrev={handleNavigatePrev}
+          onNavigateNext={handleNavigateNext}
           onClose={() => void handleCloseEditor()}
           onSaveMeta={handleSaveMeta}
           onAddImages={handleAddImages}

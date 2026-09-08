@@ -3,6 +3,8 @@ import {
   Archive,
   ArchiveRestore,
   Camera,
+  ChevronLeft,
+  ChevronRight,
   ImagePlus,
   Loader2,
   Package,
@@ -47,12 +49,24 @@ function dispositionIcon(id: NoteDisposition) {
   return null;
 }
 
+function isTextEntryTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return target.isContentEditable;
+}
+
 interface NoteEditorProps {
   note: NoteWithUrls;
   labels: Label[];
   noteTypes: NoteType[];
   stockLocations: StockLocation[];
   showBarcodes: boolean;
+  /** 0-based index in the visible list; -1 when the note is not in that list. */
+  navIndex?: number;
+  navTotal?: number;
+  onNavigatePrev?: () => void;
+  onNavigateNext?: () => void;
   onClose: () => void;
   onSaveMeta: (patch: {
     title?: string;
@@ -83,6 +97,10 @@ export function NoteEditor({
   noteTypes,
   stockLocations,
   showBarcodes,
+  navIndex = -1,
+  navTotal = 0,
+  onNavigatePrev,
+  onNavigateNext,
   onClose,
   onSaveMeta,
   onAddImages,
@@ -103,9 +121,12 @@ export function NoteEditor({
   const [colorOpen, setColorOpen] = useState(false);
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
   const [dropActive, setDropActive] = useState(false);
+  const [navBusy, setNavBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const firstOpenRef = useRef(true);
   const dropDepth = useRef(0);
   const bg = getBackground(note.background);
   const selectedType = noteTypeById(noteTypes, note.categoryId);
@@ -125,6 +146,10 @@ export function NoteEditor({
       ? dispositionColorVars(disposition.id)
       : null;
   const stock = stockLocations.find((s) => s.id === note.stockId);
+  const canNavigate = navIndex >= 0 && navTotal > 1;
+  const canNavigatePrev = canNavigate && navIndex > 0 && Boolean(onNavigatePrev);
+  const canNavigateNext =
+    canNavigate && navIndex < navTotal - 1 && Boolean(onNavigateNext);
   const isBlank =
     !note.title.trim() &&
     !note.description.trim() &&
@@ -144,10 +169,18 @@ export function NoteEditor({
     setDescription(note.description);
     setSpecialCase(note.specialCase ?? '');
     setSpecialCaseOpen(Boolean((note.specialCase ?? '').trim()));
+    setAssignField(null);
+    setColorOpen(false);
+    setNavBusy(false);
   }, [note.id, note.title, note.description, note.specialCase]);
 
   useEffect(() => {
-    titleRef.current?.focus();
+    if (firstOpenRef.current) {
+      firstOpenRef.current = false;
+      titleRef.current?.focus();
+      return;
+    }
+    dialogRef.current?.focus();
   }, [note.id]);
 
   function handleFileInput(
@@ -213,13 +246,39 @@ export function NoteEditor({
     await onSaveMeta({ specialCase: next });
   }
 
-  async function finish() {
+  async function persistAll() {
     await Promise.all([
       persistTitle(),
       persistDescription(),
       persistSpecialCase(),
     ]);
+  }
+
+  async function finish() {
+    await persistAll();
     onClose();
+  }
+
+  async function goPrev() {
+    if (!canNavigatePrev || imageBusy || navBusy || assignField) return;
+    setNavBusy(true);
+    try {
+      await persistAll();
+      onNavigatePrev?.();
+    } finally {
+      setNavBusy(false);
+    }
+  }
+
+  async function goNext() {
+    if (!canNavigateNext || imageBusy || navBusy || assignField) return;
+    setNavBusy(true);
+    try {
+      await persistAll();
+      onNavigateNext?.();
+    } finally {
+      setNavBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -238,6 +297,21 @@ export function NoteEditor({
         if (imageBusy || assignField) return;
         e.preventDefault();
         void finish();
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (imageBusy || navBusy || assignField || colorOpen) return;
+        if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+        if (isTextEntryTarget(e.target)) return;
+        if (e.key === 'ArrowLeft') {
+          if (!canNavigatePrev) return;
+          e.preventDefault();
+          void goPrev();
+        } else {
+          if (!canNavigateNext) return;
+          e.preventDefault();
+          void goNext();
+        }
       }
     }
     window.addEventListener('keydown', onKey);
@@ -252,10 +326,12 @@ export function NoteEditor({
   return (
     <div className={styles.overlay} role="presentation" onClick={() => void finish()}>
       <div
+        ref={dialogRef}
         className={`${styles.dialog} ${dropActive ? styles.dialogDrop : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={isBlank ? 'Create note' : 'Edit note'}
+        tabIndex={-1}
         style={{ background: bg.surface, borderColor: bg.border }}
         onClick={(e) => e.stopPropagation()}
         onDragEnter={handleDialogDragEnter}
@@ -264,14 +340,46 @@ export function NoteEditor({
         onDrop={handleDialogDrop}
       >
         <div className={styles.topActions}>
-          <button
-            type="button"
-            className={styles.iconBtn}
-            onClick={() => void finish()}
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
+          <div className={styles.topLeft}>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={() => void finish()}
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+
+            {navTotal > 0 && navIndex >= 0 && (
+              <div className={styles.nav} role="group" aria-label="Note navigation">
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  onClick={() => void goPrev()}
+                  disabled={!canNavigatePrev || imageBusy || navBusy}
+                  aria-label="Previous note"
+                  title="Previous note (←)"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <span className={styles.navPosition} aria-live="polite">
+                  {navIndex + 1}
+                  <span className={styles.navSlash}>/</span>
+                  {navTotal}
+                </span>
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  onClick={() => void goNext()}
+                  disabled={!canNavigateNext || imageBusy || navBusy}
+                  aria-label="Next note"
+                  title="Next note (→)"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className={styles.topRight}>
             <button
