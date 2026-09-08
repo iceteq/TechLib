@@ -950,6 +950,7 @@ export default function App() {
           onDeleteNotes={handleDeleteNotes}
           onAddToCart={handleAddToCart}
           onUpdateNotes={handleUpdateNotes}
+          onCreateLabel={handleCreateLabel}
           onAddLabel={handleAddLabelToNotes}
           onClearLabel={(labelId) =>
             setFilterLabelIds((current) => current.filter((id) => id !== labelId))

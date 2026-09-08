@@ -60,6 +60,7 @@ interface NoteGridProps {
       labelIds?: string[];
     },
   ) => Promise<void>;
+  onCreateLabel: (name: string) => Promise<Label>;
   /** Add a label to notes (merge), instead of replacing. */
   onAddLabel: (noteIds: string[], labelId: string) => Promise<void>;
   onClearLabel: (labelId: string) => void;
@@ -104,6 +105,7 @@ export function NoteGrid({
   onDeleteNotes,
   onAddToCart,
   onUpdateNotes,
+  onCreateLabel,
   onAddLabel,
   onClearLabel,
   onClearDisposition,
@@ -543,6 +545,10 @@ export function NoteGrid({
               onAssignStock={(noteId, value) =>
                 void onUpdateNotes([noteId], { stockId: value })
               }
+              onAssignLabels={(noteId, labelIds) =>
+                void onUpdateNotes([noteId], { labelIds })
+              }
+              onCreateLabel={onCreateLabel}
               dragNoteIds={
                 selectedIds.has(note.id) ? [...selectedIds] : undefined
               }

@@ -66,6 +66,8 @@ interface NoteCardProps {
   onAssignDisposition?: (noteId: string, value: NoteDisposition) => void;
   onAssignCategory?: (noteId: string, value: string | null) => void;
   onAssignStock?: (noteId: string, value: string | null) => void;
+  onAssignLabels?: (noteId: string, labelIds: string[]) => void;
+  onCreateLabel?: (name: string) => Promise<Label>;
   /** IDs included when this card is dragged (selected set). */
   dragNoteIds?: string[];
   onNotesDragStart?: () => void;
@@ -94,6 +96,8 @@ export function NoteCard({
   onAssignDisposition,
   onAssignCategory,
   onAssignStock,
+  onAssignLabels,
+  onCreateLabel,
   dragNoteIds,
   onNotesDragStart,
 }: NoteCardProps) {
@@ -116,6 +120,12 @@ export function NoteCard({
       ? suggestNoteType(noteTypes, note.title, note.description)
       : null;
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
+
+  function openAssign(field: MetaAssignField) {
+    if (selecting) return;
+    setAssignField((current) => (current === field ? null : field));
+  }
+
 
   const cardRef = useRef<HTMLElement | null>(null);
   const longPressTimer = useRef<number | null>(null);
@@ -359,47 +369,47 @@ export function NoteCard({
         )}
         <div className={styles.labels}>
           {disposition && disposition.id !== 'none' ? (
-            <span className={styles.disposition}>
+            <button
+              type="button"
+              className={styles.disposition}
+              disabled={selecting || !onAssignDisposition}
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssign('disposition');
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={assignField === 'disposition'}
+            >
               {DispositionIcon && (
                 <DispositionIcon size={12} strokeWidth={2.25} aria-hidden />
               )}
               <span>{disposition.short}</span>
-            </span>
+            </button>
           ) : (
-            <span className={styles.metaWrap}>
-              <button
-                type="button"
-                className={styles.missingMeta}
-                disabled={selecting || !onAssignDisposition}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setAssignField((current) =>
-                    current === 'disposition' ? null : 'disposition',
-                  );
-                }}
-                aria-haspopup="dialog"
-                aria-expanded={assignField === 'disposition'}
-              >
-                No guideline
-              </button>
-              {assignField === 'disposition' && onAssignDisposition && (
-                <MetaAssignPopover
-                  field="disposition"
-                  noteTitle={title}
-                  noteTypes={noteTypes}
-                  stockLocations={stockLocations}
-                  onAssignDisposition={(value) =>
-                    onAssignDisposition(note.id, value)
-                  }
-                  onAssignCategory={() => undefined}
-                  onAssignStock={() => undefined}
-                  onClose={() => setAssignField(null)}
-                />
-              )}
-            </span>
+            <button
+              type="button"
+              className={styles.missingMeta}
+              disabled={selecting || !onAssignDisposition}
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssign('disposition');
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={assignField === 'disposition'}
+            >
+              No guideline
+            </button>
           )}
           {noteType && showTypeChip ? (
-            <TypeChip type={noteType} muted />
+            <TypeChip
+              type={noteType}
+              muted
+              onClick={
+                selecting || !onAssignCategory
+                  ? undefined
+                  : () => openAssign('categoryId')
+              }
+            />
           ) : !noteType && suggestedType && showTypeChip ? (
             <TypeChip
               type={suggestedType}
@@ -408,77 +418,106 @@ export function NoteCard({
               onClick={() => onApplyType(note.id, suggestedType.id)}
             />
           ) : !noteType ? (
-            <span className={styles.metaWrap}>
-              <button
-                type="button"
-                className={styles.missingMeta}
-                disabled={selecting || !onAssignCategory}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setAssignField((current) =>
-                    current === 'categoryId' ? null : 'categoryId',
-                  );
-                }}
-                aria-haspopup="dialog"
-                aria-expanded={assignField === 'categoryId'}
-              >
-                No type
-              </button>
-              {assignField === 'categoryId' && onAssignCategory && (
-                <MetaAssignPopover
-                  field="categoryId"
-                  noteTitle={title}
-                  noteTypes={noteTypes}
-                  stockLocations={stockLocations}
-                  onAssignDisposition={() => undefined}
-                  onAssignCategory={(value) =>
-                    onAssignCategory(note.id, value)
-                  }
-                  onAssignStock={() => undefined}
-                  onClose={() => setAssignField(null)}
-                />
-              )}
-            </span>
+            <button
+              type="button"
+              className={styles.missingMeta}
+              disabled={selecting || !onAssignCategory}
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssign('categoryId');
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={assignField === 'categoryId'}
+            >
+              No type
+            </button>
           ) : null}
           {stock ? (
-            <span className={styles.stock}>{stock.name}</span>
+            <button
+              type="button"
+              className={styles.stock}
+              disabled={selecting || !onAssignStock}
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssign('stockId');
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={assignField === 'stockId'}
+            >
+              {stock.name}
+            </button>
           ) : (
-            <span className={styles.metaWrap}>
-              <button
-                type="button"
-                className={styles.missingMeta}
-                disabled={selecting || !onAssignStock}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setAssignField((current) =>
-                    current === 'stockId' ? null : 'stockId',
-                  );
-                }}
-                aria-haspopup="dialog"
-                aria-expanded={assignField === 'stockId'}
-              >
-                No stock
-              </button>
-              {assignField === 'stockId' && onAssignStock && (
-                <MetaAssignPopover
-                  field="stockId"
-                  noteTitle={title}
-                  noteTypes={noteTypes}
-                  stockLocations={stockLocations}
-                  onAssignDisposition={() => undefined}
-                  onAssignCategory={() => undefined}
-                  onAssignStock={(value) => onAssignStock(note.id, value)}
-                  onClose={() => setAssignField(null)}
-                />
-              )}
-            </span>
+            <button
+              type="button"
+              className={styles.missingMeta}
+              disabled={selecting || !onAssignStock}
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssign('stockId');
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={assignField === 'stockId'}
+            >
+              No stock
+            </button>
           )}
           {showLabels &&
             noteLabels.map((label) => (
-              <LabelChip key={label.id} name={label.name} />
+              <button
+                key={label.id}
+                type="button"
+                className={styles.labelChipBtn}
+                disabled={selecting || !onAssignLabels}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAssign('labels');
+                }}
+                aria-haspopup="dialog"
+                aria-expanded={assignField === 'labels'}
+              >
+                <LabelChip name={label.name} />
+              </button>
             ))}
+          {showLabels && onAssignLabels && onCreateLabel && (
+            <button
+              type="button"
+              className={styles.addLabel}
+              disabled={selecting}
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssign('labels');
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={assignField === 'labels'}
+            >
+              {noteLabels.length === 0 ? 'Add label' : '+'}
+            </button>
+          )}
         </div>
       </div>
+
+      {assignField &&
+        (assignField !== 'labels' || (onAssignLabels && onCreateLabel)) && (
+        <MetaAssignPopover
+          field={assignField}
+          noteTitle={title}
+          noteTypes={noteTypes}
+          stockLocations={stockLocations}
+          labels={labels}
+          currentDisposition={(note.disposition ?? 'none') as NoteDisposition}
+          currentCategoryId={note.categoryId}
+          currentStockId={note.stockId}
+          currentLabelIds={note.labelIds}
+          onAssignDisposition={(value) =>
+            onAssignDisposition?.(note.id, value)
+          }
+          onAssignCategory={(value) => onAssignCategory?.(note.id, value)}
+          onAssignStock={(value) => onAssignStock?.(note.id, value)}
+          onAssignLabels={(labelIds) => onAssignLabels?.(note.id, labelIds)}
+          onCreateLabel={onCreateLabel!}
+          onClose={() => setAssignField(null)}
+        />
+      )}
     </article>
   );
 }
