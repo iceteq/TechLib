@@ -25,8 +25,8 @@ import type {
   NotesView,
   StockLocation,
 } from '../../lib/types';
-import { UNSET_STOCK_FILTER, UNSET_TYPE_FILTER } from '../../lib/types';
-import { noteTypeIcon, typeColorVars } from '../../lib/noteTypes';
+import { UNSET_STOCK_FILTER, UNSET_TYPE_FILTER, DISPOSITIONS } from '../../lib/types';
+import { noteTypeIcon, typeColorVars, noteTypeLabel } from '../../lib/noteTypes';
 import {
   loadSidebarSections,
   saveSidebarSections,
@@ -271,6 +271,48 @@ export function Sidebar({
     return false;
   }
 
+  function guidelineSectionTitle(): string {
+    if (view !== 'notes') return 'Any guideline';
+    const parts: string[] = [];
+    if (activeDisposition != null) {
+      const disposition = DISPOSITIONS.find((d) => d.id === activeDisposition);
+      parts.push(
+        disposition
+          ? disposition.id === 'none'
+            ? 'No guideline'
+            : disposition.short
+          : activeDisposition,
+      );
+    }
+    if (specialCasesOnly) parts.push('Special');
+    if (parts.length === 0) return 'Any guideline';
+    return parts.join(' · ');
+  }
+
+  function typeSectionTitle(): string {
+    if (view !== 'notes' || activeCategoryId == null) return 'Any type';
+    if (activeCategoryId === UNSET_TYPE_FILTER) return 'No type';
+    return noteTypeLabel(noteTypes, activeCategoryId) ?? 'Any type';
+  }
+
+  function stockSectionTitle(): string {
+    if (view !== 'notes' || activeStockId == null) return 'Any stock';
+    if (activeStockId === UNSET_STOCK_FILTER) return 'No stock';
+    return (
+      stockLocations.find((s) => s.id === activeStockId)?.name ?? 'Any stock'
+    );
+  }
+
+  function labelsSectionTitle(): string {
+    if (view !== 'notes' || activeLabelIds.length === 0) return 'Any label';
+    const named = activeLabelIds
+      .map((id) => labels.find((l) => l.id === id)?.name)
+      .filter((name): name is string => Boolean(name));
+    if (named.length === 0) return 'Any label';
+    if (named.length === 1) return `#${named[0]}`;
+    return `#${named[0]} +${named.length - 1}`;
+  }
+
   function toggleCreate(
     section: 'type' | 'stock' | 'labels',
     setCreating: (value: boolean | ((open: boolean) => boolean)) => void,
@@ -395,7 +437,7 @@ export function Sidebar({
 
       <CollapsibleSection
         id="guideline"
-        title="Guideline"
+        title={guidelineSectionTitle()}
         open={sections.guideline}
         hasActive={sectionHasActive('guideline')}
         onToggle={() => toggleSection('guideline')}
@@ -493,7 +535,7 @@ export function Sidebar({
 
       <CollapsibleSection
         id="type"
-        title="Type"
+        title={typeSectionTitle()}
         open={sections.type}
         hasActive={sectionHasActive('type')}
         onToggle={() => toggleSection('type')}
@@ -594,7 +636,7 @@ export function Sidebar({
 
       <CollapsibleSection
         id="stock"
-        title="Stock"
+        title={stockSectionTitle()}
         open={sections.stock}
         hasActive={sectionHasActive('stock')}
         onToggle={() => toggleSection('stock')}
@@ -692,7 +734,7 @@ export function Sidebar({
 
       <CollapsibleSection
         id="labels"
-        title="Labels"
+        title={labelsSectionTitle()}
         open={sections.labels}
         hasActive={sectionHasActive('labels')}
         onToggle={() => toggleSection('labels')}

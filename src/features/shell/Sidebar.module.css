@@ -107,6 +107,10 @@
 .sectionTitle {
   margin: 0;
   padding: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.7rem;
   font-weight: 550;
   letter-spacing: 0.04em;
