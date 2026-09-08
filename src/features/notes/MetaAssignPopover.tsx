@@ -8,6 +8,7 @@ import type {
   NoteType,
   StockLocation,
 } from '../../lib/types';
+import { dispositionColorVars } from '../../lib/dispositions';
 import { LabelPicker } from '../labels/LabelPicker';
 import styles from './MetaAssignPopover.module.css';
 
@@ -149,23 +150,40 @@ export function MetaAssignPopover({
         ) : (
           <div className={styles.options} role="listbox" aria-label={fieldLabel}>
             {field === 'disposition' &&
-              DISPOSITIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={`${styles.item} ${
-                    currentDisposition === option.id ? styles.itemActive : ''
-                  }`}
-                  role="option"
-                  aria-selected={currentDisposition === option.id}
-                  onClick={() => {
-                    onAssignDisposition(option.id);
-                    onClose();
-                  }}
-                >
-                  {option.id === 'none' ? 'No guideline' : option.label}
-                </button>
-              ))}
+              DISPOSITIONS.map((option) => {
+                const colors = dispositionColorVars(option.id);
+                const selected = currentDisposition === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={`${styles.item} ${
+                      selected ? styles.itemActive : ''
+                    }`}
+                    style={
+                      colors
+                        ? {
+                            color: colors.fg,
+                            ...(selected
+                              ? {
+                                  background: colors.bg,
+                                  boxShadow: `inset 3px 0 0 ${colors.border}`,
+                                }
+                              : undefined),
+                          }
+                        : undefined
+                    }
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => {
+                      onAssignDisposition(option.id);
+                      onClose();
+                    }}
+                  >
+                    {option.id === 'none' ? 'No guideline' : option.label}
+                  </button>
+                );
+              })}
             {field === 'categoryId' && (
               <>
                 <button

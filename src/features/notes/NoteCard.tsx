@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
+import { dispositionColorVars } from '../../lib/dispositions';
 import { formatNoteAge } from '../../lib/formatNoteAge';
 import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
 import { DISPOSITIONS } from '../../lib/types';
@@ -113,6 +114,10 @@ export function NoteCard({
   const DispositionIcon =
     disposition && disposition.id !== 'none'
       ? dispositionIcon(disposition.id)
+      : null;
+  const dispositionColors =
+    disposition && disposition.id !== 'none'
+      ? dispositionColorVars(disposition.id)
       : null;
   const noteType = noteTypeById(noteTypes, note.categoryId);
   const suggestedType =
@@ -372,6 +377,15 @@ export function NoteCard({
             <button
               type="button"
               className={styles.disposition}
+              style={
+                dispositionColors
+                  ? {
+                      background: dispositionColors.bg,
+                      color: dispositionColors.fg,
+                      borderColor: dispositionColors.border,
+                    }
+                  : undefined
+              }
               disabled={selecting || !onAssignDisposition}
               onClick={(e) => {
                 e.stopPropagation();

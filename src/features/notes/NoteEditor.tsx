@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
+import { dispositionColorVars } from '../../lib/dispositions';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
 import { DISPOSITIONS } from '../../lib/types';
@@ -382,20 +383,33 @@ export function NoteEditor({
 
         <div className={styles.section}>
           <div className={styles.dispositionRow} role="group" aria-label="Product guideline">
-            {DISPOSITIONS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className={`${styles.dispositionBtn} ${
-                  (note.disposition ?? 'none') === option.id
-                    ? styles.dispositionActive
-                    : ''
-                }`}
-                onClick={() => void onSaveMeta({ disposition: option.id })}
-              >
-                {option.id === 'none' ? 'No guideline' : option.short}
-              </button>
-            ))}
+            {DISPOSITIONS.map((option) => {
+              const active = (note.disposition ?? 'none') === option.id;
+              const colors = dispositionColorVars(option.id);
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`${styles.dispositionBtn} ${
+                    active ? styles.dispositionActive : ''
+                  }`}
+                  style={
+                    active && colors
+                      ? {
+                          background: colors.bg,
+                          color: colors.fg,
+                          borderColor: colors.border,
+                        }
+                      : colors
+                        ? { color: colors.fg, borderColor: colors.border }
+                        : undefined
+                  }
+                  onClick={() => void onSaveMeta({ disposition: option.id })}
+                >
+                  {option.id === 'none' ? 'No guideline' : option.short}
+                </button>
+              );
+            })}
           </div>
           {specialCaseOpen ? (
             <>

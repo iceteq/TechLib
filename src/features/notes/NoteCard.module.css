@@ -109,7 +109,10 @@
   cursor: pointer;
 }
 
-.disposition:hover:not(:disabled),
+.disposition:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
 .stock:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
