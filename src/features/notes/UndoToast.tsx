@@ -4,7 +4,7 @@ import styles from './UndoToast.module.css';
 
 interface UndoToastProps {
   message: string;
-  onUndo: () => void;
+  onUndo?: () => void;
   onDismiss: () => void;
   /** Auto-dismiss after this many ms. */
   durationMs?: number;
@@ -24,9 +24,11 @@ export function UndoToast({
   return (
     <div className={styles.toast} role="status" aria-live="polite">
       <p className={styles.message}>{message}</p>
-      <button type="button" className={styles.undo} onClick={onUndo}>
-        Undo
-      </button>
+      {onUndo && (
+        <button type="button" className={styles.undo} onClick={onUndo}>
+          Undo
+        </button>
+      )}
       <button
         type="button"
         className={styles.dismiss}

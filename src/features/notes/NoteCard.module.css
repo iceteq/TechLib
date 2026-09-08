@@ -253,6 +253,11 @@
   margin-top: 0.1rem;
 }
 
+.metaWrap {
+  position: relative;
+  display: inline-flex;
+}
+
 .draggable {
   cursor: grab;
 }
@@ -271,4 +276,15 @@
   background: transparent;
   border: 1px dashed rgba(31, 35, 40, 0.22);
   opacity: 0.85;
+  cursor: pointer;
+}
+
+.missingMeta:hover:not(:disabled) {
+  opacity: 1;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.missingMeta:disabled {
+  cursor: default;
 }

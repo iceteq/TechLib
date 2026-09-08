@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Camera,
+  ChevronUp,
   ClipboardPaste,
   ImagePlus,
   Plus,
   ShoppingCart,
-  Tag,
   Trash2,
   X,
 } from 'lucide-react';
@@ -23,7 +23,7 @@ import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { NoteCard } from './NoteCard';
 import styles from './NoteGrid.module.css';
 
-type BulkMenu = 'guideline' | 'type' | 'stock' | 'label' | null;
+type BulkMenu = 'assign' | null;
 
 interface NoteGridProps {
   notes: NoteWithUrls[];
@@ -60,6 +60,8 @@ interface NoteGridProps {
       labelIds?: string[];
     },
   ) => Promise<void>;
+  /** Add a label to notes (merge), instead of replacing. */
+  onAddLabel: (noteIds: string[], labelId: string) => Promise<void>;
   onClearLabel: (labelId: string) => void;
   onClearDisposition: () => void;
   onClearCategory: () => void;
@@ -102,6 +104,7 @@ export function NoteGrid({
   onDeleteNotes,
   onAddToCart,
   onUpdateNotes,
+  onAddLabel,
   onClearLabel,
   onClearDisposition,
   onClearCategory,
@@ -117,6 +120,7 @@ export function NoteGrid({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<BulkMenu>(null);
+  const [fabOpen, setFabOpen] = useState(false);
   const [imageDropActive, setImageDropActive] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -126,6 +130,10 @@ export function NoteGrid({
   const imageDropDepth = useRef(0);
   const selecting = selectedIds.size > 0;
   const imageBusy = imageBusyCount > 0;
+
+  useEffect(() => {
+    if (selecting) setFabOpen(false);
+  }, [selecting]);
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
@@ -291,9 +299,11 @@ export function NoteGrid({
 
   async function applyLabel(labelId: string | null) {
     const ids = [...selectedIds];
-    await runBulk(() =>
-      onUpdateNotes(ids, { labelIds: labelId ? [labelId] : [] }),
-    );
+    if (!labelId) {
+      await runBulk(() => onUpdateNotes(ids, { labelIds: [] }));
+      return;
+    }
+    await runBulk(() => onAddLabel(ids, labelId));
   }
 
   function toggleMenu(next: BulkMenu) {
@@ -400,6 +410,9 @@ export function NoteGrid({
               : `${notes.length} note${notes.length === 1 ? '' : 's'}${
                   hasSearch || hasFilters ? ' found' : ''
                 }`}
+            {view === 'notes' && !selecting && notes.length > 0 && (
+              <span className={styles.hint}> · Long-press a note to select</span>
+            )}
           </p>
         </div>
       </div>
@@ -521,6 +534,15 @@ export function NoteGrid({
               onApplyType={(noteId, categoryId) =>
                 void onUpdateNotes([noteId], { categoryId })
               }
+              onAssignDisposition={(noteId, value) =>
+                void onUpdateNotes([noteId], { disposition: value })
+              }
+              onAssignCategory={(noteId, value) =>
+                void onUpdateNotes([noteId], { categoryId: value })
+              }
+              onAssignStock={(noteId, value) =>
+                void onUpdateNotes([noteId], { stockId: value })
+              }
               dragNoteIds={
                 selectedIds.has(note.id) ? [...selectedIds] : undefined
               }
@@ -542,7 +564,7 @@ export function NoteGrid({
               {selectedIds.size} selected
             </p>
             <p className={styles.selectionHint}>
-              Drag onto Type, Stock, or Guideline
+              Assign below, or drag onto Type, Stock, or Guideline
             </p>
           </div>
 
@@ -551,16 +573,17 @@ export function NoteGrid({
               <button
                 type="button"
                 className={`${styles.selectionAction} ${
-                  menu === 'guideline' ? styles.selectionActionOpen : ''
+                  menu === 'assign' ? styles.selectionActionOpen : ''
                 }`}
-                onClick={() => toggleMenu('guideline')}
+                onClick={() => toggleMenu('assign')}
                 disabled={busy}
-                aria-expanded={menu === 'guideline'}
+                aria-expanded={menu === 'assign'}
               >
-                Guideline
+                Assign
               </button>
-              {menu === 'guideline' && (
-                <div className={styles.menu} role="menu">
+              {menu === 'assign' && (
+                <div className={styles.assignSheet} role="menu">
+                  <p className={styles.assignSection}>Guideline</p>
                   {DISPOSITIONS.map((option) => (
                     <button
                       key={option.id}
@@ -573,24 +596,7 @@ export function NoteGrid({
                       {option.id === 'none' ? 'No guideline' : option.short}
                     </button>
                   ))}
-                </div>
-              )}
-            </div>
-
-            <div className={styles.menuWrap}>
-              <button
-                type="button"
-                className={`${styles.selectionAction} ${
-                  menu === 'type' ? styles.selectionActionOpen : ''
-                }`}
-                onClick={() => toggleMenu('type')}
-                disabled={busy}
-                aria-expanded={menu === 'type'}
-              >
-                Type
-              </button>
-              {menu === 'type' && (
-                <div className={styles.menu} role="menu">
+                  <p className={styles.assignSection}>Type</p>
                   <button
                     type="button"
                     className={styles.menuItem}
@@ -612,24 +618,7 @@ export function NoteGrid({
                       {option.name}
                     </button>
                   ))}
-                </div>
-              )}
-            </div>
-
-            <div className={styles.menuWrap}>
-              <button
-                type="button"
-                className={`${styles.selectionAction} ${
-                  menu === 'stock' ? styles.selectionActionOpen : ''
-                }`}
-                onClick={() => toggleMenu('stock')}
-                disabled={busy}
-                aria-expanded={menu === 'stock'}
-              >
-                Stock
-              </button>
-              {menu === 'stock' && (
-                <div className={styles.menu} role="menu">
+                  <p className={styles.assignSection}>Stock</p>
                   <button
                     type="button"
                     className={styles.menuItem}
@@ -655,25 +644,7 @@ export function NoteGrid({
                       </button>
                     ))
                   )}
-                </div>
-              )}
-            </div>
-
-            <div className={styles.menuWrap}>
-              <button
-                type="button"
-                className={`${styles.selectionAction} ${
-                  menu === 'label' ? styles.selectionActionOpen : ''
-                }`}
-                onClick={() => toggleMenu('label')}
-                disabled={busy}
-                aria-expanded={menu === 'label'}
-              >
-                <Tag size={14} />
-                Set label
-              </button>
-              {menu === 'label' && (
-                <div className={styles.menu} role="menu">
+                  <p className={styles.assignSection}>Label</p>
                   <button
                     type="button"
                     className={styles.menuItem}
@@ -695,7 +666,7 @@ export function NoteGrid({
                         disabled={busy}
                         onClick={() => void applyLabel(label.id)}
                       >
-                        #{label.name}
+                        Add #{label.name}
                       </button>
                     ))
                   )}
@@ -753,35 +724,57 @@ export function NoteGrid({
             hidden
             onChange={handleCreateFromFiles}
           />
+          {fabOpen && (
+            <>
+              <button
+                type="button"
+                className={styles.fabSecondary}
+                onClick={onPasteNotes}
+                aria-label="Paste notes"
+                title="Paste notes"
+                disabled={imageBusy}
+              >
+                <ClipboardPaste size={20} strokeWidth={2.25} />
+              </button>
+              <button
+                type="button"
+                className={styles.fabSecondary}
+                onClick={() => galleryRef.current?.click()}
+                aria-label="Add images"
+                title="Add images — creates a note"
+                disabled={imageBusy || !onDropImages}
+              >
+                <ImagePlus size={20} strokeWidth={2.25} />
+              </button>
+              <button
+                type="button"
+                className={styles.fabSecondary}
+                onClick={() => cameraRef.current?.click()}
+                aria-label="Take photo"
+                title="Take photo — creates a note"
+                disabled={imageBusy || !onDropImages}
+              >
+                <Camera size={20} strokeWidth={2.25} />
+              </button>
+            </>
+          )}
           <button
             type="button"
             className={styles.fabSecondary}
-            onClick={onPasteNotes}
-            aria-label="Paste notes"
-            title="Paste notes"
+            onClick={() => setFabOpen((open) => !open)}
+            aria-label={fabOpen ? 'Hide create options' : 'More create options'}
+            aria-expanded={fabOpen}
+            title={fabOpen ? 'Hide options' : 'Paste, photos, camera'}
             disabled={imageBusy}
           >
-            <ClipboardPaste size={20} strokeWidth={2.25} />
-          </button>
-          <button
-            type="button"
-            className={styles.fabSecondary}
-            onClick={() => galleryRef.current?.click()}
-            aria-label="Add images"
-            title="Add images — creates a note"
-            disabled={imageBusy || !onDropImages}
-          >
-            <ImagePlus size={20} strokeWidth={2.25} />
-          </button>
-          <button
-            type="button"
-            className={styles.fabSecondary}
-            onClick={() => cameraRef.current?.click()}
-            aria-label="Take photo"
-            title="Take photo — creates a note"
-            disabled={imageBusy || !onDropImages}
-          >
-            <Camera size={20} strokeWidth={2.25} />
+            <ChevronUp
+              size={20}
+              strokeWidth={2.25}
+              style={{
+                transform: fabOpen ? 'rotate(0deg)' : 'rotate(180deg)',
+                transition: 'transform 160ms ease',
+              }}
+            />
           </button>
           <button
             type="button"

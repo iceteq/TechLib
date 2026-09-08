@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Check,
   Package,
@@ -22,6 +22,10 @@ import type {
 import { Barcode } from '../barcodes/Barcode';
 import { LabelChip } from '../labels/LabelChip';
 import { TypeChip } from './TypeChip';
+import {
+  MetaAssignPopover,
+  type MetaAssignField,
+} from './MetaAssignPopover';
 import { setNoteDragData } from '../../lib/noteDrag';
 import styles from './NoteCard.module.css';
 
@@ -59,6 +63,9 @@ interface NoteCardProps {
   onEnterSelect: (noteId: string) => void;
   onRangeSelect: (noteId: string) => void;
   onApplyType: (noteId: string, categoryId: string) => void;
+  onAssignDisposition?: (noteId: string, value: NoteDisposition) => void;
+  onAssignCategory?: (noteId: string, value: string | null) => void;
+  onAssignStock?: (noteId: string, value: string | null) => void;
   /** IDs included when this card is dragged (selected set). */
   dragNoteIds?: string[];
   onNotesDragStart?: () => void;
@@ -84,6 +91,9 @@ export function NoteCard({
   onEnterSelect,
   onRangeSelect,
   onApplyType,
+  onAssignDisposition,
+  onAssignCategory,
+  onAssignStock,
   dragNoteIds,
   onNotesDragStart,
 }: NoteCardProps) {
@@ -105,6 +115,7 @@ export function NoteCard({
     !note.categoryId
       ? suggestNoteType(noteTypes, note.title, note.description)
       : null;
+  const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
 
   const cardRef = useRef<HTMLElement | null>(null);
   const longPressTimer = useRef<number | null>(null);
@@ -355,7 +366,36 @@ export function NoteCard({
               <span>{disposition.short}</span>
             </span>
           ) : (
-            <span className={styles.missingMeta}>No guideline</span>
+            <span className={styles.metaWrap}>
+              <button
+                type="button"
+                className={styles.missingMeta}
+                disabled={selecting || !onAssignDisposition}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAssignField((current) =>
+                    current === 'disposition' ? null : 'disposition',
+                  );
+                }}
+                aria-haspopup="menu"
+                aria-expanded={assignField === 'disposition'}
+              >
+                No guideline
+              </button>
+              {assignField === 'disposition' && onAssignDisposition && (
+                <MetaAssignPopover
+                  field="disposition"
+                  noteTypes={noteTypes}
+                  stockLocations={stockLocations}
+                  onAssignDisposition={(value) =>
+                    onAssignDisposition(note.id, value)
+                  }
+                  onAssignCategory={() => undefined}
+                  onAssignStock={() => undefined}
+                  onClose={() => setAssignField(null)}
+                />
+              )}
+            </span>
           )}
           {noteType && showTypeChip ? (
             <TypeChip type={noteType} muted />
@@ -367,12 +407,68 @@ export function NoteCard({
               onClick={() => onApplyType(note.id, suggestedType.id)}
             />
           ) : !noteType ? (
-            <span className={styles.missingMeta}>No type</span>
+            <span className={styles.metaWrap}>
+              <button
+                type="button"
+                className={styles.missingMeta}
+                disabled={selecting || !onAssignCategory}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAssignField((current) =>
+                    current === 'categoryId' ? null : 'categoryId',
+                  );
+                }}
+                aria-haspopup="menu"
+                aria-expanded={assignField === 'categoryId'}
+              >
+                No type
+              </button>
+              {assignField === 'categoryId' && onAssignCategory && (
+                <MetaAssignPopover
+                  field="categoryId"
+                  noteTypes={noteTypes}
+                  stockLocations={stockLocations}
+                  onAssignDisposition={() => undefined}
+                  onAssignCategory={(value) =>
+                    onAssignCategory(note.id, value)
+                  }
+                  onAssignStock={() => undefined}
+                  onClose={() => setAssignField(null)}
+                />
+              )}
+            </span>
           ) : null}
           {stock ? (
             <span className={styles.stock}>{stock.name}</span>
           ) : (
-            <span className={styles.missingMeta}>No stock</span>
+            <span className={styles.metaWrap}>
+              <button
+                type="button"
+                className={styles.missingMeta}
+                disabled={selecting || !onAssignStock}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAssignField((current) =>
+                    current === 'stockId' ? null : 'stockId',
+                  );
+                }}
+                aria-haspopup="menu"
+                aria-expanded={assignField === 'stockId'}
+              >
+                No stock
+              </button>
+              {assignField === 'stockId' && onAssignStock && (
+                <MetaAssignPopover
+                  field="stockId"
+                  noteTypes={noteTypes}
+                  stockLocations={stockLocations}
+                  onAssignDisposition={() => undefined}
+                  onAssignCategory={() => undefined}
+                  onAssignStock={(value) => onAssignStock(note.id, value)}
+                  onClose={() => setAssignField(null)}
+                />
+              )}
+            </span>
           )}
           {showLabels &&
             noteLabels.map((label) => (

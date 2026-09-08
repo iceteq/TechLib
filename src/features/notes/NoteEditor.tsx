@@ -27,7 +27,7 @@ import type {
 import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
 import { DescriptionField } from '../labels/DescriptionField';
-import { LabelChip } from '../labels/LabelChip';
+import { LabelPicker } from '../labels/LabelPicker';
 import { TypeChip } from './TypeChip';
 import styles from './NoteEditor.module.css';
 
@@ -91,7 +91,6 @@ export function NoteEditor({
   const titleRef = useRef<HTMLInputElement>(null);
   const dropDepth = useRef(0);
   const bg = getBackground(note.background);
-  const selectedLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const selectedType = noteTypeById(noteTypes, note.categoryId);
   const suggestedType =
     !note.categoryId
@@ -214,12 +213,6 @@ export function NoteEditor({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
-
-  function removeLabel(id: string) {
-    void onSaveMeta({
-      labelIds: note.labelIds.filter((lid) => lid !== id),
-    });
-  }
 
   async function addLabel(label: Label) {
     if (note.labelIds.includes(label.id)) return;
@@ -378,19 +371,14 @@ export function NoteEditor({
           />
         </div>
 
-        {selectedLabels.length > 0 && (
-          <div className={styles.section}>
-            <div className={styles.labelRow}>
-              {selectedLabels.map((label) => (
-                <LabelChip
-                  key={label.id}
-                  name={label.name}
-                  onRemove={() => removeLabel(label.id)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        <div className={styles.section}>
+          <LabelPicker
+            labels={labels}
+            selectedIds={note.labelIds}
+            onChange={(labelIds) => void onSaveMeta({ labelIds })}
+            onCreateLabel={onCreateLabel}
+          />
+        </div>
 
         <div className={styles.section}>
           <div className={styles.dispositionRow} role="group" aria-label="Product guideline">

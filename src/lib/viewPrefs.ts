@@ -10,12 +10,12 @@ export type ViewPrefs = {
 };
 
 export const DEFAULT_VIEW_PREFS: ViewPrefs = {
-  barcodes: true,
+  barcodes: false,
   photos: true,
-  description: true,
+  description: false,
   specialCase: true,
   labels: true,
-  age: true,
+  age: false,
   typeChip: true,
 };
 

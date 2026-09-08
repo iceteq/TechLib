@@ -189,6 +189,7 @@ export default function App() {
   const [imageBusyCount, setImageBusyCount] = useState(0);
   const [ready, setReady] = useState(false);
   const [viewPrefs, setViewPrefs] = useState(loadViewPrefs);
+  const [notice, setNotice] = useState<string | null>(null);
 
   function updateViewPrefs(next: typeof viewPrefs) {
     setViewPrefs(next);
@@ -456,6 +457,7 @@ export default function App() {
       await store.deleteNote(activeNote.id);
       setActiveNoteId(null);
       await refresh();
+      setNotice('Empty note removed');
       return;
     }
     setActiveNoteId(null);
@@ -693,6 +695,33 @@ export default function App() {
     });
   }
 
+  async function handleAddLabelToNotes(noteIds: string[], labelId: string) {
+    const ids = [...new Set(noteIds)].filter(Boolean);
+    if (ids.length === 0) return;
+
+    const before: Array<{ id: string; patch: NoteFieldPatch }> = [];
+    const updates: Array<{ id: string; labelIds: string[] }> = [];
+    for (const id of ids) {
+      const note = notes.find((n) => n.id === id);
+      if (!note || note.labelIds.includes(labelId)) continue;
+      before.push({ id, patch: { labelIds: [...note.labelIds] } });
+      updates.push({ id, labelIds: [...note.labelIds, labelId] });
+    }
+    if (updates.length === 0) return;
+
+    for (const entry of updates) {
+      await store.updateNote(entry.id, { labelIds: entry.labelIds });
+    }
+    await refresh();
+    const labelName = labels.find((l) => l.id === labelId)?.name ?? 'label';
+    const noteWord = updates.length === 1 ? 'note' : 'notes';
+    await replaceUndoAction({
+      kind: 'patch',
+      message: `Added #${labelName} to ${updates.length} ${noteWord}`,
+      before,
+    });
+  }
+
   async function handleAssignNotes(
     noteIds: string[],
     target: NoteAssignTarget,
@@ -921,6 +950,7 @@ export default function App() {
           onDeleteNotes={handleDeleteNotes}
           onAddToCart={handleAddToCart}
           onUpdateNotes={handleUpdateNotes}
+          onAddLabel={handleAddLabelToNotes}
           onClearLabel={(labelId) =>
             setFilterLabelIds((current) => current.filter((id) => id !== labelId))
           }
@@ -950,6 +980,14 @@ export default function App() {
           message={undoMessage}
           onUndo={() => void handleUndo()}
           onDismiss={dismissUndo}
+        />
+      )}
+
+      {notice && !undoToastVisible && (
+        <UndoToast
+          message={notice}
+          onDismiss={() => setNotice(null)}
+          durationMs={4000}
         />
       )}
 
