@@ -883,7 +883,13 @@ function CollapsibleSection({
             className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}
             aria-hidden
           />
-          <span className={styles.sectionTitle}>{title}</span>
+          <span
+            className={`${styles.sectionTitle} ${
+              hasActive ? styles.sectionTitleValue : ''
+            }`}
+          >
+            {title}
+          </span>
           {hasActive && !open && (
             <span className={styles.activeDot} aria-label="Filter active" />
           )}

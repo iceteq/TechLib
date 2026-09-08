@@ -118,6 +118,14 @@
   opacity: 0.85;
 }
 
+.sectionTitleValue {
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-weight: 650;
+  font-size: 0.78rem;
+  opacity: 1;
+}
+
 .chevron {
   flex-shrink: 0;
   transition: transform 160ms ease;
