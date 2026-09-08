@@ -253,7 +253,7 @@ export function NoteCard({
       ref={cardRef}
       className={`${styles.card} ${selected ? styles.selected : ''} ${
         selecting && selected ? styles.draggable : ''
-      }`}
+      } ${assignField ? styles.cardMenuOpen : ''}`}
       style={{ background: bg.surface, borderColor: bg.border }}
       draggable={selecting && selected}
       onDragStart={handleDragStart}
