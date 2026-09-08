@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import { DISPOSITIONS } from '../../lib/types';
 import type { NoteDisposition, NoteType, StockLocation } from '../../lib/types';
 import styles from './MetaAssignPopover.module.css';
@@ -7,6 +9,7 @@ export type MetaAssignField = 'disposition' | 'categoryId' | 'stockId';
 
 interface MetaAssignPopoverProps {
   field: MetaAssignField;
+  noteTitle: string;
   noteTypes: NoteType[];
   stockLocations: StockLocation[];
   onAssignDisposition: (value: NoteDisposition) => void;
@@ -17,6 +20,7 @@ interface MetaAssignPopoverProps {
 
 export function MetaAssignPopover({
   field,
+  noteTitle,
   noteTypes,
   stockLocations,
   onAssignDisposition,
@@ -24,117 +28,156 @@ export function MetaAssignPopover({
   onAssignStock,
   onClose,
 }: MetaAssignPopoverProps) {
-  const ref = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const partLabel = noteTitle.trim() || 'No part number';
 
   useEffect(() => {
-    function onPointerDown(e: PointerEvent) {
-      if (!ref.current?.contains(e.target as Node)) onClose();
-    }
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
     }
-    window.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('keydown', onKeyDown);
-    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [onClose]);
 
-  const title =
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  const fieldLabel =
     field === 'disposition'
       ? 'Guideline'
       : field === 'categoryId'
         ? 'Type'
         : 'Stock';
 
-  return (
+  const dialog = (
     <div
-      ref={ref}
-      className={styles.popover}
-      role="menu"
-      aria-label={`Set ${title}`}
-      onClick={(e) => e.stopPropagation()}
+      className={styles.overlay}
+      role="presentation"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <p className={styles.title}>{title}</p>
-      {field === 'disposition' &&
-        DISPOSITIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            className={styles.item}
-            role="menuitem"
-            onClick={() => {
-              onAssignDisposition(option.id);
-              onClose();
-            }}
-          >
-            {option.id === 'none' ? 'No guideline' : option.short}
-          </button>
-        ))}
-      {field === 'categoryId' && (
-        <>
+      <div
+        ref={dialogRef}
+        className={styles.dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <div className={styles.header}>
+          <div className={styles.headerText}>
+            <p className={styles.fieldLabel}>Set {fieldLabel}</p>
+            <h2 id={titleId} className={styles.noteTitle}>
+              {partLabel}
+            </h2>
+          </div>
           <button
             type="button"
-            className={styles.item}
-            role="menuitem"
-            onClick={() => {
-              onAssignCategory(null);
-              onClose();
-            }}
+            className={styles.close}
+            onClick={onClose}
+            aria-label="Close"
           >
-            No type
+            <X size={18} />
           </button>
-          {noteTypes.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className={styles.item}
-              role="menuitem"
-              onClick={() => {
-                onAssignCategory(option.id);
-                onClose();
-              }}
-            >
-              {option.name}
-            </button>
-          ))}
-        </>
-      )}
-      {field === 'stockId' && (
-        <>
-          <button
-            type="button"
-            className={styles.item}
-            role="menuitem"
-            onClick={() => {
-              onAssignStock(null);
-              onClose();
-            }}
-          >
-            No stock
-          </button>
-          {stockLocations.length === 0 ? (
-            <p className={styles.empty}>No stock yet</p>
-          ) : (
-            stockLocations.map((stock) => (
+        </div>
+
+        <div className={styles.options} role="listbox" aria-label={fieldLabel}>
+          {field === 'disposition' &&
+            DISPOSITIONS.map((option) => (
               <button
-                key={stock.id}
+                key={option.id}
                 type="button"
                 className={styles.item}
-                role="menuitem"
+                role="option"
                 onClick={() => {
-                  onAssignStock(stock.id);
+                  onAssignDisposition(option.id);
                   onClose();
                 }}
               >
-                {stock.name}
+                {option.id === 'none' ? 'No guideline' : option.label}
               </button>
-            ))
+            ))}
+          {field === 'categoryId' && (
+            <>
+              <button
+                type="button"
+                className={styles.item}
+                role="option"
+                onClick={() => {
+                  onAssignCategory(null);
+                  onClose();
+                }}
+              >
+                No type
+              </button>
+              {noteTypes.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={styles.item}
+                  role="option"
+                  onClick={() => {
+                    onAssignCategory(option.id);
+                    onClose();
+                  }}
+                >
+                  {option.name}
+                </button>
+              ))}
+            </>
           )}
-        </>
-      )}
+          {field === 'stockId' && (
+            <>
+              <button
+                type="button"
+                className={styles.item}
+                role="option"
+                onClick={() => {
+                  onAssignStock(null);
+                  onClose();
+                }}
+              >
+                No stock
+              </button>
+              {stockLocations.length === 0 ? (
+                <p className={styles.empty}>No stock yet</p>
+              ) : (
+                stockLocations.map((stock) => (
+                  <button
+                    key={stock.id}
+                    type="button"
+                    className={styles.item}
+                    role="option"
+                    onClick={() => {
+                      onAssignStock(stock.id);
+                      onClose();
+                    }}
+                  >
+                    {stock.name}
+                  </button>
+                ))
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
+
+  return createPortal(dialog, document.body);
 }

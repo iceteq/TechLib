@@ -1,23 +1,41 @@
-.popover {
-  position: absolute;
-  z-index: 20;
-  left: 0;
-  bottom: calc(100% + 0.3rem);
-  top: auto;
-  min-width: 10rem;
-  max-width: min(16rem, 70vw);
-  max-height: 14rem;
-  overflow: auto;
-  padding: 0.35rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow);
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(20, 24, 30, 0.42);
+  animation: fadeIn 140ms ease;
 }
 
-.title {
+.dialog {
+  width: min(22rem, 100%);
+  max-height: min(78vh, 32rem);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: 0 18px 48px rgba(20, 24, 30, 0.28);
+  animation: riseIn 160ms ease;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.headerText {
+  min-width: 0;
+}
+
+.fieldLabel {
   margin: 0;
-  padding: 0.35rem 0.55rem 0.25rem;
   font-size: 0.72rem;
   font-weight: 650;
   letter-spacing: 0.04em;
@@ -25,26 +43,82 @@
   color: var(--text-muted);
 }
 
+.noteTitle {
+  margin: 0.2rem 0 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.close:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.55rem;
+  overflow: auto;
+}
+
 .item {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 0.45rem 0.55rem;
+  padding: 0.7rem 0.75rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
-  font-size: 0.88rem;
-  font-weight: 500;
+  font-size: 0.95rem;
+  font-weight: 550;
 }
 
-.item:hover {
+.item:hover,
+.item:focus-visible {
   background: var(--accent-soft);
   color: var(--accent);
 }
 
 .empty {
   margin: 0;
-  padding: 0.45rem 0.55rem;
+  padding: 0.7rem 0.75rem;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }

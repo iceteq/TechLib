@@ -253,7 +253,7 @@ export function NoteCard({
       ref={cardRef}
       className={`${styles.card} ${selected ? styles.selected : ''} ${
         selecting && selected ? styles.draggable : ''
-      } ${assignField ? styles.cardMenuOpen : ''}`}
+      }`}
       style={{ background: bg.surface, borderColor: bg.border }}
       draggable={selecting && selected}
       onDragStart={handleDragStart}
@@ -377,7 +377,7 @@ export function NoteCard({
                     current === 'disposition' ? null : 'disposition',
                   );
                 }}
-                aria-haspopup="menu"
+                aria-haspopup="dialog"
                 aria-expanded={assignField === 'disposition'}
               >
                 No guideline
@@ -385,6 +385,7 @@ export function NoteCard({
               {assignField === 'disposition' && onAssignDisposition && (
                 <MetaAssignPopover
                   field="disposition"
+                  noteTitle={title}
                   noteTypes={noteTypes}
                   stockLocations={stockLocations}
                   onAssignDisposition={(value) =>
@@ -418,7 +419,7 @@ export function NoteCard({
                     current === 'categoryId' ? null : 'categoryId',
                   );
                 }}
-                aria-haspopup="menu"
+                aria-haspopup="dialog"
                 aria-expanded={assignField === 'categoryId'}
               >
                 No type
@@ -426,6 +427,7 @@ export function NoteCard({
               {assignField === 'categoryId' && onAssignCategory && (
                 <MetaAssignPopover
                   field="categoryId"
+                  noteTitle={title}
                   noteTypes={noteTypes}
                   stockLocations={stockLocations}
                   onAssignDisposition={() => undefined}
@@ -452,7 +454,7 @@ export function NoteCard({
                     current === 'stockId' ? null : 'stockId',
                   );
                 }}
-                aria-haspopup="menu"
+                aria-haspopup="dialog"
                 aria-expanded={assignField === 'stockId'}
               >
                 No stock
@@ -460,6 +462,7 @@ export function NoteCard({
               {assignField === 'stockId' && onAssignStock && (
                 <MetaAssignPopover
                   field="stockId"
+                  noteTitle={title}
                   noteTypes={noteTypes}
                   stockLocations={stockLocations}
                   onAssignDisposition={() => undefined}

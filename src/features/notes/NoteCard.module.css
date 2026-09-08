@@ -20,11 +20,6 @@
   -webkit-touch-callout: none;
 }
 
-.cardMenuOpen {
-  overflow: visible;
-  z-index: 12;
-}
-
 .card:hover,
 .card:focus-visible {
   transform: translateY(-2px);
