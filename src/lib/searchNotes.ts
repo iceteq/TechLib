@@ -10,6 +10,64 @@ import type {
 import { DISPOSITIONS, UNSET_STOCK_FILTER, UNSET_TYPE_FILTER } from './types';
 import { noteTypeLabel } from './noteTypes';
 
+function searchTokens(query: string): string[] {
+  return query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+/** Best rank for one token against a note; -1 = no match. */
+function tokenSearchRank(
+  note: NoteWithUrls,
+  labels: Label[],
+  stockLocations: StockLocation[],
+  noteTypes: NoteType[],
+  token: string,
+): number {
+  const title = note.title.toLowerCase();
+  if (title === token) return 100;
+  if (title.startsWith(token)) return 90;
+  if (title.includes(token)) return 80;
+
+  const description = note.description.toLowerCase();
+  if (description.includes(token)) return 50;
+
+  if ((note.specialCase ?? '').toLowerCase().includes(token)) return 40;
+
+  const disposition = DISPOSITIONS.find(
+    (d) => d.id === (note.disposition ?? 'none'),
+  );
+  if (disposition) {
+    if (
+      disposition.label.toLowerCase().includes(token) ||
+      disposition.short.toLowerCase().includes(token) ||
+      (disposition.id !== 'none' && disposition.id.includes(token))
+    ) {
+      return 35;
+    }
+  }
+
+  const typeName = noteTypeLabel(noteTypes, note.categoryId);
+  if (typeName && typeName.toLowerCase().includes(token)) return 30;
+
+  const stock = stockLocations.find((s) => s.id === note.stockId);
+  if (stock && stock.name.toLowerCase().includes(token)) return 30;
+
+  const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
+  if (
+    noteLabels.some((l) => {
+      const name = l.name.toLowerCase();
+      return name.includes(token) || `#${name}`.includes(token);
+    })
+  ) {
+    return 20;
+  }
+
+  return -1;
+}
+
 export function matchesNoteSearch(
   note: NoteWithUrls,
   labels: Label[],
@@ -20,7 +78,11 @@ export function matchesNoteSearch(
   return noteSearchRank(note, labels, stockLocations, noteTypes, query) >= 0;
 }
 
-/** Higher is better; -1 means no match. Prefer part-number/title hits. */
+/**
+ * Higher is better; -1 means no match.
+ * Space-separated terms are ANDed across fields (order independent),
+ * so "computer 3209b" and "3209b computer" both match a Computer in stock 3209b.
+ */
 export function noteSearchRank(
   note: NoteWithUrls,
   labels: Label[],
@@ -28,49 +90,30 @@ export function noteSearchRank(
   noteTypes: NoteType[],
   query: string,
 ): number {
-  const q = query.trim().toLowerCase();
-  if (!q) return 0;
+  const tokens = searchTokens(query);
+  if (tokens.length === 0) return 0;
 
+  const phrase = tokens.join(' ');
   const title = note.title.toLowerCase();
-  if (title === q) return 100;
-  if (title.startsWith(q)) return 90;
-  if (title.includes(q)) return 80;
+  if (title === phrase) return 100;
+  if (title.startsWith(phrase)) return 95;
+  if (title.includes(phrase)) return 90;
 
-  const description = note.description.toLowerCase();
-  if (description.includes(q)) return 50;
-
-  if ((note.specialCase ?? '').toLowerCase().includes(q)) return 40;
-
-  const disposition = DISPOSITIONS.find(
-    (d) => d.id === (note.disposition ?? 'none'),
-  );
-  if (disposition) {
-    if (
-      disposition.label.toLowerCase().includes(q) ||
-      disposition.short.toLowerCase().includes(q) ||
-      (disposition.id !== 'none' && disposition.id.includes(q))
-    ) {
-      return 35;
-    }
+  let total = 0;
+  for (const token of tokens) {
+    const rank = tokenSearchRank(
+      note,
+      labels,
+      stockLocations,
+      noteTypes,
+      token,
+    );
+    if (rank < 0) return -1;
+    total += rank;
   }
 
-  const typeName = noteTypeLabel(noteTypes, note.categoryId);
-  if (typeName && typeName.toLowerCase().includes(q)) return 30;
-
-  const stock = stockLocations.find((s) => s.id === note.stockId);
-  if (stock && stock.name.toLowerCase().includes(q)) return 30;
-
-  const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
-  if (
-    noteLabels.some((l) => {
-      const name = l.name.toLowerCase();
-      return name.includes(q) || `#${name}`.includes(q);
-    })
-  ) {
-    return 20;
-  }
-
-  return -1;
+  // Prefer fewer tokens that hit title hard; average keeps multi-term comparable.
+  return Math.round(total / tokens.length);
 }
 
 export function filterNotes(
