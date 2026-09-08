@@ -5,11 +5,14 @@ import {
   Camera,
   ImagePlus,
   Loader2,
+  Package,
   Palette,
   Pin,
   PinOff,
+  Settings2,
   ShoppingCart,
   Trash2,
+  Wrench,
   X,
 } from 'lucide-react';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
@@ -29,8 +32,20 @@ import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
 import { DescriptionField } from '../labels/DescriptionField';
 import { LabelPicker } from '../labels/LabelPicker';
+import {
+  MetaAssignPopover,
+  type MetaAssignField,
+} from './MetaAssignPopover';
 import { TypeChip } from './TypeChip';
 import styles from './NoteEditor.module.css';
+
+function dispositionIcon(id: NoteDisposition) {
+  if (id === 'stock') return Package;
+  if (id === 'repair') return Wrench;
+  if (id === 'config') return Settings2;
+  if (id === 'scrap') return Trash2;
+  return null;
+}
 
 interface NoteEditorProps {
   note: NoteWithUrls;
@@ -86,6 +101,7 @@ export function NoteEditor({
     Boolean((note.specialCase ?? '').trim()),
   );
   const [colorOpen, setColorOpen] = useState(false);
+  const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -97,6 +113,18 @@ export function NoteEditor({
     !note.categoryId
       ? suggestNoteType(noteTypes, title || note.title, description || note.description)
       : null;
+  const disposition = DISPOSITIONS.find(
+    (d) => d.id === (note.disposition ?? 'none'),
+  );
+  const DispositionIcon =
+    disposition && disposition.id !== 'none'
+      ? dispositionIcon(disposition.id)
+      : null;
+  const dispositionColors =
+    disposition && disposition.id !== 'none'
+      ? dispositionColorVars(disposition.id)
+      : null;
+  const stock = stockLocations.find((s) => s.id === note.stockId);
   const isBlank =
     !note.title.trim() &&
     !note.description.trim() &&
@@ -198,6 +226,7 @@ export function NoteEditor({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         if (imageBusy) return;
+        if (assignField) return;
         if (colorOpen) {
           setColorOpen(false);
           return;
@@ -206,7 +235,7 @@ export function NoteEditor({
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        if (imageBusy) return;
+        if (imageBusy || assignField) return;
         e.preventDefault();
         void finish();
       }
@@ -382,34 +411,81 @@ export function NoteEditor({
         </div>
 
         <div className={styles.section}>
-          <div className={styles.dispositionRow} role="group" aria-label="Product guideline">
-            {DISPOSITIONS.map((option) => {
-              const active = (note.disposition ?? 'none') === option.id;
-              const colors = dispositionColorVars(option.id);
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={`${styles.dispositionBtn} ${
-                    active ? styles.dispositionActive : ''
-                  }`}
-                  style={
-                    active && colors
-                      ? {
-                          background: colors.bg,
-                          color: colors.fg,
-                          borderColor: colors.border,
-                        }
-                      : colors
-                        ? { color: colors.fg, borderColor: colors.border }
-                        : undefined
-                  }
-                  onClick={() => void onSaveMeta({ disposition: option.id })}
-                >
-                  {option.id === 'none' ? 'No guideline' : option.short}
-                </button>
-              );
-            })}
+          <div className={styles.metaRow} aria-label="Note details">
+            <button
+              type="button"
+              className={
+                disposition && disposition.id !== 'none'
+                  ? styles.metaChip
+                  : styles.metaMissing
+              }
+              style={
+                dispositionColors
+                  ? {
+                      background: dispositionColors.bg,
+                      color: dispositionColors.fg,
+                      borderColor: dispositionColors.border,
+                    }
+                  : undefined
+              }
+              onClick={() => setAssignField('disposition')}
+              aria-haspopup="dialog"
+              aria-expanded={assignField === 'disposition'}
+            >
+              {DispositionIcon && (
+                <DispositionIcon size={12} strokeWidth={2.25} aria-hidden />
+              )}
+              <span>
+                {disposition && disposition.id !== 'none'
+                  ? disposition.short
+                  : 'No guideline'}
+              </span>
+            </button>
+
+            {selectedType ? (
+              <TypeChip
+                type={selectedType}
+                onClick={() => setAssignField('categoryId')}
+              />
+            ) : suggestedType ? (
+              <TypeChip
+                type={suggestedType}
+                suggested
+                onClick={() => void onSaveMeta({ categoryId: suggestedType.id })}
+              />
+            ) : (
+              <button
+                type="button"
+                className={styles.metaMissing}
+                onClick={() => setAssignField('categoryId')}
+                aria-haspopup="dialog"
+                aria-expanded={assignField === 'categoryId'}
+              >
+                No type
+              </button>
+            )}
+
+            {!selectedType && suggestedType && (
+              <button
+                type="button"
+                className={styles.metaMissing}
+                onClick={() => setAssignField('categoryId')}
+                aria-haspopup="dialog"
+                aria-expanded={assignField === 'categoryId'}
+              >
+                Choose type
+              </button>
+            )}
+
+            <button
+              type="button"
+              className={stock ? styles.metaStock : styles.metaMissing}
+              onClick={() => setAssignField('stockId')}
+              aria-haspopup="dialog"
+              aria-expanded={assignField === 'stockId'}
+            >
+              {stock ? stock.name : 'No stock'}
+            </button>
           </div>
           {specialCaseOpen ? (
             <>
@@ -441,73 +517,35 @@ export function NoteEditor({
           )}
         </div>
 
-        <div className={styles.section}>
-          <div className={styles.dispositionRow} role="group" aria-label="Product type">
-            <button
-              type="button"
-              className={`${styles.dispositionBtn} ${
-                !note.categoryId ? styles.dispositionActive : ''
-              }`}
-              onClick={() => void onSaveMeta({ categoryId: null })}
-            >
-              No type
-            </button>
-            {noteTypes.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className={`${styles.dispositionBtn} ${
-                  note.categoryId === option.id ? styles.dispositionActive : ''
-                }`}
-                onClick={() => void onSaveMeta({ categoryId: option.id })}
-              >
-                {option.name}
-              </button>
-            ))}
-          </div>
-          {!selectedType && suggestedType && (
-            <div className={styles.suggestRow}>
-              <span className={styles.suggestLabel}>Suggested</span>
-              <TypeChip
-                type={suggestedType}
-                suggested
-                onClick={() => void onSaveMeta({ categoryId: suggestedType.id })}
-              />
-            </div>
-          )}
-        </div>
-
-        <div className={styles.section}>
-          <div className={styles.dispositionRow} role="group" aria-label="Stock location">
-            <button
-              type="button"
-              className={`${styles.dispositionBtn} ${
-                !note.stockId ? styles.dispositionActive : ''
-              }`}
-              onClick={() => void onSaveMeta({ stockId: null })}
-            >
-              No stock
-            </button>
-            {stockLocations.map((stock) => (
-              <button
-                key={stock.id}
-                type="button"
-                className={`${styles.dispositionBtn} ${
-                  note.stockId === stock.id ? styles.dispositionActive : ''
-                }`}
-                onClick={() => void onSaveMeta({ stockId: stock.id })}
-              >
-                {stock.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {showBarcodes && (
           <div className={styles.section}>
             <p className={styles.sectionLabel}>Barcode</p>
             <Barcode title={title || note.title} />
           </div>
+        )}
+
+        {assignField && (
+          <MetaAssignPopover
+            field={assignField}
+            noteTitle={title || note.title}
+            noteTypes={noteTypes}
+            stockLocations={stockLocations}
+            labels={labels}
+            currentDisposition={(note.disposition ?? 'none') as NoteDisposition}
+            currentCategoryId={note.categoryId}
+            currentStockId={note.stockId}
+            currentLabelIds={note.labelIds}
+            onAssignDisposition={(value) =>
+              void onSaveMeta({ disposition: value })
+            }
+            onAssignCategory={(value) =>
+              void onSaveMeta({ categoryId: value })
+            }
+            onAssignStock={(value) => void onSaveMeta({ stockId: value })}
+            onAssignLabels={(labelIds) => void onSaveMeta({ labelIds })}
+            onCreateLabel={onCreateLabel}
+            onClose={() => setAssignField(null)}
+          />
         )}
 
         <div className={styles.footer}>
