@@ -11,7 +11,8 @@
   border: none;
   background: transparent;
   resize: none;
-  min-height: 7rem;
+  /* ~2 lines; autosize grows with content so empty notes stay compact. */
+  min-height: 2.75rem;
   max-height: min(52dvh, 28rem);
   line-height: 1.5;
   outline: none;
