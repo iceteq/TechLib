@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ImagePlus,
   Loader2,
+  MoreHorizontal,
   Palette,
   Pin,
   PinOff,
@@ -111,6 +112,8 @@ export function NoteEditor({
     Boolean((note.specialCase ?? '').trim()),
   );
   const [colorOpen, setColorOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(false);
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const [navBusy, setNavBusy] = useState(false);
@@ -155,6 +158,7 @@ export function NoteEditor({
     setSpecialCaseOpen(Boolean((note.specialCase ?? '').trim()));
     setAssignField(null);
     setColorOpen(false);
+    setMoreOpen(false);
     setNavBusy(false);
   }, [note.id, note.title, note.description, note.specialCase]);
 
@@ -166,6 +170,30 @@ export function NoteEditor({
     }
     dialogRef.current?.focus();
   }, [note.id]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 600px)');
+    const sync = () => setIsNarrow(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      const root = dialogRef.current;
+      if (!root) return;
+      const more = root.querySelector('[data-more-menu]');
+      if (more && more.contains(target)) return;
+      setMoreOpen(false);
+      setColorOpen(false);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [moreOpen]);
 
   // Keep the mobile sheet flush with the visual viewport so the soft keyboard
   // does not cover the footer and no empty gap sits above the keyboard.
@@ -489,84 +517,183 @@ export function NoteEditor({
           </div>
 
           <div className={styles.topRight}>
-            <button
-              type="button"
-              className={`${styles.iconBtn} ${note.pinned ? styles.iconActive : ''}`}
-              onClick={() => void onSaveMeta({ pinned: !note.pinned })}
-              aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
-              title={note.pinned ? 'Unpin' : 'Pin'}
-            >
-              {note.pinned ? <PinOff size={18} /> : <Pin size={18} />}
-            </button>
-            <button
-              type="button"
-              className={`${styles.iconBtn} ${note.archived ? styles.iconActive : ''}`}
-              onClick={() => void onSaveMeta({ archived: !note.archived })}
-              aria-label={note.archived ? 'Unarchive note' : 'Archive note'}
-              title={note.archived ? 'Unarchive' : 'Archive'}
-            >
-              {note.archived ? <ArchiveRestore size={18} /> : <Archive size={18} />}
-            </button>
+            {!isNarrow && (
+              <>
+                <button
+                  type="button"
+                  className={`${styles.iconBtn} ${note.pinned ? styles.iconActive : ''}`}
+                  onClick={() => void onSaveMeta({ pinned: !note.pinned })}
+                  aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
+                  title={note.pinned ? 'Unpin' : 'Pin'}
+                >
+                  {note.pinned ? <PinOff size={18} /> : <Pin size={18} />}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.iconBtn} ${note.archived ? styles.iconActive : ''}`}
+                  onClick={() => void onSaveMeta({ archived: !note.archived })}
+                  aria-label={note.archived ? 'Unarchive note' : 'Archive note'}
+                  title={note.archived ? 'Unarchive' : 'Archive'}
+                >
+                  {note.archived ? <ArchiveRestore size={18} /> : <Archive size={18} />}
+                </button>
 
-            <div className={styles.colorWrap}>
-              <button
-                type="button"
-                className={`${styles.iconBtn} ${colorOpen ? styles.iconActive : ''}`}
-                onClick={() => setColorOpen((v) => !v)}
-                aria-label="Note color"
-                aria-expanded={colorOpen}
-                title="Color"
-              >
-                <Palette size={18} />
-              </button>
-              {colorOpen && (
-                <div className={styles.colorPopover} role="listbox" aria-label="Note background">
-                  {BACKGROUNDS.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      className={`${styles.swatch} ${
-                        note.background === option.id ? styles.swatchActive : ''
-                      }`}
-                      style={{ background: option.surface, borderColor: option.border }}
-                      onClick={() => {
-                        void onSaveMeta({ background: option.id });
-                        setColorOpen(false);
-                      }}
-                      aria-label={option.label}
-                      title={option.label}
-                    />
-                  ))}
+                <div className={styles.colorWrap}>
+                  <button
+                    type="button"
+                    className={`${styles.iconBtn} ${colorOpen ? styles.iconActive : ''}`}
+                    onClick={() => setColorOpen((v) => !v)}
+                    aria-label="Note color"
+                    aria-expanded={colorOpen}
+                    title="Color"
+                  >
+                    <Palette size={18} />
+                  </button>
+                  {colorOpen && (
+                    <div className={styles.colorPopover} role="listbox" aria-label="Note background">
+                      {BACKGROUNDS.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className={`${styles.swatch} ${
+                            note.background === option.id ? styles.swatchActive : ''
+                          }`}
+                          style={{ background: option.surface, borderColor: option.border }}
+                          onClick={() => {
+                            void onSaveMeta({ background: option.id });
+                            setColorOpen(false);
+                          }}
+                          aria-label={option.label}
+                          title={option.label}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <button
-              type="button"
-              className={`${styles.iconBtn} ${
-                cartQuantity > 0 ? styles.iconActive : ''
-              }`}
-              onClick={() => void onAddToCart()}
-              aria-label={
-                cartQuantity > 0
-                  ? cartQuantity === 1
-                    ? 'In cart — add another'
-                    : `In cart ×${cartQuantity} — add another`
-                  : 'Add to cart'
-              }
-              title={
-                cartQuantity > 0
-                  ? cartQuantity === 1
-                    ? 'In cart — click to add another'
-                    : `In cart ×${cartQuantity} — click to add another`
-                  : 'Add to cart'
-              }
-            >
-              <ShoppingCart size={18} />
-              {cartQuantity > 0 && (
-                <span className={styles.cartBadge}>{cartQuantity}</span>
-              )}
-            </button>
+                <button
+                  type="button"
+                  className={`${styles.iconBtn} ${
+                    cartQuantity > 0 ? styles.iconActive : ''
+                  }`}
+                  onClick={() => void onAddToCart()}
+                  aria-label={
+                    cartQuantity > 0
+                      ? cartQuantity === 1
+                        ? 'In cart — add another'
+                        : `In cart ×${cartQuantity} — add another`
+                      : 'Add to cart'
+                  }
+                  title={
+                    cartQuantity > 0
+                      ? cartQuantity === 1
+                        ? 'In cart — click to add another'
+                        : `In cart ×${cartQuantity} — click to add another`
+                      : 'Add to cart'
+                  }
+                >
+                  <ShoppingCart size={18} />
+                  {cartQuantity > 0 && (
+                    <span className={styles.cartBadge}>{cartQuantity}</span>
+                  )}
+                </button>
+              </>
+            )}
+
+            {isNarrow && (
+              <div className={styles.moreWrap} data-more-menu>
+                <button
+                  type="button"
+                  className={`${styles.iconBtn} ${moreOpen ? styles.iconActive : ''}`}
+                  onClick={() => {
+                    setMoreOpen((v) => !v);
+                    setColorOpen(false);
+                  }}
+                  aria-label="More actions"
+                  aria-expanded={moreOpen}
+                  title="More"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+                {moreOpen && (
+                  <div className={styles.moreMenu} role="menu" aria-label="Note actions">
+                    <button
+                      type="button"
+                      className={styles.moreItem}
+                      role="menuitem"
+                      onClick={() => {
+                        void onSaveMeta({ pinned: !note.pinned });
+                        setMoreOpen(false);
+                      }}
+                    >
+                      {note.pinned ? <PinOff size={16} /> : <Pin size={16} />}
+                      <span>{note.pinned ? 'Unpin' : 'Pin'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.moreItem}
+                      role="menuitem"
+                      onClick={() => {
+                        void onSaveMeta({ archived: !note.archived });
+                        setMoreOpen(false);
+                      }}
+                    >
+                      {note.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                      <span>{note.archived ? 'Unarchive' : 'Archive'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.moreItem}
+                      role="menuitem"
+                      onClick={() => setColorOpen((v) => !v)}
+                      aria-expanded={colorOpen}
+                    >
+                      <Palette size={16} />
+                      <span>Color</span>
+                    </button>
+                    {colorOpen && (
+                      <div className={styles.moreSwatches} role="listbox" aria-label="Note background">
+                        {BACKGROUNDS.map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            className={`${styles.swatch} ${
+                              note.background === option.id ? styles.swatchActive : ''
+                            }`}
+                            style={{ background: option.surface, borderColor: option.border }}
+                            onClick={() => {
+                              void onSaveMeta({ background: option.id });
+                              setColorOpen(false);
+                              setMoreOpen(false);
+                            }}
+                            aria-label={option.label}
+                            title={option.label}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className={styles.moreItem}
+                      role="menuitem"
+                      onClick={() => {
+                        void onAddToCart();
+                        setMoreOpen(false);
+                      }}
+                    >
+                      <ShoppingCart size={16} />
+                      <span>
+                        {cartQuantity > 0
+                          ? cartQuantity === 1
+                            ? 'In cart — add another'
+                            : `In cart ×${cartQuantity} — add another`
+                          : 'Add to cart'}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               type="button"

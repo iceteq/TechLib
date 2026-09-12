@@ -183,6 +183,39 @@
 }
 
 @media (max-width: 600px) {
+  /* Compact filmstrip so title/meta stay above the keyboard. */
+  .grid {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .thumb {
+    flex: 0 0 4.5rem;
+    width: 4.5rem;
+    aspect-ratio: 1;
+  }
+
+  .single .thumb {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 10;
+    max-height: 140px;
+  }
+
+  .dragHandle,
+  .remove {
+    opacity: 1;
+  }
+
+  .hint {
+    display: none;
+  }
+
   .navPrev {
     left: 0.35rem;
   }
