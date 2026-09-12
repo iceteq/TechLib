@@ -409,22 +409,27 @@
     /* Always cover the full layout viewport so the grid never peeks through. */
     inset: 0;
     padding: 0;
-    place-items: stretch;
-    align-items: stretch;
-    justify-items: stretch;
+    /* Dialog is absolutely pinned to the visual viewport; overlay is just a mask. */
+    display: block;
     background: var(--bg-elevated, #fff);
   }
 
   .dialog {
+    position: absolute;
+    top: var(--vv-offset-top, 0px);
+    left: 0;
+    right: 0;
     width: 100%;
-    /* Sit in the visual viewport (above the soft keyboard). */
+    /* Fill the visual viewport edge-to-edge (flush with the soft keyboard). */
     height: var(--vv-height, 100dvh);
     max-height: var(--vv-height, 100dvh);
     min-height: 0;
-    margin-top: var(--vv-offset-top, 0px);
+    margin: 0;
     border: none;
     border-radius: 0;
     box-shadow: none;
+    /* Skip the desktop rise translate so layout stays flush during open. */
+    animation: fade 180ms ease;
   }
 
   .dialogBody {
@@ -441,5 +446,10 @@
     padding-bottom: max(1.1rem, env(safe-area-inset-bottom, 0px));
     border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
     background: inherit;
+  }
+
+  /* Home-indicator inset is irrelevant while the keyboard covers the bottom edge. */
+  .overlay[data-keyboard-open='true'] .footer {
+    padding-bottom: 0.35rem;
   }
 }
