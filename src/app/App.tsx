@@ -35,7 +35,7 @@ import {
   filterNotes,
   stockLabel,
 } from '../lib/searchNotes';
-import { parsePastedNotes } from '../lib/parsePastedNotes';
+import type { PastedNoteDraft } from '../lib/parsePastedNotes';
 import {
   describeNoteAssign,
   noteAssignPatch,
@@ -500,8 +500,7 @@ export default function App() {
     setSidebarOpen(false);
   }
 
-  async function handlePasteImport(text: string) {
-    const drafts = parsePastedNotes(text);
+  async function handlePasteImport(drafts: PastedNoteDraft[]) {
     const createdIds: string[] = [];
     const meta = createMetaFromFilters({
       disposition: filterDisposition,
