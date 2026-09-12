@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { parsePastedNotes } from '../../lib/parsePastedNotes';
+import {
+  parsePastedNotes,
+  type PastedNoteDraft,
+} from '../../lib/parsePastedNotes';
 import styles from './PasteNotesDialog.module.css';
 
 interface PasteNotesDialogProps {
   filterSummary: string;
   onClose: () => void;
-  onImport: (text: string) => Promise<void>;
+  onImport: (drafts: PastedNoteDraft[]) => Promise<void>;
+}
+
+function secondaryLine(draft: PastedNoteDraft): string {
+  return [draft.description, draft.specialCase].filter(Boolean).join(' · ');
 }
 
 export function PasteNotesDialog({
@@ -15,10 +22,15 @@ export function PasteNotesDialog({
   onImport,
 }: PasteNotesDialogProps) {
   const [text, setText] = useState('');
+  const [removed, setRemoved] = useState<Set<number>>(() => new Set());
   const [busy, setBusy] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const drafts = useMemo(() => parsePastedNotes(text), [text]);
+  const parsed = useMemo(() => parsePastedNotes(text), [text]);
+  const drafts = useMemo(
+    () => parsed.filter((_, index) => !removed.has(index)),
+    [parsed, removed],
+  );
   const canImport = drafts.length > 0 && !busy;
 
   useEffect(() => {
@@ -33,11 +45,28 @@ export function PasteNotesDialog({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [busy, onClose]);
 
+  function handleTextChange(next: string) {
+    setText(next);
+    setRemoved(new Set());
+  }
+
+  function removeDraft(index: number) {
+    setRemoved((current) => {
+      const next = new Set(current);
+      next.add(index);
+      return next;
+    });
+  }
+
+  function restoreAll() {
+    setRemoved(new Set());
+  }
+
   async function handleImport() {
     if (!canImport) return;
     setBusy(true);
     try {
-      await onImport(text);
+      await onImport(drafts);
       onClose();
     } finally {
       setBusy(false);
@@ -65,7 +94,8 @@ export function PasteNotesDialog({
             </h2>
             <p className={styles.subtitle}>
               One note per line from Excel. Columns: part number, description
-              (optional), guidelines (optional).
+              (optional), guidelines (optional). Remove any row from the preview
+              before importing.
             </p>
           </div>
           <button
@@ -87,16 +117,64 @@ export function PasteNotesDialog({
           ref={textareaRef}
           className={styles.textarea}
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={'ABC123\nDEF456\tNeeds new cable\nGHI789\tCrack on bezel\tHold for parts'}
-          rows={10}
+          onChange={(e) => handleTextChange(e.target.value)}
+          placeholder={
+            'ABC123\nDEF456\tNeeds new cable\nGHI789\tCrack on bezel\tHold for parts'
+          }
+          rows={8}
           disabled={busy}
           spellCheck={false}
         />
 
+        {parsed.length > 0 && (
+          <div className={styles.previewWrap}>
+            <div className={styles.previewHeader}>
+              <p className={styles.previewLabel}>Preview</p>
+              {removed.size > 0 && (
+                <button
+                  type="button"
+                  className={styles.restoreBtn}
+                  onClick={restoreAll}
+                  disabled={busy}
+                >
+                  Restore all
+                </button>
+              )}
+            </div>
+            <ul className={styles.previewList} aria-label="Notes to import">
+              {parsed.map((draft, index) => {
+                if (removed.has(index)) return null;
+                const detail = secondaryLine(draft);
+                return (
+                  <li key={`${index}-${draft.title}`} className={styles.previewItem}>
+                    <div className={styles.previewText}>
+                      <span className={styles.previewTitle}>{draft.title}</span>
+                      {detail ? (
+                        <span className={styles.previewDetail}>{detail}</span>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.removeBtn}
+                      onClick={() => removeDraft(index)}
+                      disabled={busy}
+                      aria-label={`Remove ${draft.title}`}
+                      title="Remove from import"
+                    >
+                      <X size={14} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         <p className={styles.meta}>
           {drafts.length === 0
-            ? 'No part numbers yet'
+            ? parsed.length > 0
+              ? 'All rows removed — nothing to import'
+              : 'No part numbers yet'
             : `${drafts.length} note${drafts.length === 1 ? '' : 's'} will be created`}
           <span className={styles.dot}>·</span>
           {filterSummary}
@@ -117,7 +195,11 @@ export function PasteNotesDialog({
             onClick={() => void handleImport()}
             disabled={!canImport}
           >
-            {busy ? 'Importing…' : 'Import'}
+            {busy
+              ? 'Importing…'
+              : drafts.length > 0
+                ? `Import ${drafts.length}`
+                : 'Import'}
           </button>
         </div>
       </div>
