@@ -39,8 +39,10 @@ function looksLikeHeaderCell(value: string): boolean {
 }
 
 function looksLikeHeaderRow(cells: string[]): boolean {
+  // Only the part-number cell decides; other columns may literally say
+  // "description" / "guidelines" as content.
   if (cells.length === 0) return false;
-  return cells.some((cell) => looksLikeHeaderCell(cell));
+  return looksLikeHeaderCell(cells[0] ?? '');
 }
 
 /**
