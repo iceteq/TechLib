@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Hash, Plus } from 'lucide-react';
+import { autosizeTextarea } from '../../lib/autosizeTextarea';
 import type { Label } from '../../lib/types';
 import styles from './DescriptionField.module.css';
 
@@ -68,6 +69,10 @@ export function DescriptionField({
 
   const showMenu = open && token !== null && (suggestions.length > 0 || canCreate);
   const optionCount = suggestions.length + (canCreate ? 1 : 0);
+
+  useEffect(() => {
+    autosizeTextarea(textareaRef.current);
+  }, [value]);
 
   async function applyLabel(label: Label) {
     if (!token) return;

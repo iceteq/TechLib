@@ -7,14 +7,18 @@
 
 .textarea {
   width: 100%;
+  box-sizing: border-box;
   border: none;
   background: transparent;
-  resize: vertical;
+  resize: none;
   min-height: 7rem;
+  max-height: min(52dvh, 28rem);
   line-height: 1.5;
   outline: none;
   color: var(--text);
   font: inherit;
+  overflow-y: hidden;
+  field-sizing: content;
 }
 
 .menu {

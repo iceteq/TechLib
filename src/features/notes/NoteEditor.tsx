@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Archive,
   ArchiveRestore,
@@ -14,6 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { autosizeTextarea } from '../../lib/autosizeTextarea';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
@@ -115,6 +117,7 @@ export function NoteEditor({
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const specialCaseRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const firstOpenRef = useRef(true);
@@ -201,8 +204,10 @@ export function NoteEditor({
       bodyLeft: body.style.left,
       bodyRight: body.style.right,
       bodyWidth: body.style.width,
+      bodyPaddingRight: body.style.paddingRight,
     };
 
+    const scrollbarGap = window.innerWidth - html.clientWidth;
     html.style.overflow = 'hidden';
     body.style.overflow = 'hidden';
     body.style.position = 'fixed';
@@ -210,8 +215,32 @@ export function NoteEditor({
     body.style.left = `-${scrollX}px`;
     body.style.right = '0';
     body.style.width = '100%';
+    if (scrollbarGap > 0) {
+      body.style.paddingRight = `${scrollbarGap}px`;
+    }
+
+    function isInsideDialog(target: EventTarget | null) {
+      return target instanceof Node && Boolean(dialogRef.current?.contains(target));
+    }
+
+    function onWheel(e: WheelEvent) {
+      if (!isInsideDialog(e.target)) {
+        e.preventDefault();
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!isInsideDialog(e.target)) {
+        e.preventDefault();
+      }
+    }
+
+    document.addEventListener('wheel', onWheel, { passive: false });
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
 
     return () => {
+      document.removeEventListener('wheel', onWheel);
+      document.removeEventListener('touchmove', onTouchMove);
       html.style.overflow = previous.htmlOverflow;
       body.style.overflow = previous.bodyOverflow;
       body.style.position = previous.bodyPosition;
@@ -219,9 +248,11 @@ export function NoteEditor({
       body.style.left = previous.bodyLeft;
       body.style.right = previous.bodyRight;
       body.style.width = previous.bodyWidth;
+      body.style.paddingRight = previous.bodyPaddingRight;
       window.scrollTo(scrollX, scrollY);
     };
   }, []);
+
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -241,6 +272,11 @@ export function NoteEditor({
     dialog.addEventListener('focusin', onFocusIn);
     return () => dialog.removeEventListener('focusin', onFocusIn);
   }, []);
+
+  useEffect(() => {
+    if (!specialCaseOpen) return;
+    autosizeTextarea(specialCaseRef.current);
+  }, [specialCase, specialCaseOpen]);
 
   function handleFileInput(
     e: React.ChangeEvent<HTMLInputElement>,
@@ -382,7 +418,7 @@ export function NoteEditor({
     await onSaveMeta({ labelIds: [...note.labelIds, label.id] });
   }
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       className={styles.overlay}
@@ -643,6 +679,7 @@ export function NoteEditor({
                   Definitions / notes
                 </label>
                 <textarea
+                  ref={specialCaseRef}
                   id="special-case"
                   className={styles.specialCase}
                   value={specialCase}
@@ -760,6 +797,7 @@ export function NoteEditor({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

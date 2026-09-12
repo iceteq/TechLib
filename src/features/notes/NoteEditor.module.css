@@ -5,7 +5,8 @@
   display: grid;
   place-items: center;
   padding: 1.25rem;
-  background: rgba(20, 24, 30, 0.42);
+  /* Opaque enough that the grid isn't readable behind the note. */
+  background: rgba(20, 24, 30, 0.78);
   overscroll-behavior: none;
   touch-action: none;
   animation: fade 180ms ease;
@@ -15,11 +16,12 @@
   display: flex;
   flex-direction: column;
   width: min(720px, 100%);
-  max-height: min(92vh, 900px);
+  /* Grow with content up to the available viewport. */
+  max-height: min(94dvh, 960px);
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 18px;
-  box-shadow: 0 20px 50px rgba(20, 24, 30, 0.22);
+  box-shadow: 0 20px 50px rgba(20, 24, 30, 0.28);
   overscroll-behavior: contain;
   touch-action: auto;
   animation: rise 220ms ease;
@@ -206,11 +208,14 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.55);
-  resize: vertical;
+  resize: none;
   min-height: 3.2rem;
+  max-height: min(32dvh, 14rem);
   line-height: 1.4;
   font: inherit;
   outline: none;
+  overflow-y: hidden;
+  field-sizing: content;
 }
 
 .specialCase:focus {
@@ -272,6 +277,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 0.35rem 1.1rem 0.5rem;
 }
 
@@ -424,6 +431,10 @@
     -webkit-overflow-scrolling: touch;
     padding-bottom: 0.35rem;
     overscroll-behavior: contain;
+  }
+
+  .fields {
+    flex: 1 1 auto;
   }
 
   .footer {
