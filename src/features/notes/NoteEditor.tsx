@@ -195,8 +195,8 @@ export function NoteEditor({
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [moreOpen]);
 
-  // Keep the mobile sheet flush with the visual viewport so the soft keyboard
-  // does not cover the footer and no empty gap sits above the keyboard.
+  // Pin the mobile sheet inside the visual viewport with an even inset so the
+  // soft keyboard never covers it and a tiny frame stays visible all around.
   useEffect(() => {
     const overlay = overlayRef.current;
     const vv = window.visualViewport;
@@ -204,9 +204,11 @@ export function NoteEditor({
 
     const sync = () => {
       overlay.style.setProperty('--vv-offset-top', `${vv.offsetTop}px`);
+      overlay.style.setProperty('--vv-offset-left', `${vv.offsetLeft}px`);
+      overlay.style.setProperty('--vv-width', `${vv.width}px`);
       overlay.style.setProperty('--vv-height', `${vv.height}px`);
       // Treat a meaningfully shorter visual viewport as keyboard-open so we can
-      // drop home-indicator padding that otherwise reads as a gap above the keys.
+      // drop home-indicator padding that otherwise unbalances the bottom inset.
       const keyboardOpen = vv.height < window.innerHeight * 0.85;
       overlay.dataset.keyboardOpen = keyboardOpen ? 'true' : 'false';
     };
@@ -220,6 +222,8 @@ export function NoteEditor({
       vv.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
       overlay.style.removeProperty('--vv-offset-top');
+      overlay.style.removeProperty('--vv-offset-left');
+      overlay.style.removeProperty('--vv-width');
       overlay.style.removeProperty('--vv-height');
       delete overlay.dataset.keyboardOpen;
     };

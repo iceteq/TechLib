@@ -456,29 +456,27 @@
 
 @media (max-width: 600px) {
   .overlay {
-    /* Always cover the full layout viewport so the grid never peeks through. */
+    /* Full layout viewport; dimmed so the tiny inset frame reads as “open over grid”. */
+    --editor-inset: 8px;
     inset: 0;
     padding: 0;
-    /* Dialog is absolutely pinned to the visual viewport; overlay is just a mask. */
     display: block;
-    background: var(--bg-elevated, #fff);
+    background: rgba(20, 24, 30, 0.72);
   }
 
   .dialog {
     position: absolute;
-    top: var(--vv-offset-top, 0px);
-    left: 0;
-    right: 0;
-    width: 100%;
-    /* Fill the visual viewport edge-to-edge (flush with the soft keyboard). */
-    height: var(--vv-height, 100dvh);
-    max-height: var(--vv-height, 100dvh);
+    /* Even inset inside the visual viewport (including above the soft keyboard). */
+    top: calc(var(--vv-offset-top, 0px) + var(--editor-inset));
+    left: calc(var(--vv-offset-left, 0px) + var(--editor-inset));
+    width: calc(var(--vv-width, 100%) - (2 * var(--editor-inset)));
+    height: calc(var(--vv-height, 100dvh) - (2 * var(--editor-inset)));
+    max-height: calc(var(--vv-height, 100dvh) - (2 * var(--editor-inset)));
     min-height: 0;
     margin: 0;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    /* Skip the desktop rise translate so layout stays flush during open. */
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 12px 36px rgba(20, 24, 30, 0.28);
     animation: fade 180ms ease;
   }
 
@@ -493,13 +491,13 @@
   }
 
   .footer {
-    padding-bottom: max(1.1rem, env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(0.85rem, env(safe-area-inset-bottom, 0px));
     border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
     background: inherit;
   }
 
   /* Home-indicator inset is irrelevant while the keyboard covers the bottom edge. */
   .overlay[data-keyboard-open='true'] .footer {
-    padding-bottom: 0.35rem;
+    padding-bottom: 0.45rem;
   }
 }
