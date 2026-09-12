@@ -1,15 +1,16 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { DISPOSITIONS } from '../../lib/types';
 import type {
+  GuidelineLine,
   Label,
   NoteDisposition,
   NoteType,
   StockLocation,
 } from '../../lib/types';
-import { dispositionColorVars } from '../../lib/dispositions';
+import { resolveGuidelineLines } from '../../lib/guidelineLines';
 import { LabelPicker } from '../labels/LabelPicker';
+import { GuidelineLinesEditor } from './GuidelineLinesEditor';
 import styles from './MetaAssignPopover.module.css';
 
 export type MetaAssignField =
@@ -25,10 +26,12 @@ interface MetaAssignPopoverProps {
   stockLocations: StockLocation[];
   labels: Label[];
   currentDisposition: NoteDisposition;
+  currentGuidelineLines?: GuidelineLine[] | null;
   currentCategoryId: string | null;
   currentStockId: string | null;
   currentLabelIds: string[];
   onAssignDisposition: (value: NoteDisposition) => void;
+  onAssignGuidelineLines?: (lines: GuidelineLine[]) => void;
   onAssignCategory: (value: string | null) => void;
   onAssignStock: (value: string | null) => void;
   onAssignLabels: (labelIds: string[]) => void;
@@ -43,10 +46,12 @@ export function MetaAssignPopover({
   stockLocations,
   labels,
   currentDisposition,
+  currentGuidelineLines,
   currentCategoryId,
   currentStockId,
   currentLabelIds,
   onAssignDisposition,
+  onAssignGuidelineLines,
   onAssignCategory,
   onAssignStock,
   onAssignLabels,
@@ -57,6 +62,12 @@ export function MetaAssignPopover({
   const titleId = useId();
   const partLabel = noteTitle.trim() || 'No part number';
   const [draftLabelIds, setDraftLabelIds] = useState(currentLabelIds);
+  const [draftLines, setDraftLines] = useState(() =>
+    resolveGuidelineLines({
+      guidelineLines: currentGuidelineLines,
+      disposition: currentDisposition,
+    }),
+  );
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -84,6 +95,18 @@ export function MetaAssignPopover({
     onClose();
   }
 
+  function commitGuidelinesAndClose() {
+    if (onAssignGuidelineLines) {
+      onAssignGuidelineLines(draftLines);
+    } else if (draftLines.length === 0) {
+      onAssignDisposition('none');
+    } else {
+      // Fallback for callers that only accept a single disposition.
+      onAssignDisposition(draftLines[0].action);
+    }
+    onClose();
+  }
+
   const fieldLabel =
     field === 'disposition'
       ? 'Guideline'
@@ -105,7 +128,9 @@ export function MetaAssignPopover({
     >
       <div
         ref={dialogRef}
-        className={styles.dialog}
+        className={`${styles.dialog} ${
+          field === 'disposition' ? styles.dialogWide : ''
+        }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -115,7 +140,12 @@ export function MetaAssignPopover({
         <div className={styles.header}>
           <div className={styles.headerText}>
             <p className={styles.fieldLabel}>
-              {field === 'labels' ? 'Manage' : 'Set'} {fieldLabel}
+              {field === 'labels'
+                ? 'Manage'
+                : field === 'disposition'
+                  ? 'Edit'
+                  : 'Set'}{' '}
+              {fieldLabel}
             </p>
             <h2 id={titleId} className={styles.noteTitle}>
               {partLabel}
@@ -147,43 +177,27 @@ export function MetaAssignPopover({
               Done
             </button>
           </div>
+        ) : field === 'disposition' ? (
+          <div className={styles.labelBody}>
+            <p className={styles.hint}>
+              Add When → Then rules (e.g. Broken → Repair). Optional How for
+              procedures like serial + special bin.
+            </p>
+            <GuidelineLinesEditor
+              lines={draftLines}
+              onChange={setDraftLines}
+              compact
+            />
+            <button
+              type="button"
+              className={styles.done}
+              onClick={commitGuidelinesAndClose}
+            >
+              Done
+            </button>
+          </div>
         ) : (
           <div className={styles.options} role="listbox" aria-label={fieldLabel}>
-            {field === 'disposition' &&
-              DISPOSITIONS.map((option) => {
-                const colors = dispositionColorVars(option.id);
-                const selected = currentDisposition === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className={`${styles.item} ${
-                      selected ? styles.itemActive : ''
-                    }`}
-                    style={
-                      colors
-                        ? {
-                            color: colors.fg,
-                            ...(selected
-                              ? {
-                                  background: colors.bg,
-                                  boxShadow: `inset 3px 0 0 ${colors.border}`,
-                                }
-                              : undefined),
-                          }
-                        : undefined
-                    }
-                    role="option"
-                    aria-selected={selected}
-                    onClick={() => {
-                      onAssignDisposition(option.id);
-                      onClose();
-                    }}
-                  >
-                    {option.id === 'none' ? 'No guideline' : option.label}
-                  </button>
-                );
-              })}
             {field === 'categoryId' && (
               <>
                 <button

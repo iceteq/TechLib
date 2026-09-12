@@ -1,5 +1,6 @@
 import type {
   CartItem,
+  GuidelineLine,
   Label,
   Note,
   NoteBackground,
@@ -15,6 +16,11 @@ import type {
 import { DEFAULT_NOTE_TYPES, legacyCategoryToTypeId } from './types';
 import { guessIconFromName, nextNoteTypeColor } from './noteTypes';
 import { getSupabase } from './supabaseClient';
+import {
+  alwaysGuidelineLines,
+  primaryDispositionFromLines,
+  resolveGuidelineLines,
+} from './guidelineLines';
 
 const BUCKET = 'note-images';
 
@@ -25,6 +31,7 @@ type NoteRow = {
   description: string;
   background: string;
   disposition: string;
+  guideline_lines?: GuidelineLine[] | null;
   /** Legacy text category; kept for migration / read fallback. */
   category: string;
   category_id: string | null;
@@ -142,12 +149,17 @@ async function hydrateRows(rows: NoteRow[]): Promise<NoteWithUrls[]> {
           url: await signedUrl(img.storage_path),
         })),
       );
+      const guidelineLines = resolveGuidelineLines({
+        guidelineLines: row.guideline_lines,
+        disposition: (row.disposition as NoteDisposition) ?? 'none',
+      });
       const note: NoteWithUrls = {
         id: row.id,
         title: row.title,
         description: row.description,
         background: row.background as NoteBackground,
-        disposition: (row.disposition as NoteDisposition) ?? 'none',
+        disposition: primaryDispositionFromLines(guidelineLines),
+        guidelineLines,
         categoryId:
           row.category_id ?? legacyCategoryToTypeId(row.category),
         stockId: row.stock_id ?? null,
@@ -213,6 +225,7 @@ export async function createNote(input?: {
   description?: string;
   background?: NoteBackground;
   disposition?: NoteDisposition;
+  guidelineLines?: GuidelineLine[];
   categoryId?: string | null;
   stockId?: string | null;
   specialCase?: string;
@@ -220,6 +233,11 @@ export async function createNote(input?: {
 }): Promise<NoteWithUrls> {
   const ownerId = await requireUserId();
   await ensureDefaultNoteTypes();
+  const guidelineLines =
+    input?.guidelineLines != null
+      ? resolveGuidelineLines({ guidelineLines: input.guidelineLines })
+      : alwaysGuidelineLines(input?.disposition ?? 'none');
+  const disposition = primaryDispositionFromLines(guidelineLines);
   const { data, error } = await getSupabase()
     .from('notes')
     .insert({
@@ -227,7 +245,8 @@ export async function createNote(input?: {
       title: input?.title ?? '',
       description: input?.description ?? '',
       background: input?.background ?? 'default',
-      disposition: input?.disposition ?? 'none',
+      disposition,
+      guideline_lines: guidelineLines,
       category: 'none',
       category_id: input?.categoryId ?? null,
       stock_id: input?.stockId ?? null,
@@ -257,6 +276,7 @@ export async function updateNote(
       | 'pinned'
       | 'archived'
       | 'disposition'
+      | 'guidelineLines'
       | 'categoryId'
       | 'stockId'
       | 'specialCase'
@@ -264,7 +284,15 @@ export async function updateNote(
   >,
 ): Promise<NoteWithUrls | undefined> {
   await requireUserId();
-  const { labelIds, specialCase, stockId, categoryId, ...rest } = patch;
+  const {
+    labelIds,
+    specialCase,
+    stockId,
+    categoryId,
+    guidelineLines,
+    disposition,
+    ...rest
+  } = patch;
   const update: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
@@ -273,10 +301,19 @@ export async function updateNote(
   if (rest.background !== undefined) update.background = rest.background;
   if (rest.pinned !== undefined) update.pinned = rest.pinned;
   if (rest.archived !== undefined) update.archived = rest.archived;
-  if (rest.disposition !== undefined) update.disposition = rest.disposition;
   if (categoryId !== undefined) update.category_id = categoryId;
   if (stockId !== undefined) update.stock_id = stockId;
   if (specialCase !== undefined) update.special_case = specialCase;
+
+  if (guidelineLines !== undefined) {
+    const lines = resolveGuidelineLines({ guidelineLines });
+    update.guideline_lines = lines;
+    update.disposition = primaryDispositionFromLines(lines);
+  } else if (disposition !== undefined) {
+    const lines = alwaysGuidelineLines(disposition);
+    update.guideline_lines = lines;
+    update.disposition = primaryDispositionFromLines(lines);
+  }
 
   const { error } = await getSupabase().from('notes').update(update).eq('id', id);
   throwIf(error);

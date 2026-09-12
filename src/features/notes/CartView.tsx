@@ -2,7 +2,9 @@ import { Minus, Plus, Printer, ShoppingCart, Trash2, X } from 'lucide-react';
 import type { CartItem, Label, NoteType, NoteWithUrls } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { noteTypeById, noteTypeIcon } from '../../lib/noteTypes';
-import { categoryLabel, dispositionLabel } from '../../lib/searchNotes';
+import { categoryLabel } from '../../lib/searchNotes';
+import { resolveGuidelineLines } from '../../lib/guidelineLines';
+import { DISPOSITIONS } from '../../lib/types';
 import styles from './CartView.module.css';
 
 export type CartRow = {
@@ -125,9 +127,20 @@ export function CartView({
                     ? noteTypeById(noteTypes, note.categoryId)
                     : null;
                   const Icon = noteTypeIcon(type?.icon);
-                  const status = note
-                    ? dispositionLabel(note.disposition ?? null)
-                    : null;
+                  const lines = note
+                    ? resolveGuidelineLines(note)
+                    : [];
+                  const status =
+                    lines.length === 0
+                      ? null
+                      : lines
+                          .map((line) => {
+                            const action =
+                              DISPOSITIONS.find((d) => d.id === line.action)
+                                ?.short ?? line.action;
+                            return `${line.when} → ${action}`;
+                          })
+                          .join('; ');
                   const typeName = note
                     ? categoryLabel(note.categoryId, noteTypes)
                     : null;

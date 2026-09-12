@@ -55,6 +55,7 @@ interface NoteGridProps {
     noteIds: string[],
     patch: {
       disposition?: NoteDisposition;
+      guidelineLines?: import('../../lib/types').GuidelineLine[];
       categoryId?: string | null;
       stockId?: string | null;
       labelIds?: string[];
@@ -538,6 +539,9 @@ export function NoteGrid({
               }
               onAssignDisposition={(noteId, value) =>
                 void onUpdateNotes([noteId], { disposition: value })
+              }
+              onAssignGuidelineLines={(noteId, lines) =>
+                void onUpdateNotes([noteId], { guidelineLines: lines })
               }
               onAssignCategory={(noteId, value) =>
                 void onUpdateNotes([noteId], { categoryId: value })

@@ -14,6 +14,29 @@ export type NoteDisposition =
   | 'config'
   | 'scrap';
 
+/** Outcome actions used in When → Then guideline lines (no "none"). */
+export type GuidelineAction = Exclude<NoteDisposition, 'none'>;
+
+/**
+ * One decision rule: if `when`, do `action` (optional `how` procedure).
+ * Example: Broken → Repair; Obsolete → Scrap (log serial).
+ */
+export interface GuidelineLine {
+  id: string;
+  /** Short condition, e.g. "Broken", "Uninstall", "Always". */
+  when: string;
+  action: GuidelineAction;
+  /** Optional procedure, e.g. "log serial → customer bin". */
+  how: string;
+}
+
+export const GUIDELINE_ACTIONS: GuidelineAction[] = [
+  'stock',
+  'repair',
+  'config',
+  'scrap',
+];
+
 export type NoteTypeColor =
   | 'blue'
   | 'teal'
@@ -57,12 +80,21 @@ export interface Note {
   title: string;
   description: string;
   background: NoteBackground;
+  /**
+   * Legacy single guideline. Kept in sync with `guidelineLines`
+   * (primary / Always action, or `none` when empty).
+   */
   disposition: NoteDisposition;
+  /** If → then decision lines (source of truth for guidelines). */
+  guidelineLines: GuidelineLine[];
   /** User-defined product type id, or null when unset. */
   categoryId: string | null;
   /** Single stock location (bay/shelf code), or null when unset. */
   stockId: string | null;
-  /** Exception / special-case handling note under guideline. */
+  /**
+   * Extra definitions / notes for the guideline
+   * (e.g. what “obsolete” means for this part).
+   */
   specialCase: string;
   pinned: boolean;
   archived: boolean;

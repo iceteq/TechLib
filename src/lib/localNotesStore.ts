@@ -10,9 +10,15 @@ import type {
   Reaction,
   ReactionEmoji,
   StockLocation,
+  GuidelineLine,
 } from './types';
 import { DEFAULT_NOTE_TYPES, legacyCategoryToTypeId } from './types';
 import { guessIconFromName, nextNoteTypeColor } from './noteTypes';
+import {
+  alwaysGuidelineLines,
+  primaryDispositionFromLines,
+  resolveGuidelineLines,
+} from './guidelineLines';
 
 interface TechLibDB extends DBSchema {
   notes: {
@@ -71,12 +77,17 @@ function normalizeNote(note: Note & { category?: string }): Note {
     note.categoryId != null
       ? note.categoryId
       : legacyCategoryToTypeId(legacy);
+  const guidelineLines = resolveGuidelineLines({
+    guidelineLines: note.guidelineLines,
+    disposition: note.disposition,
+  });
   return {
     id: note.id,
     title: note.title,
     description: note.description,
     background: note.background,
-    disposition: note.disposition ?? 'none',
+    disposition: primaryDispositionFromLines(guidelineLines),
+    guidelineLines,
     categoryId,
     stockId: note.stockId ?? null,
     specialCase: note.specialCase ?? '',
@@ -206,6 +217,7 @@ export async function createNote(input?: {
   description?: string;
   background?: NoteBackground;
   disposition?: NoteDisposition;
+  guidelineLines?: GuidelineLine[];
   categoryId?: string | null;
   stockId?: string | null;
   specialCase?: string;
@@ -214,12 +226,17 @@ export async function createNote(input?: {
   await ensureDefaultNoteTypes();
   const db = await getDb();
   const now = Date.now();
+  const guidelineLines =
+    input?.guidelineLines != null
+      ? resolveGuidelineLines({ guidelineLines: input.guidelineLines })
+      : alwaysGuidelineLines(input?.disposition ?? 'none');
   const note: Note = {
     id: uid(),
     title: input?.title ?? '',
     description: input?.description ?? '',
     background: input?.background ?? 'default',
-    disposition: input?.disposition ?? 'none',
+    disposition: primaryDispositionFromLines(guidelineLines),
+    guidelineLines,
     categoryId: input?.categoryId ?? null,
     stockId: input?.stockId ?? null,
     specialCase: input?.specialCase ?? '',
@@ -247,6 +264,7 @@ export async function updateNote(
       | 'pinned'
       | 'archived'
       | 'disposition'
+      | 'guidelineLines'
       | 'categoryId'
       | 'stockId'
       | 'specialCase'
@@ -257,9 +275,26 @@ export async function updateNote(
   const existing = await db.get('notes', id);
   if (!existing) return undefined;
 
+  const base = normalizeNote(existing);
+  let guidelineLines = base.guidelineLines;
+  let disposition = base.disposition;
+
+  if (patch.guidelineLines !== undefined) {
+    guidelineLines = resolveGuidelineLines({
+      guidelineLines: patch.guidelineLines,
+    });
+    disposition = primaryDispositionFromLines(guidelineLines);
+  } else if (patch.disposition !== undefined) {
+    guidelineLines = alwaysGuidelineLines(patch.disposition);
+    disposition = primaryDispositionFromLines(guidelineLines);
+  }
+
+  const { guidelineLines: _gl, disposition: _d, ...rest } = patch;
   const next: Note = {
-    ...normalizeNote(existing),
-    ...patch,
+    ...base,
+    ...rest,
+    guidelineLines,
+    disposition,
     updatedAt: Date.now(),
   };
   await db.put('notes', next);

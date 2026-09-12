@@ -301,6 +301,12 @@
   flex-wrap: wrap;
   gap: 0.3rem;
   margin-top: 0.1rem;
+  align-items: flex-start;
+}
+
+.guidelineBlock {
+  flex: 1 1 100%;
+  min-width: 0;
 }
 
 .metaWrap {

@@ -9,6 +9,11 @@ import type {
 } from './types';
 import { DISPOSITIONS, UNSET_STOCK_FILTER, UNSET_TYPE_FILTER } from './types';
 import { noteTypeLabel } from './noteTypes';
+import {
+  guidelineLinesSearchText,
+  noteMatchesDispositionFilter,
+  resolveGuidelineLines,
+} from './guidelineLines';
 
 function searchTokens(query: string): string[] {
   return query
@@ -35,6 +40,10 @@ function tokenSearchRank(
   if (description.includes(token)) return 50;
 
   if ((note.specialCase ?? '').toLowerCase().includes(token)) return 40;
+
+  const lines = resolveGuidelineLines(note);
+  const lineText = guidelineLinesSearchText(lines).toLowerCase();
+  if (lineText.includes(token)) return 38;
 
   const disposition = DISPOSITIONS.find(
     (d) => d.id === (note.disposition ?? 'none'),
@@ -144,7 +153,10 @@ export function filterNotes(
     ) {
       return false;
     }
-    if (options.disposition && note.disposition !== options.disposition) {
+    if (
+      options.disposition &&
+      !noteMatchesDispositionFilter(note, options.disposition)
+    ) {
       return false;
     }
     if (options.categoryId === UNSET_TYPE_FILTER) {

@@ -21,6 +21,18 @@
   animation: riseIn 160ms ease;
 }
 
+.dialogWide {
+  width: min(28rem, 100%);
+  max-height: min(85vh, 40rem);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
 .header {
   display: flex;
   align-items: flex-start;

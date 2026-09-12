@@ -52,6 +52,9 @@ alter table public.notes
 alter table public.notes
   add column if not exists category_id text references public.note_types (id) on delete set null;
 
+alter table public.notes
+  add column if not exists guideline_lines jsonb not null default '[]'::jsonb;
+
 -- Labels
 create table if not exists public.labels (
   id uuid primary key default gen_random_uuid(),

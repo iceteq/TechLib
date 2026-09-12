@@ -7,22 +7,18 @@ import {
   ChevronRight,
   ImagePlus,
   Loader2,
-  Package,
   Palette,
   Pin,
   PinOff,
-  Settings2,
   ShoppingCart,
   Trash2,
-  Wrench,
   X,
 } from 'lucide-react';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
-import { dispositionColorVars } from '../../lib/dispositions';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
-import { DISPOSITIONS } from '../../lib/types';
 import type {
+  GuidelineLine,
   Label,
   NoteBackground,
   NoteDisposition,
@@ -38,16 +34,9 @@ import {
   MetaAssignPopover,
   type MetaAssignField,
 } from './MetaAssignPopover';
+import { GuidelineLinesEditor } from './GuidelineLinesEditor';
 import { TypeChip } from './TypeChip';
 import styles from './NoteEditor.module.css';
-
-function dispositionIcon(id: NoteDisposition) {
-  if (id === 'stock') return Package;
-  if (id === 'repair') return Wrench;
-  if (id === 'config') return Settings2;
-  if (id === 'scrap') return Trash2;
-  return null;
-}
 
 function isTextEntryTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -76,6 +65,7 @@ interface NoteEditorProps {
     pinned?: boolean;
     archived?: boolean;
     disposition?: NoteDisposition;
+    guidelineLines?: GuidelineLine[];
     categoryId?: string | null;
     stockId?: string | null;
     specialCase?: string;
@@ -134,17 +124,6 @@ export function NoteEditor({
     !note.categoryId
       ? suggestNoteType(noteTypes, title || note.title, description || note.description)
       : null;
-  const disposition = DISPOSITIONS.find(
-    (d) => d.id === (note.disposition ?? 'none'),
-  );
-  const DispositionIcon =
-    disposition && disposition.id !== 'none'
-      ? dispositionIcon(disposition.id)
-      : null;
-  const dispositionColors =
-    disposition && disposition.id !== 'none'
-      ? dispositionColorVars(disposition.id)
-      : null;
   const stock = stockLocations.find((s) => s.id === note.stockId);
   const canNavigate = navIndex >= 0 && navTotal > 1;
   const canNavigatePrev = canNavigate && navIndex > 0 && Boolean(onNavigatePrev);
@@ -158,6 +137,7 @@ export function NoteEditor({
     !note.pinned &&
     !note.archived &&
     (note.disposition ?? 'none') === 'none' &&
+    (note.guidelineLines?.length ?? 0) === 0 &&
     !note.categoryId &&
     !note.stockId &&
     !(note.specialCase ?? '').trim();
@@ -519,37 +499,14 @@ export function NoteEditor({
         </div>
 
         <div className={styles.section}>
-          <div className={styles.metaRow} aria-label="Note details">
-            <button
-              type="button"
-              className={
-                disposition && disposition.id !== 'none'
-                  ? styles.metaChip
-                  : styles.metaMissing
-              }
-              style={
-                dispositionColors
-                  ? {
-                      background: dispositionColors.bg,
-                      color: dispositionColors.fg,
-                      borderColor: dispositionColors.border,
-                    }
-                  : undefined
-              }
-              onClick={() => setAssignField('disposition')}
-              aria-haspopup="dialog"
-              aria-expanded={assignField === 'disposition'}
-            >
-              {DispositionIcon && (
-                <DispositionIcon size={12} strokeWidth={2.25} aria-hidden />
-              )}
-              <span>
-                {disposition && disposition.id !== 'none'
-                  ? disposition.short
-                  : 'No guideline'}
-              </span>
-            </button>
-
+          <p className={styles.sectionLabel}>Guideline</p>
+          <GuidelineLinesEditor
+            lines={note.guidelineLines ?? []}
+            onChange={(guidelineLines) =>
+              void onSaveMeta({ guidelineLines })
+            }
+          />
+          <div className={styles.metaRow} aria-label="Type and stock">
             {selectedType ? (
               <TypeChip
                 type={selectedType}
@@ -598,7 +555,7 @@ export function NoteEditor({
           {specialCaseOpen ? (
             <>
               <label className={styles.specialCaseLabel} htmlFor="special-case">
-                Special case
+                Definitions / notes
               </label>
               <textarea
                 id="special-case"
@@ -609,9 +566,9 @@ export function NoteEditor({
                   void persistSpecialCase();
                   if (!specialCase.trim()) setSpecialCaseOpen(false);
                 }}
-                placeholder="Only when it isn’t a normal stock / repair / config / scrap path…"
+                placeholder="What “obsolete” means, article numbers, customer bin details…"
                 rows={2}
-                aria-label="Special case handling note"
+                aria-label="Guideline definitions and notes"
               />
             </>
           ) : (
@@ -620,7 +577,7 @@ export function NoteEditor({
               className={styles.addSpecialCase}
               onClick={() => setSpecialCaseOpen(true)}
             >
-              Add special note
+              Add definitions / notes
             </button>
           )}
         </div>
@@ -640,11 +597,15 @@ export function NoteEditor({
             stockLocations={stockLocations}
             labels={labels}
             currentDisposition={(note.disposition ?? 'none') as NoteDisposition}
+            currentGuidelineLines={note.guidelineLines}
             currentCategoryId={note.categoryId}
             currentStockId={note.stockId}
             currentLabelIds={note.labelIds}
             onAssignDisposition={(value) =>
               void onSaveMeta({ disposition: value })
+            }
+            onAssignGuidelineLines={(guidelineLines) =>
+              void onSaveMeta({ guidelineLines })
             }
             onAssignCategory={(value) =>
               void onSaveMeta({ categoryId: value })

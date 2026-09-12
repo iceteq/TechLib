@@ -51,6 +51,7 @@ import { signOutCloud } from '../features/auth/AuthGate';
 
 type NoteFieldPatch = {
   disposition?: NoteDisposition;
+  guidelineLines?: import('../lib/types').GuidelineLine[];
   categoryId?: string | null;
   stockId?: string | null;
   labelIds?: string[];
@@ -104,6 +105,9 @@ function snapshotNotePatch(
   if (patch.disposition !== undefined) {
     before.disposition = note.disposition ?? 'none';
   }
+  if (patch.guidelineLines !== undefined) {
+    before.guidelineLines = note.guidelineLines ?? [];
+  }
   if ('categoryId' in patch) {
     before.categoryId = note.categoryId;
   }
@@ -131,6 +135,13 @@ function describeBulkPatch(
       DISPOSITIONS.find((d) => d.id === patch.disposition)?.short ||
       patch.disposition;
     return `Set Guideline to “${short}” on ${count} ${noteWord}`;
+  }
+  if (patch.guidelineLines !== undefined) {
+    const n = patch.guidelineLines.length;
+    if (n === 0) {
+      return `Cleared Guideline on ${count} ${noteWord}`;
+    }
+    return `Updated Guideline (${n} rule${n === 1 ? '' : 's'}) on ${count} ${noteWord}`;
   }
   if ('categoryId' in patch) {
     if (!patch.categoryId) {
@@ -436,6 +447,7 @@ export default function App() {
       !note.pinned &&
       !note.archived &&
       (note.disposition ?? 'none') === 'none' &&
+      (note.guidelineLines?.length ?? 0) === 0 &&
       !note.categoryId &&
       !note.stockId &&
       !(note.specialCase ?? '').trim()
@@ -587,6 +599,7 @@ export default function App() {
     pinned?: boolean;
     archived?: boolean;
     disposition?: NoteDisposition;
+    guidelineLines?: import('../lib/types').GuidelineLine[];
     categoryId?: string | null;
     stockId?: string | null;
     specialCase?: string;

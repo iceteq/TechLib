@@ -1,19 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Check,
-  Package,
-  Settings2,
   ShoppingCart,
-  Trash2,
-  Wrench,
 } from 'lucide-react';
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
-import { dispositionColorVars } from '../../lib/dispositions';
 import { formatNoteAge } from '../../lib/formatNoteAge';
 import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
-import { DISPOSITIONS } from '../../lib/types';
 import type {
+  GuidelineLine,
   Label,
   NoteDisposition,
   NoteType,
@@ -23,6 +18,7 @@ import type {
 import { Barcode } from '../barcodes/Barcode';
 import { LabelChip } from '../labels/LabelChip';
 import { TypeChip } from './TypeChip';
+import { GuidelineLinesList } from './GuidelineLinesList';
 import {
   MetaAssignPopover,
   type MetaAssignField,
@@ -34,14 +30,6 @@ const LONG_PRESS_MS = 500;
 const MOVE_CANCEL_PX = 12;
 /** Ignore click/contextmenu after long-press (mobile fires several of these). */
 const SUPPRESS_MS = 1200;
-
-function dispositionIcon(id: NoteDisposition) {
-  if (id === 'stock') return Package;
-  if (id === 'repair') return Wrench;
-  if (id === 'config') return Settings2;
-  if (id === 'scrap') return Trash2;
-  return null;
-}
 
 interface NoteCardProps {
   note: NoteWithUrls;
@@ -65,6 +53,7 @@ interface NoteCardProps {
   onRangeSelect: (noteId: string) => void;
   onApplyType: (noteId: string, categoryId: string) => void;
   onAssignDisposition?: (noteId: string, value: NoteDisposition) => void;
+  onAssignGuidelineLines?: (noteId: string, lines: GuidelineLine[]) => void;
   onAssignCategory?: (noteId: string, value: string | null) => void;
   onAssignStock?: (noteId: string, value: string | null) => void;
   onAssignLabels?: (noteId: string, labelIds: string[]) => void;
@@ -95,6 +84,7 @@ export function NoteCard({
   onRangeSelect,
   onApplyType,
   onAssignDisposition,
+  onAssignGuidelineLines,
   onAssignCategory,
   onAssignStock,
   onAssignLabels,
@@ -108,17 +98,6 @@ export function NoteCard({
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const stock = stockLocations.find((s) => s.id === note.stockId);
   const title = note.title.trim() || 'No part number';
-  const disposition = DISPOSITIONS.find(
-    (d) => d.id === (note.disposition ?? 'none'),
-  );
-  const DispositionIcon =
-    disposition && disposition.id !== 'none'
-      ? dispositionIcon(disposition.id)
-      : null;
-  const dispositionColors =
-    disposition && disposition.id !== 'none'
-      ? dispositionColorVars(disposition.id)
-      : null;
   const noteType = noteTypeById(noteTypes, note.categoryId);
   const suggestedType =
     !note.categoryId
@@ -373,47 +352,19 @@ export function NoteCard({
           </p>
         )}
         <div className={styles.labels}>
-          {disposition && disposition.id !== 'none' ? (
-            <button
-              type="button"
-              className={styles.disposition}
-              style={
-                dispositionColors
-                  ? {
-                      background: dispositionColors.bg,
-                      color: dispositionColors.fg,
-                      borderColor: dispositionColors.border,
-                    }
-                  : undefined
+          <div className={styles.guidelineBlock}>
+            <GuidelineLinesList
+              lines={note.guidelineLines}
+              disposition={note.disposition}
+              disabled={selecting || !onAssignDisposition}
+              expanded={assignField === 'disposition'}
+              onClick={
+                selecting || !onAssignDisposition
+                  ? undefined
+                  : () => openAssign('disposition')
               }
-              disabled={selecting || !onAssignDisposition}
-              onClick={(e) => {
-                e.stopPropagation();
-                openAssign('disposition');
-              }}
-              aria-haspopup="dialog"
-              aria-expanded={assignField === 'disposition'}
-            >
-              {DispositionIcon && (
-                <DispositionIcon size={12} strokeWidth={2.25} aria-hidden />
-              )}
-              <span>{disposition.short}</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={styles.missingMeta}
-              disabled={selecting || !onAssignDisposition}
-              onClick={(e) => {
-                e.stopPropagation();
-                openAssign('disposition');
-              }}
-              aria-haspopup="dialog"
-              aria-expanded={assignField === 'disposition'}
-            >
-              No guideline
-            </button>
-          )}
+            />
+          </div>
           {noteType && showTypeChip ? (
             <TypeChip
               type={noteType}
@@ -519,11 +470,15 @@ export function NoteCard({
           stockLocations={stockLocations}
           labels={labels}
           currentDisposition={(note.disposition ?? 'none') as NoteDisposition}
+          currentGuidelineLines={note.guidelineLines}
           currentCategoryId={note.categoryId}
           currentStockId={note.stockId}
           currentLabelIds={note.labelIds}
           onAssignDisposition={(value) =>
             onAssignDisposition?.(note.id, value)
+          }
+          onAssignGuidelineLines={(lines) =>
+            onAssignGuidelineLines?.(note.id, lines)
           }
           onAssignCategory={(value) => onAssignCategory?.(note.id, value)}
           onAssignStock={(value) => onAssignStock?.(note.id, value)}
