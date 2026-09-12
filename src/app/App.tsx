@@ -501,27 +501,40 @@ export default function App() {
   }
 
   async function handlePasteImport(drafts: PastedNoteDraft[]) {
+    if (drafts.length === 0) return;
     const createdIds: string[] = [];
     const meta = createMetaFromFilters({
       disposition: filterDisposition,
       categoryId: filterCategoryId,
       stockId: filterStockId,
     });
-    for (const draft of drafts) {
-      const note = await store.createNote({
-        title: draft.title,
-        description: draft.description,
-        specialCase: draft.specialCase,
-        ...meta,
-        labelIds: filterLabelIds,
-      });
-      createdIds.push(note.id);
-    }
-    await refresh();
-    setView('notes');
-    setSidebarOpen(false);
-    if (createdIds.length > 0) {
-      await replaceUndoAction({ kind: 'import', ids: createdIds });
+    try {
+      for (const draft of drafts) {
+        const note = await store.createNote({
+          title: draft.title,
+          description: draft.description,
+          specialCase: draft.specialCase,
+          ...meta,
+          labelIds: filterLabelIds,
+        });
+        createdIds.push(note.id);
+      }
+      await refresh();
+      setView('notes');
+      setSidebarOpen(false);
+      setPasteOpen(false);
+      if (createdIds.length > 0) {
+        await replaceUndoAction({ kind: 'import', ids: createdIds });
+      }
+    } catch (err) {
+      // Keep any notes that were created before the failure.
+      if (createdIds.length > 0) {
+        await refresh();
+        await replaceUndoAction({ kind: 'import', ids: createdIds });
+      }
+      throw err instanceof Error
+        ? err
+        : new Error('Import failed. Please try again.');
     }
   }
 
