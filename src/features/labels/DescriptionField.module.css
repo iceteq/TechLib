@@ -22,6 +22,14 @@
   field-sizing: content;
 }
 
+@media (max-width: 600px) {
+  .textarea {
+    /* Short notes shouldn't open with a tall empty description well. */
+    min-height: 2.75rem;
+    max-height: min(40dvh, 18rem);
+  }
+}
+
 .menu {
   list-style: none;
   margin: 0;
