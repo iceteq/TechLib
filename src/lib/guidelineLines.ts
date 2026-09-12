@@ -103,3 +103,49 @@ export function guidelineLinesSearchText(lines: GuidelineLine[]): string {
     .map((line) => `${line.when} ${line.action} ${line.how}`)
     .join(' ');
 }
+
+function whenKey(when: string): string {
+  return when.trim().toLowerCase();
+}
+
+/** Add or update a single When → Then rule; leave other lines alone. */
+export function upsertGuidelineLineByWhen(
+  lines: GuidelineLine[] | null | undefined,
+  next: { when: string; action: GuidelineAction; how?: string },
+): GuidelineLine[] {
+  const when = next.when.trim() || 'Always';
+  const key = whenKey(when);
+  const how = (next.how ?? '').trim();
+  const normalized = normalizeGuidelineLines(lines);
+  const index = normalized.findIndex((line) => whenKey(line.when) === key);
+  if (index >= 0) {
+    const copy = [...normalized];
+    copy[index] = {
+      ...copy[index],
+      when,
+      action: next.action,
+      how,
+    };
+    return copy;
+  }
+  return [...normalized, newGuidelineLine({ when, action: next.action, how })];
+}
+
+export function previewGuidelineUpsert(
+  notes: Array<{
+    guidelineLines?: GuidelineLine[] | null;
+    disposition?: NoteDisposition | null;
+  }>,
+  when: string,
+): { updated: number; added: number } {
+  const key = whenKey(when);
+  if (!key) return { updated: 0, added: 0 };
+  let updated = 0;
+  let added = 0;
+  for (const note of notes) {
+    const lines = resolveGuidelineLines(note);
+    if (lines.some((line) => whenKey(line.when) === key)) updated += 1;
+    else added += 1;
+  }
+  return { updated, added };
+}

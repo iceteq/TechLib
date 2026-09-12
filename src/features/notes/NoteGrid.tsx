@@ -17,10 +17,13 @@ import type {
   NoteWithUrls,
   StockLocation,
 } from '../../lib/types';
-import { DISPOSITIONS } from '../../lib/types';
 import { categoryLabel, dispositionLabel, stockLabel } from '../../lib/searchNotes';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { NoteCard } from './NoteCard';
+import {
+  BulkGuidelineDialog,
+  type BulkGuidelineEdit,
+} from './BulkGuidelineDialog';
 import styles from './NoteGrid.module.css';
 
 type BulkMenu = 'assign' | null;
@@ -60,6 +63,10 @@ interface NoteGridProps {
       stockId?: string | null;
       labelIds?: string[];
     },
+  ) => Promise<void>;
+  onApplyGuidelineBulk: (
+    noteIds: string[],
+    edit: BulkGuidelineEdit,
   ) => Promise<void>;
   onCreateLabel: (name: string) => Promise<Label>;
   /** Add a label to notes (merge), instead of replacing. */
@@ -106,6 +113,7 @@ export function NoteGrid({
   onDeleteNotes,
   onAddToCart,
   onUpdateNotes,
+  onApplyGuidelineBulk,
   onCreateLabel,
   onAddLabel,
   onClearLabel,
@@ -124,6 +132,7 @@ export function NoteGrid({
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<BulkMenu>(null);
   const [fabOpen, setFabOpen] = useState(false);
+  const [bulkGuidelineOpen, setBulkGuidelineOpen] = useState(false);
   const [imageDropActive, setImageDropActive] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -142,6 +151,7 @@ export function NoteGrid({
     setSelectedIds(new Set());
     selectionAnchorId.current = null;
     setMenu(null);
+    setBulkGuidelineOpen(false);
   }, []);
 
   useEffect(() => {
@@ -288,6 +298,13 @@ export function NoteGrid({
   async function applyDisposition(disposition: NoteDisposition) {
     const ids = [...selectedIds];
     await runBulk(() => onUpdateNotes(ids, { disposition }));
+  }
+
+  async function applyGuidelineBulk(edit: BulkGuidelineEdit) {
+    const ids = [...selectedIds];
+    setBulkGuidelineOpen(false);
+    setMenu(null);
+    await runBulk(() => onApplyGuidelineBulk(ids, edit));
   }
 
   async function applyCategory(categoryId: string | null) {
@@ -594,18 +611,27 @@ export function NoteGrid({
               {menu === 'assign' && (
                 <div className={styles.assignSheet} role="menu">
                   <p className={styles.assignSection}>Guideline</p>
-                  {DISPOSITIONS.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      className={styles.menuItem}
-                      role="menuitem"
-                      disabled={busy}
-                      onClick={() => void applyDisposition(option.id)}
-                    >
-                      {option.id === 'none' ? 'No guideline' : option.short}
-                    </button>
-                  ))}
+                  <button
+                    type="button"
+                    className={styles.menuItem}
+                    role="menuitem"
+                    disabled={busy}
+                    onClick={() => {
+                      setMenu(null);
+                      setBulkGuidelineOpen(true);
+                    }}
+                  >
+                    Edit rules…
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.menuItem}
+                    role="menuitem"
+                    disabled={busy}
+                    onClick={() => void applyDisposition('none')}
+                  >
+                    Clear all guidelines
+                  </button>
                   <p className={styles.assignSection}>Type</p>
                   <button
                     type="button"
@@ -797,6 +823,14 @@ export function NoteGrid({
             <Plus size={24} strokeWidth={2.25} />
           </button>
         </div>
+      )}
+
+      {bulkGuidelineOpen && selectedIds.size > 0 && (
+        <BulkGuidelineDialog
+          notes={notes.filter((note) => selectedIds.has(note.id))}
+          onApply={(edit) => void applyGuidelineBulk(edit)}
+          onClose={() => setBulkGuidelineOpen(false)}
+        />
       )}
     </section>
   );

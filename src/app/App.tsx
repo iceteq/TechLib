@@ -42,6 +42,13 @@ import {
   type NoteAssignTarget,
 } from '../lib/noteDrag';
 import {
+  normalizeGuidelineLines,
+  resolveGuidelineLines,
+  upsertGuidelineLineByWhen,
+} from '../lib/guidelineLines';
+import type { BulkGuidelineEdit } from '../features/notes/BulkGuidelineDialog';
+import type { GuidelineLine } from '../lib/types';
+import {
   clipboardHasPlainText,
   clipboardImageFiles,
 } from '../lib/imageFiles';
@@ -739,6 +746,55 @@ export default function App() {
     });
   }
 
+  async function handleApplyGuidelineBulk(
+    noteIds: string[],
+    edit: BulkGuidelineEdit,
+  ) {
+    const ids = [...new Set(noteIds)].filter(Boolean);
+    if (ids.length === 0) return;
+
+    const before: Array<{ id: string; patch: NoteFieldPatch }> = [];
+    const updates: Array<{ id: string; guidelineLines: GuidelineLine[] }> = [];
+
+    for (const id of ids) {
+      const note = notes.find((n) => n.id === id);
+      if (!note) continue;
+      const current = resolveGuidelineLines(note);
+      const next =
+        edit.mode === 'replaceAll'
+          ? normalizeGuidelineLines(edit.lines)
+          : upsertGuidelineLineByWhen(current, {
+              when: edit.when,
+              action: edit.action,
+              how: edit.how,
+            });
+      before.push({ id, patch: { guidelineLines: current } });
+      updates.push({ id, guidelineLines: next });
+    }
+    if (updates.length === 0) return;
+
+    for (const entry of updates) {
+      await store.updateNote(entry.id, { guidelineLines: entry.guidelineLines });
+    }
+    await refresh();
+
+    const noteWord = updates.length === 1 ? 'note' : 'notes';
+    const message =
+      edit.mode === 'replaceAll'
+        ? edit.lines.length === 0
+          ? `Cleared guidelines on ${updates.length} ${noteWord}`
+          : `Replaced guidelines on ${updates.length} ${noteWord}`
+        : `Set “${edit.when} → ${
+            DISPOSITIONS.find((d) => d.id === edit.action)?.short ?? edit.action
+          }” on ${updates.length} ${noteWord}`;
+
+    await replaceUndoAction({
+      kind: 'patch',
+      message,
+      before,
+    });
+  }
+
   async function handleAddLabelToNotes(noteIds: string[], labelId: string) {
     const ids = [...new Set(noteIds)].filter(Boolean);
     if (ids.length === 0) return;
@@ -994,6 +1050,7 @@ export default function App() {
           onDeleteNotes={handleDeleteNotes}
           onAddToCart={handleAddToCart}
           onUpdateNotes={handleUpdateNotes}
+          onApplyGuidelineBulk={handleApplyGuidelineBulk}
           onCreateLabel={handleCreateLabel}
           onAddLabel={handleAddLabelToNotes}
           onClearLabel={(labelId) =>
