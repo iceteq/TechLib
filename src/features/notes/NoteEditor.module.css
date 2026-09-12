@@ -10,13 +10,27 @@
 }
 
 .dialog {
+  display: flex;
+  flex-direction: column;
   width: min(720px, 100%);
   max-height: min(92vh, 900px);
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 18px;
   box-shadow: 0 20px 50px rgba(20, 24, 30, 0.22);
   animation: rise 220ms ease;
+}
+
+.dialogBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.topActions,
+.footer {
+  flex-shrink: 0;
 }
 
 .dialogDrop {
@@ -381,13 +395,31 @@
 
 @media (max-width: 600px) {
   .overlay {
+    /* Prefer the visual viewport when JS sets --vv-*; fall back to dvh. */
+    top: var(--vv-offset-top, 0px);
+    height: var(--vv-height, 100dvh);
+    bottom: auto;
     padding: 0;
-    align-items: end;
+    place-items: stretch;
+    align-items: stretch;
   }
 
   .dialog {
     width: 100%;
-    max-height: 94vh;
-    border-radius: 18px 18px 0 0;
+    height: 100%;
+    max-height: none;
+    min-height: 100%;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .dialogBody {
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.35rem;
+  }
+
+  .footer {
+    padding-bottom: max(1.1rem, env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    background: inherit;
   }
 }

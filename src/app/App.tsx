@@ -1063,7 +1063,13 @@ export default function App() {
           onClearAllFilters={clearAllFilters}
           onClearSearch={() => setSearch('')}
           selectionClearNonce={selectionClearNonce}
-          onNotesDragStart={() => setSidebarOpen(true)}
+          onNotesDragStart={() => {
+            // Drawer sidebar on small screens covers the grid; only auto-open
+            // when the sidebar is docked (desktop drag-to-assign).
+            if (window.matchMedia('(min-width: 801px)').matches) {
+              setSidebarOpen(true);
+            }
+          }}
           onDropImages={(files) => void createNoteFromImages(files)}
           imageBusyCount={imageBusyCount}
         />

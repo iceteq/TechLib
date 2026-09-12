@@ -115,6 +115,7 @@ export function NoteEditor({
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const firstOpenRef = useRef(true);
   const dropDepth = useRef(0);
@@ -162,6 +163,48 @@ export function NoteEditor({
     }
     dialogRef.current?.focus();
   }, [note.id]);
+
+  // Keep the mobile sheet inside the visual viewport so the soft keyboard
+  // does not cover labels / fields at the bottom of the editor.
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    const vv = window.visualViewport;
+    if (!overlay || !vv) return;
+
+    const sync = () => {
+      overlay.style.setProperty('--vv-offset-top', `${vv.offsetTop}px`);
+      overlay.style.setProperty('--vv-height', `${vv.height}px`);
+    };
+
+    sync();
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    return () => {
+      vv.removeEventListener('resize', sync);
+      vv.removeEventListener('scroll', sync);
+      overlay.style.removeProperty('--vv-offset-top');
+      overlay.style.removeProperty('--vv-height');
+    };
+  }, []);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    function onFocusIn(e: FocusEvent) {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.matches('input, textarea, select, [contenteditable="true"]')) {
+        return;
+      }
+      window.setTimeout(() => {
+        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 50);
+    }
+
+    dialog.addEventListener('focusin', onFocusIn);
+    return () => dialog.removeEventListener('focusin', onFocusIn);
+  }, []);
 
   function handleFileInput(
     e: React.ChangeEvent<HTMLInputElement>,
@@ -304,7 +347,12 @@ export function NoteEditor({
   }
 
   return (
-    <div className={styles.overlay} role="presentation" onClick={() => void finish()}>
+    <div
+      ref={overlayRef}
+      className={styles.overlay}
+      role="presentation"
+      onClick={() => void finish()}
+    >
       <div
         ref={dialogRef}
         className={`${styles.dialog} ${dropActive ? styles.dialogDrop : ''}`}
@@ -453,141 +501,143 @@ export function NoteEditor({
           </div>
         </div>
 
-        <ImageGallery
-          images={note.images}
-          onRemove={(id) => void onRemoveImage(id)}
-          onReorder={(ids) => void onReorderImages(ids)}
-        />
-        {imageBusy && (
-          <div className={styles.imageBusy} role="status" aria-live="polite">
-            <Loader2 size={16} className={styles.spinner} aria-hidden />
-            <span>
-              Adding {imageBusyCount} image
-              {imageBusyCount === 1 ? '' : 's'}…
-            </span>
+        <div className={styles.dialogBody}>
+          <ImageGallery
+            images={note.images}
+            onRemove={(id) => void onRemoveImage(id)}
+            onReorder={(ids) => void onReorderImages(ids)}
+          />
+          {imageBusy && (
+            <div className={styles.imageBusy} role="status" aria-live="polite">
+              <Loader2 size={16} className={styles.spinner} aria-hidden />
+              <span>
+                Adding {imageBusyCount} image
+                {imageBusyCount === 1 ? '' : 's'}…
+              </span>
+            </div>
+          )}
+
+          <div className={styles.fields}>
+            <input
+              ref={titleRef}
+              className={styles.title}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => void persistTitle()}
+              placeholder="Part number"
+              aria-label="Part number"
+            />
+            <DescriptionField
+              value={description}
+              labels={labels}
+              selectedIds={note.labelIds}
+              onChange={setDescription}
+              onBlur={() => void persistDescription()}
+              onAddLabel={(label) => void addLabel(label)}
+              onCreateLabel={onCreateLabel}
+            />
           </div>
-        )}
 
-        <div className={styles.fields}>
-          <input
-            ref={titleRef}
-            className={styles.title}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => void persistTitle()}
-            placeholder="Part number"
-            aria-label="Part number"
-          />
-          <DescriptionField
-            value={description}
-            labels={labels}
-            selectedIds={note.labelIds}
-            onChange={setDescription}
-            onBlur={() => void persistDescription()}
-            onAddLabel={(label) => void addLabel(label)}
-            onCreateLabel={onCreateLabel}
-          />
-        </div>
+          <div className={styles.section}>
+            <LabelPicker
+              labels={labels}
+              selectedIds={note.labelIds}
+              onChange={(labelIds) => void onSaveMeta({ labelIds })}
+              onCreateLabel={onCreateLabel}
+            />
+          </div>
 
-        <div className={styles.section}>
-          <LabelPicker
-            labels={labels}
-            selectedIds={note.labelIds}
-            onChange={(labelIds) => void onSaveMeta({ labelIds })}
-            onCreateLabel={onCreateLabel}
-          />
-        </div>
+          <div className={styles.section}>
+            <p className={styles.sectionLabel}>Guideline</p>
+            <GuidelineLinesEditor
+              lines={note.guidelineLines ?? []}
+              onChange={(guidelineLines) =>
+                void onSaveMeta({ guidelineLines })
+              }
+            />
+            <div className={styles.metaRow} aria-label="Type and stock">
+              {selectedType ? (
+                <TypeChip
+                  type={selectedType}
+                  onClick={() => setAssignField('categoryId')}
+                />
+              ) : suggestedType ? (
+                <TypeChip
+                  type={suggestedType}
+                  suggested
+                  onClick={() => void onSaveMeta({ categoryId: suggestedType.id })}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className={styles.metaMissing}
+                  onClick={() => setAssignField('categoryId')}
+                  aria-haspopup="dialog"
+                  aria-expanded={assignField === 'categoryId'}
+                >
+                  No type
+                </button>
+              )}
 
-        <div className={styles.section}>
-          <p className={styles.sectionLabel}>Guideline</p>
-          <GuidelineLinesEditor
-            lines={note.guidelineLines ?? []}
-            onChange={(guidelineLines) =>
-              void onSaveMeta({ guidelineLines })
-            }
-          />
-          <div className={styles.metaRow} aria-label="Type and stock">
-            {selectedType ? (
-              <TypeChip
-                type={selectedType}
-                onClick={() => setAssignField('categoryId')}
-              />
-            ) : suggestedType ? (
-              <TypeChip
-                type={suggestedType}
-                suggested
-                onClick={() => void onSaveMeta({ categoryId: suggestedType.id })}
-              />
+              {!selectedType && suggestedType && (
+                <button
+                  type="button"
+                  className={styles.metaMissing}
+                  onClick={() => setAssignField('categoryId')}
+                  aria-haspopup="dialog"
+                  aria-expanded={assignField === 'categoryId'}
+                >
+                  Choose type
+                </button>
+              )}
+
+              <button
+                type="button"
+                className={stock ? styles.metaStock : styles.metaMissing}
+                onClick={() => setAssignField('stockId')}
+                aria-haspopup="dialog"
+                aria-expanded={assignField === 'stockId'}
+              >
+                {stock ? stock.name : 'No stock'}
+              </button>
+            </div>
+            {specialCaseOpen ? (
+              <>
+                <label className={styles.specialCaseLabel} htmlFor="special-case">
+                  Definitions / notes
+                </label>
+                <textarea
+                  id="special-case"
+                  className={styles.specialCase}
+                  value={specialCase}
+                  onChange={(e) => setSpecialCase(e.target.value)}
+                  onBlur={() => {
+                    void persistSpecialCase();
+                    if (!specialCase.trim()) setSpecialCaseOpen(false);
+                  }}
+                  placeholder="What “obsolete” means, article numbers, customer bin details…"
+                  rows={2}
+                  aria-label="Guideline definitions and notes"
+                />
+              </>
             ) : (
               <button
                 type="button"
-                className={styles.metaMissing}
-                onClick={() => setAssignField('categoryId')}
-                aria-haspopup="dialog"
-                aria-expanded={assignField === 'categoryId'}
+                className={styles.addSpecialCase}
+                onClick={() => setSpecialCaseOpen(true)}
               >
-                No type
+                Add definitions / notes
               </button>
             )}
-
-            {!selectedType && suggestedType && (
-              <button
-                type="button"
-                className={styles.metaMissing}
-                onClick={() => setAssignField('categoryId')}
-                aria-haspopup="dialog"
-                aria-expanded={assignField === 'categoryId'}
-              >
-                Choose type
-              </button>
-            )}
-
-            <button
-              type="button"
-              className={stock ? styles.metaStock : styles.metaMissing}
-              onClick={() => setAssignField('stockId')}
-              aria-haspopup="dialog"
-              aria-expanded={assignField === 'stockId'}
-            >
-              {stock ? stock.name : 'No stock'}
-            </button>
           </div>
-          {specialCaseOpen ? (
-            <>
-              <label className={styles.specialCaseLabel} htmlFor="special-case">
-                Definitions / notes
-              </label>
-              <textarea
-                id="special-case"
-                className={styles.specialCase}
-                value={specialCase}
-                onChange={(e) => setSpecialCase(e.target.value)}
-                onBlur={() => {
-                  void persistSpecialCase();
-                  if (!specialCase.trim()) setSpecialCaseOpen(false);
-                }}
-                placeholder="What “obsolete” means, article numbers, customer bin details…"
-                rows={2}
-                aria-label="Guideline definitions and notes"
-              />
-            </>
-          ) : (
-            <button
-              type="button"
-              className={styles.addSpecialCase}
-              onClick={() => setSpecialCaseOpen(true)}
-            >
-              Add definitions / notes
-            </button>
+
+          {showBarcodes && (
+            <div className={styles.section}>
+              <p className={styles.sectionLabel}>Barcode</p>
+              <Barcode title={title || note.title} />
+            </div>
           )}
         </div>
-
-        {showBarcodes && (
-          <div className={styles.section}>
-            <p className={styles.sectionLabel}>Barcode</p>
-            <Barcode title={title || note.title} />
-          </div>
-        )}
 
         {assignField && (
           <MetaAssignPopover
