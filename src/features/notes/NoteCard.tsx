@@ -340,35 +340,10 @@ export function NoteCard({
             <Barcode title={note.title} compact />
           </div>
         )}
-        {showDescription && note.description.trim() && (
-          <p className={styles.description}>{note.description.trim()}</p>
-        )}
-        {showSpecialCase && (note.specialCase ?? '').trim() && (
-          <p className={styles.specialCase} title={note.specialCase}>
-            <span className={styles.specialCaseMark} aria-hidden>
-              !
-            </span>
-            {note.specialCase.trim()}
-          </p>
-        )}
-        <div className={styles.labels}>
-          <div className={styles.guidelineBlock}>
-            <GuidelineLinesList
-              lines={note.guidelineLines}
-              disposition={note.disposition}
-              disabled={selecting || !onAssignDisposition}
-              expanded={assignField === 'disposition'}
-              onClick={
-                selecting || !onAssignDisposition
-                  ? undefined
-                  : () => openAssign('disposition')
-              }
-            />
-          </div>
+        <div className={styles.metaPrimary} aria-label="Type and stock">
           {noteType && showTypeChip ? (
             <TypeChip
               type={noteType}
-              muted
               onClick={
                 selecting || !onAssignCategory
                   ? undefined
@@ -378,7 +353,6 @@ export function NoteCard({
           ) : !noteType && suggestedType && showTypeChip ? (
             <TypeChip
               type={suggestedType}
-              muted
               suggested
               onClick={() => onApplyType(note.id, suggestedType.id)}
             />
@@ -426,7 +400,34 @@ export function NoteCard({
               No stock
             </button>
           )}
-          {showLabels &&
+          
+        </div>
+        {showDescription && note.description.trim() && (
+          <p className={styles.description}>{note.description.trim()}</p>
+        )}
+        {showSpecialCase && (note.specialCase ?? '').trim() && (
+          <p className={styles.specialCase} title={note.specialCase}>
+            <span className={styles.specialCaseMark} aria-hidden>
+              !
+            </span>
+            {note.specialCase.trim()}
+          </p>
+        )}
+        <div className={styles.labels}>
+          <div className={styles.guidelineBlock}>
+            <GuidelineLinesList
+              lines={note.guidelineLines}
+              disposition={note.disposition}
+              disabled={selecting || !onAssignDisposition}
+              expanded={assignField === 'disposition'}
+              onClick={
+                selecting || !onAssignDisposition
+                  ? undefined
+                  : () => openAssign('disposition')
+              }
+            />
+          </div>
+{showLabels &&
             noteLabels.map((label) => (
               <button
                 key={label.id}
