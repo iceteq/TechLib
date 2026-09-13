@@ -41,6 +41,9 @@ import { GuidelineLinesEditor } from './GuidelineLinesEditor';
 import { TypeChip } from './TypeChip';
 import styles from './NoteEditor.module.css';
 
+/** Bumps on each NoteEditor history-trap effect; helps Strict Mode remounts. */
+let noteEditorTrapGeneration = 0;
+
 function isTextEntryTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
@@ -407,6 +410,18 @@ export function NoteEditor({
   }
 
   function clearEditorTextSelection(): boolean {
+    const active = document.activeElement;
+    if (
+      (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) &&
+      dialogRef.current?.contains(active) &&
+      typeof active.selectionStart === 'number' &&
+      typeof active.selectionEnd === 'number' &&
+      active.selectionStart !== active.selectionEnd
+    ) {
+      const caret = active.selectionEnd;
+      active.setSelectionRange(caret, caret);
+      return true;
+    }
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
       return false;
@@ -497,8 +512,12 @@ export function NoteEditor({
   // layers (selection → menus → keyboard) and otherwise acts like Done.
   useEffect(() => {
     const marker = { techlibNoteEditor: true as const };
+    const generation = ++noteEditorTrapGeneration;
     trapActiveRef.current = true;
-    history.pushState(marker, '');
+    // Reuse an existing top marker after React Strict Mode remounts.
+    if (!(history.state as { techlibNoteEditor?: boolean } | null)?.techlibNoteEditor) {
+      history.pushState(marker, '');
+    }
 
     function onPopState() {
       if (ignorePopRef.current) {
@@ -521,7 +540,11 @@ export function NoteEditor({
     window.addEventListener('popstate', onPopState);
     return () => {
       window.removeEventListener('popstate', onPopState);
-      releaseHistoryTrap();
+      // Defer release so Strict Mode remount can claim the same trap first.
+      window.setTimeout(() => {
+        if (generation !== noteEditorTrapGeneration) return;
+        releaseHistoryTrap();
+      }, 0);
     };
     // Mount-only trap; latest UI state is read through refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
