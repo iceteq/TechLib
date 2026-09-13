@@ -22,6 +22,8 @@ interface CartViewProps {
   onChangeQuantity: (noteId: string, quantity: number) => void;
   onRemove: (noteId: string) => void;
   onClear: () => void;
+  /** One-tap path back to the note wall when the cart is empty. */
+  onBrowseNotes?: () => void;
 }
 
 export function CartView({
@@ -34,6 +36,7 @@ export function CartView({
   onChangeQuantity,
   onRemove,
   onClear,
+  onBrowseNotes,
 }: CartViewProps) {
   return (
     <section className={styles.section}>
@@ -77,9 +80,17 @@ export function CartView({
           <ShoppingCart size={28} strokeWidth={1.75} />
           <p className={styles.emptyTitle}>Cart is empty</p>
           <p className={styles.emptyText}>
-            Select notes and choose Add to cart, or open a note and add it from
-            there. Adding the same note again increases its quantity.
+            Add notes from the wall to build a pull list.
           </p>
+          {onBrowseNotes && (
+            <button
+              type="button"
+              className={styles.emptyCta}
+              onClick={onBrowseNotes}
+            >
+              Browse notes
+            </button>
+          )}
         </div>
       ) : (
         <div className={styles.printSheet}>

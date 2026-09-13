@@ -1170,6 +1170,10 @@ export default function App() {
           }
           onRemove={(noteId) => void handleRemoveFromCart(noteId)}
           onClear={() => void handleClearCart()}
+          onBrowseNotes={() => {
+            setView('notes');
+            setSidebarOpen(false);
+          }}
         />
       ) : (
         <NoteGrid
@@ -1197,6 +1201,11 @@ export default function App() {
           onOpenNote={openNote}
           onCreateNote={() => void handleCreateNote()}
           onPasteNotes={() => setPasteOpen(true)}
+          onBrowseNotes={() => {
+            setView('notes');
+            clearAllFilters();
+            setSidebarOpen(false);
+          }}
           onDeleteNotes={handleDeleteNotes}
           onAddToCart={handleAddToCart}
           onUpdateNotes={handleUpdateNotes}

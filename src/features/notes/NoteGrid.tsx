@@ -55,6 +55,8 @@ interface NoteGridProps {
   onOpenNote: (noteId: string) => void;
   onCreateNote: () => void;
   onPasteNotes: () => void;
+  /** Leave archive / return to the notes wall. */
+  onBrowseNotes?: () => void;
   onDeleteNotes: (noteIds: string[]) => Promise<void>;
   onAddToCart: (noteIds: string[]) => Promise<void>;
   onUpdateNotes: (
@@ -120,6 +122,7 @@ export function NoteGrid({
   onOpenNote,
   onCreateNote,
   onPasteNotes,
+  onBrowseNotes,
   onDeleteNotes,
   onAddToCart,
   onUpdateNotes,
@@ -408,14 +411,14 @@ export function NoteGrid({
   else if (hasFilters) heading = 'Filtered notes';
 
   let emptyTitle = 'Nothing here yet';
-  let emptyText = 'Tap + to create a note.';
+  let emptyText = 'Capture parts with photos to build your wall.';
 
   if (view === 'archive') {
     emptyTitle = 'Archive is empty';
     emptyText = 'Archived notes will show up here.';
-  } else if (hasSearch || hasFilters) {
+  } else if (hasFilters) {
     emptyTitle = 'No matching part numbers';
-    emptyText = 'Try clearing a filter or adjusting search.';
+    emptyText = 'Clear filters to see more notes, or adjust search.';
   }
 
   return (
@@ -566,6 +569,33 @@ export function NoteGrid({
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>{emptyTitle}</p>
           <p className={styles.emptyText}>{emptyText}</p>
+          {view === 'notes' && hasFilters && (
+            <button
+              type="button"
+              className={styles.emptyCta}
+              onClick={onClearAllFilters}
+            >
+              Clear filters
+            </button>
+          )}
+          {view === 'notes' && !hasFilters && (
+            <button
+              type="button"
+              className={styles.emptyCta}
+              onClick={onCreateNote}
+            >
+              Add photo notes
+            </button>
+          )}
+          {view === 'archive' && onBrowseNotes && (
+            <button
+              type="button"
+              className={styles.emptyCta}
+              onClick={onBrowseNotes}
+            >
+              Browse notes
+            </button>
+          )}
         </div>
       ) : (
         <div className={styles.grid}>
