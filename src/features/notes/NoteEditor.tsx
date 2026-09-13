@@ -131,6 +131,8 @@ export function NoteEditor({
   const dropDepth = useRef(0);
   /** Ignore the synthetic popstate fired when Done/X pops our history trap. */
   const ignorePopRef = useRef(false);
+  /** True while this editor owns a history trap entry. */
+  const trapActiveRef = useRef(false);
   const moreOpenRef = useRef(moreOpen);
   const colorOpenRef = useRef(colorOpen);
   const assignFieldRef = useRef(assignField);
@@ -446,6 +448,8 @@ export function NoteEditor({
   }
 
   function releaseHistoryTrap() {
+    if (!trapActiveRef.current) return;
+    trapActiveRef.current = false;
     if (history.state && (history.state as { techlibNoteEditor?: boolean }).techlibNoteEditor) {
       ignorePopRef.current = true;
       history.back();
@@ -486,6 +490,7 @@ export function NoteEditor({
   // layers (selection → menus → keyboard) and otherwise acts like Done.
   useEffect(() => {
     const marker = { techlibNoteEditor: true as const };
+    trapActiveRef.current = true;
     history.pushState(marker, '');
 
     function onPopState() {
@@ -501,6 +506,8 @@ export function NoteEditor({
         history.pushState(marker, '');
         return;
       }
+      // Back already consumed our trap entry.
+      trapActiveRef.current = false;
       void finish({ fromBack: true });
     }
 
