@@ -18,7 +18,7 @@
   transition:
     background var(--transition),
     border-color var(--transition),
-    transform var(--transition);
+    transform var(--juice-press, 90ms ease);
 }
 
 .chip:hover {
@@ -26,9 +26,18 @@
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
 }
 
+.chip:active {
+  transform: scale(0.9);
+}
+
 .active {
   background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  animation: juice-pop var(--juice-duration, 280ms) var(--juice-ease, ease);
+}
+
+.burst {
+  animation: juice-pop var(--juice-duration, 280ms) var(--juice-ease, ease);
 }
 
 .count {

@@ -1,0 +1,71 @@
+/* Micro-feedback (“juice”) for commit actions — keep short and physical. */
+
+:root {
+  --juice-duration: 280ms;
+  --juice-ease: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --juice-press: 90ms ease;
+}
+
+@keyframes juice-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes juice-bump {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.32);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes juice-enter {
+  from {
+    opacity: 0.35;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --juice-duration: 0.01ms;
+    --juice-press: 0.01ms;
+  }
+
+  @keyframes juice-pop {
+    from,
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes juice-bump {
+    from,
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes juice-enter {
+    from,
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}

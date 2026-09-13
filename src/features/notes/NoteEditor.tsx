@@ -21,6 +21,7 @@ import { autosizeTextarea } from '../../lib/autosizeTextarea';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
+import { useJuiceBurst } from '../../lib/useJuiceBurst';
 import type {
   GuidelineLine,
   Label,
@@ -109,6 +110,7 @@ export function NoteEditor({
   onCreateLabel,
   imageBusyCount = 0,
 }: NoteEditorProps) {
+  const cartJuice = useJuiceBurst();
   const [title, setTitle] = useState(note.title);
   const [description, setDescription] = useState(note.description);
   const [specialCase, setSpecialCase] = useState(note.specialCase ?? '');
@@ -771,8 +773,11 @@ export function NoteEditor({
                   type="button"
                   className={`${styles.iconBtn} ${
                     cartQuantity > 0 ? styles.iconActive : ''
-                  }`}
-                  onClick={() => void onAddToCart()}
+                  } ${cartJuice.bursting ? styles.juicePop : ''}`}
+                  onClick={() => {
+                    cartJuice.trigger();
+                    void onAddToCart();
+                  }}
                   aria-label={
                     cartQuantity > 0
                       ? cartQuantity === 1
@@ -790,7 +795,9 @@ export function NoteEditor({
                 >
                   <ShoppingCart size={18} />
                   {cartQuantity > 0 && (
-                    <span className={styles.cartBadge}>{cartQuantity}</span>
+                    <span key={cartQuantity} className={styles.cartBadge}>
+                      {cartQuantity}
+                    </span>
                   )}
                 </button>
               </>
@@ -873,6 +880,7 @@ export function NoteEditor({
                       className={styles.moreItem}
                       role="menuitem"
                       onClick={() => {
+                        cartJuice.trigger();
                         void onAddToCart();
                         setMoreOpen(false);
                       }}

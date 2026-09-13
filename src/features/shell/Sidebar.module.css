@@ -17,6 +17,7 @@
   color: var(--text);
   text-align: left;
   transition:
+    transform var(--juice-press, 90ms ease),
     background var(--transition),
     color var(--transition);
 }
@@ -25,10 +26,15 @@
   background: color-mix(in srgb, var(--accent-soft) 70%, white);
 }
 
+.item:active {
+  transform: scale(0.98);
+}
+
 .active {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
+  animation: juice-pop var(--juice-duration, 280ms) var(--juice-ease, ease);
 }
 
 .footer {

@@ -153,7 +153,7 @@ export function CartView({
                   return (
                     <tr key={item.noteId}>
                       <td className={styles.colQty}>
-                        <span className={styles.qty}>{item.quantity}</span>
+                        <span key={item.quantity} className={styles.qty}>{item.quantity}</span>
                       </td>
                       <td className={styles.colIcon} aria-hidden>
                         <Icon size={16} strokeWidth={1.75} />

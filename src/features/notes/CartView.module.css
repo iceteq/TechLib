@@ -195,6 +195,7 @@
   min-width: 1.35rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  animation: juice-bump var(--juice-duration, 280ms) var(--juice-ease, ease);
 }
 
 .barcodeBtn {
@@ -240,6 +241,16 @@
 .removeBtn:hover {
   color: var(--text);
   background: rgba(31, 35, 40, 0.05);
+}
+
+.qtyBtn,
+.removeBtn {
+  transition: transform var(--juice-press, 90ms ease), background var(--transition), color var(--transition);
+}
+
+.qtyBtn:active,
+.removeBtn:active {
+  transform: scale(0.88);
 }
 
 @keyframes fadeIn {

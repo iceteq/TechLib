@@ -304,7 +304,7 @@ export function NoteCard({
         <div className={styles.badges}>
           {cartQuantity > 0 && (
             <span
-              className={styles.cartBadge}
+              key={cartQuantity} className={styles.cartBadge}
               title={
                 cartQuantity === 1
                   ? 'In cart'

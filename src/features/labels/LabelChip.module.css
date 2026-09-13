@@ -11,6 +11,7 @@
   font-weight: 500;
   line-height: 1.3;
   white-space: nowrap;
+  animation: juice-enter var(--juice-duration, 280ms) var(--juice-ease, ease);
 }
 
 .remove {
@@ -31,4 +32,8 @@
 .remove:hover {
   background: rgba(31, 35, 40, 0.12);
   color: var(--text);
+}
+
+.remove:active {
+  transform: scale(0.88);
 }
