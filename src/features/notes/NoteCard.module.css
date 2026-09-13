@@ -83,6 +83,8 @@
   box-shadow: none;
   line-height: 1;
   backdrop-filter: blur(4px);
+  animation: juice-bump var(--juice-duration, 280ms) var(--juice-ease, ease);
+
 }
 
 .cartQty {

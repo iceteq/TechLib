@@ -25,6 +25,7 @@ import {
   type BulkGuidelineEdit,
 } from './BulkGuidelineDialog';
 import styles from './NoteGrid.module.css';
+import { useJuiceBurst } from '../../lib/useJuiceBurst';
 
 type BulkMenu = 'assign' | null;
 
@@ -128,6 +129,7 @@ export function NoteGrid({
   onDropImages,
   imageBusyCount = 0,
 }: NoteGridProps) {
+  const cartJuice = useJuiceBurst();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<BulkMenu>(null);
@@ -712,8 +714,13 @@ export function NoteGrid({
 
             <button
               type="button"
-              className={styles.selectionAction}
-              onClick={() => void handleAddToCart()}
+              className={`${styles.selectionAction} ${
+                cartJuice.bursting ? styles.selectionActionJuice : ''
+              }`}
+              onClick={() => {
+                cartJuice.trigger();
+                void handleAddToCart();
+              }}
               disabled={busy}
             >
               <ShoppingCart size={14} />
