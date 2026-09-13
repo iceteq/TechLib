@@ -1,4 +1,5 @@
-import { Minus, Plus, Printer, ShoppingCart, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, Minus, Plus, Printer, ShoppingCart, Trash2, X } from 'lucide-react';
 import type { CartItem, Label, NoteType, NoteWithUrls } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { noteTypeById, noteTypeIcon } from '../../lib/noteTypes';
@@ -35,18 +36,99 @@ export function CartView({
   onRemove,
   onClear,
 }: CartViewProps) {
+  const [printPhase, setPrintPhase] = useState<'idle' | 'printing' | 'done'>(
+    'idle',
+  );
+  const doneTimer = useRef<number | null>(null);
+  const lineCount = rows.length;
+  /** Soft visual target for the fill meter — not a hard limit. */
+  const fillTarget = 12;
+  const fillPct =
+    unitCount === 0 ? 0 : Math.min(100, Math.round((unitCount / fillTarget) * 100));
+
+  useEffect(() => {
+    function onAfterPrint() {
+      setPrintPhase('done');
+      if (doneTimer.current != null) window.clearTimeout(doneTimer.current);
+      doneTimer.current = window.setTimeout(() => {
+        setPrintPhase('idle');
+        doneTimer.current = null;
+      }, 2800);
+    }
+    window.addEventListener('afterprint', onAfterPrint);
+    return () => {
+      window.removeEventListener('afterprint', onAfterPrint);
+      if (doneTimer.current != null) window.clearTimeout(doneTimer.current);
+    };
+  }, []);
+
+  // Reset celebration when cart empties.
+  useEffect(() => {
+    if (unitCount === 0) setPrintPhase('idle');
+  }, [unitCount]);
+
+  function handlePrint() {
+    setPrintPhase('printing');
+    window.print();
+    // Fallback when afterprint never fires (some mobile browsers).
+    window.setTimeout(() => {
+      setPrintPhase((phase) => (phase === 'printing' ? 'done' : phase));
+    }, 700);
+  }
+
+  const summary =
+    unitCount === 0
+      ? 'Empty — add parts to start a pull'
+      : fillPct >= 100
+        ? `Ready to pull · ${unitCount} unit${unitCount === 1 ? '' : 's'} · ${lineCount} line${
+            lineCount === 1 ? '' : 's'
+          }`
+        : `Building pull · ${unitCount} unit${unitCount === 1 ? '' : 's'} · ${lineCount} line${
+            lineCount === 1 ? '' : 's'
+          }`;
+
   return (
     <section className={styles.section}>
       <div className={`${styles.toolbar} ${styles.noPrint}`}>
-        <div>
+        <div className={styles.toolbarLead}>
           <h2 className={styles.heading}>Cart</h2>
-          <p className={styles.subheading}>
-            {unitCount === 0
-              ? 'Empty'
-              : `${unitCount} item${unitCount === 1 ? '' : 's'} · ${rows.length} line${
-                  rows.length === 1 ? '' : 's'
-                }`}
-          </p>
+          <p className={styles.subheading}>{summary}</p>
+          <div
+            className={styles.stats}
+            aria-label={`${unitCount} units, ${lineCount} lines`}
+          >
+            <span
+              className={`${styles.statChip} ${
+                unitCount > 0 ? styles.statChipOn : ''
+              }`}
+            >
+              <strong>{unitCount}</strong>
+              unit{unitCount === 1 ? '' : 's'}
+            </span>
+            <span
+              className={`${styles.statChip} ${
+                lineCount > 0 ? styles.statChipOn : ''
+              }`}
+            >
+              <strong>{lineCount}</strong>
+              line{lineCount === 1 ? '' : 's'}
+            </span>
+          </div>
+          <div
+            className={styles.fillTrack}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={fillPct}
+            aria-label="Pull fill"
+          >
+            <div
+              className={`${styles.fillBar} ${
+                unitCount > 0 ? styles.fillBarActive : ''
+              }`}
+              style={{ width: `${fillPct}%` }}
+            />
+          </div>
         </div>
         <div className={styles.toolbarActions}>
           {rows.length > 0 && (
@@ -61,16 +143,29 @@ export function CartView({
               </button>
               <button
                 type="button"
-                className={styles.primaryBtn}
-                onClick={() => window.print()}
+                className={`${styles.primaryBtn} ${
+                  printPhase === 'done' ? styles.primaryBtnDone : ''
+                } ${printPhase === 'printing' ? styles.primaryBtnBusy : ''}`}
+                onClick={handlePrint}
               >
-                <Printer size={16} />
-                Print / PDF
+                {printPhase === 'done' ? (
+                  <Check size={16} strokeWidth={2.4} />
+                ) : (
+                  <Printer size={16} />
+                )}
+                {printPhase === 'done' ? 'Printed' : 'Print / PDF'}
               </button>
             </>
           )}
         </div>
       </div>
+
+      {printPhase === 'done' && rows.length > 0 && (
+        <div className={`${styles.winBanner} ${styles.noPrint}`} role="status">
+          <Check size={16} strokeWidth={2.4} aria-hidden />
+          <span>Pull list ready — take it to the floor.</span>
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div className={`${styles.empty} ${styles.noPrint}`}>
@@ -82,7 +177,7 @@ export function CartView({
           </p>
         </div>
       ) : (
-        <div className={styles.printSheet}>
+        <div className={`${styles.printSheet} ${styles.sheetEnter}`}>
           <header className={`${styles.printHeader} ${styles.printOnly}`}>
             <h1 className={styles.printTitle}>TechLib cart</h1>
             <p className={styles.printMeta}>
@@ -153,7 +248,7 @@ export function CartView({
                   return (
                     <tr key={item.noteId}>
                       <td className={styles.colQty}>
-                        <span className={styles.qty}>{item.quantity}</span>
+                        <span key={item.quantity} className={styles.qty}>{item.quantity}</span>
                       </td>
                       <td className={styles.colIcon} aria-hidden>
                         <Icon size={16} strokeWidth={1.75} />

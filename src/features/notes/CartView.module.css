@@ -1,3 +1,6 @@
+.noPrint {
+}
+
 .section {
   display: flex;
   flex-direction: column;
@@ -373,4 +376,196 @@
   white-space: nowrap;
   font-weight: 560;
   text-align: left;
+}
+
+
+/* --- E3 cart win state --- */
+
+.toolbarLead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: min(100%, 22rem);
+  flex: 1 1 16rem;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.statChip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(31, 35, 40, 0.03);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 550;
+}
+
+.statChip strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.statChipOn {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--accent-soft);
+  color: color-mix(in srgb, var(--accent) 75%, var(--text-muted));
+}
+
+.statChipOn strong {
+  color: var(--accent);
+}
+
+.fillTrack {
+  width: min(100%, 18rem);
+  height: 0.4rem;
+  border-radius: 999px;
+  background: rgba(31, 35, 40, 0.08);
+  overflow: hidden;
+}
+
+.fillBar {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 55%, #9aa0a6);
+  transition: width 280ms cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.fillBarActive {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 75%, #5b8def),
+    var(--accent)
+  );
+}
+
+.primaryBtnBusy {
+  opacity: 0.85;
+  transform: scale(0.98);
+}
+
+.primaryBtnDone {
+  background: #0d7a46;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #0d7a46 22%, transparent);
+}
+
+.winBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, #0d7a46 28%, var(--border));
+  background: color-mix(in srgb, #0d7a46 10%, white);
+  color: #0d7a46;
+  font-size: 0.92rem;
+  font-weight: 600;
+  animation: winIn 320ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+.sheetEnter {
+  animation: sheetIn 360ms cubic-bezier(0.34, 1.25, 0.64, 1);
+}
+
+.printHeader {
+  margin-bottom: 0.35rem;
+}
+
+.printTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.printMeta {
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.qty {
+  display: inline-block;
+  min-width: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  animation: qtyBump 280ms cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+
+@keyframes winIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes qtyBump {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fillBar,
+  .winBanner,
+  .sheetEnter,
+  .qty {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media print {
+  .noPrint,
+  .winBanner,
+  .fillTrack,
+  .stats,
+  .toolbarActions {
+    display: none !important;
+  }
+
+  .printHeader {
+    display: block !important;
+  }
+
+  .printTitle {
+    font-size: 12pt;
+    color: #000;
+  }
+
+  .printMeta {
+    font-size: 8pt;
+    color: #333;
+  }
 }
