@@ -16,6 +16,11 @@
   animation: rise 200ms ease;
 }
 
+.success {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--bg-elevated, #fff));
+}
+
 .message {
   margin: 0;
   font-size: 0.92rem;
