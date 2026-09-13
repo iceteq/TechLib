@@ -104,6 +104,8 @@ export function NoteCard({
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
   const overflow = Math.max(0, note.images.length - NOTE_PREVIEW_IMAGE_LIMIT);
+  /** Image-first when photos are shown; text-first otherwise (E8 wall density). */
+  const imageFirst = showPhotos && preview.length > 0;
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const stock = stockLocations.find((s) => s.id === note.stockId);
   const title = note.title.trim() || 'No part number';
@@ -263,7 +265,9 @@ export function NoteCard({
   return (
     <article
       ref={cardRef}
-      className={`${styles.card} ${selected ? styles.selected : ''} ${
+      className={`${styles.card} ${
+        imageFirst ? styles.imageFirst : styles.textFirst
+      } ${selected ? styles.selected : ''} ${
         selecting && selected ? styles.draggable : ''
       } ${pulse ? styles.capturePulse : ''}`}
       onAnimationEnd={(event) => {

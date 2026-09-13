@@ -230,6 +230,58 @@
   padding: 0.9rem 1rem 1rem;
 }
 
+/* E8 — photo cards lead with media; text-only cards lead with title hierarchy. */
+.imageFirst .imageWrap {
+  position: relative;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: 4 / 3;
+}
+
+.imageFirst .image {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+}
+
+.imageFirst .body {
+  gap: 0.35rem;
+  padding: 0.7rem 0.85rem 0.85rem;
+}
+
+.imageFirst .title {
+  font-size: 0.95rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.imageFirst .description {
+  -webkit-line-clamp: 2;
+  font-size: 0.8rem;
+}
+
+.textFirst .body {
+  gap: 0.5rem;
+  padding: 1rem 1.05rem 1.1rem;
+}
+
+.textFirst .title {
+  font-size: 1.08rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.28;
+}
+
+.textFirst .description {
+  -webkit-line-clamp: 4;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.textFirst .metaPrimary {
+  margin-top: 0.1rem;
+}
+
 .titleRow {
   display: flex;
   align-items: flex-start;
