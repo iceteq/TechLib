@@ -4,6 +4,7 @@ import {
   Archive,
   ArchiveRestore,
   Camera,
+  Check,
   ChevronLeft,
   ChevronRight,
   ImagePlus,
@@ -121,6 +122,7 @@ export function NoteEditor({
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const [navBusy, setNavBusy] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -136,6 +138,8 @@ export function NoteEditor({
   const colorOpenRef = useRef(colorOpen);
   const assignFieldRef = useRef(assignField);
   const imageBusyRef = useRef(false);
+  const saveInflightRef = useRef(0);
+  const saveHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   moreOpenRef.current = moreOpen;
   colorOpenRef.current = colorOpen;
   assignFieldRef.current = assignField;
@@ -179,6 +183,23 @@ export function NoteEditor({
     setMoreOpen(false);
     setNavBusy(false);
   }, [note.id, note.title, note.description, note.specialCase, note.guidelineLines]);
+
+  // Reset save chrome only when switching notes — content sync after a write
+  // must not clear the quiet "Saved" pulse.
+  useEffect(() => {
+    setSaveStatus('idle');
+    saveInflightRef.current = 0;
+    if (saveHideTimerRef.current) {
+      clearTimeout(saveHideTimerRef.current);
+      saveHideTimerRef.current = null;
+    }
+  }, [note.id]);
+
+  useEffect(() => {
+    return () => {
+      if (saveHideTimerRef.current) clearTimeout(saveHideTimerRef.current);
+    };
+  }, []);
 
   // Keep focus on the dialog chrome — never autofocus a text field, so mobile
   // keyboards stay closed until the user taps something to edit.
@@ -380,19 +401,42 @@ export function NoteEditor({
     if (files.length > 0) void onAddImages(files);
   }
 
+  async function saveMeta(
+    patch: Parameters<NoteEditorProps['onSaveMeta']>[0],
+  ): Promise<void> {
+    if (saveHideTimerRef.current) {
+      clearTimeout(saveHideTimerRef.current);
+      saveHideTimerRef.current = null;
+    }
+    saveInflightRef.current += 1;
+    setSaveStatus('saving');
+    try {
+      await onSaveMeta(patch);
+    } finally {
+      saveInflightRef.current = Math.max(0, saveInflightRef.current - 1);
+      if (saveInflightRef.current === 0) {
+        setSaveStatus('saved');
+        saveHideTimerRef.current = setTimeout(() => {
+          setSaveStatus('idle');
+          saveHideTimerRef.current = null;
+        }, 1600);
+      }
+    }
+  }
+
   async function persistTitle(next = title) {
     if (next === note.title) return;
-    await onSaveMeta({ title: next });
+    await saveMeta({ title: next });
   }
 
   async function persistDescription(next = description) {
     if (next === note.description) return;
-    await onSaveMeta({ description: next });
+    await saveMeta({ description: next });
   }
 
   async function persistSpecialCase(next = specialCase) {
     if (next === (note.specialCase ?? '')) return;
-    await onSaveMeta({ specialCase: next });
+    await saveMeta({ specialCase: next });
   }
 
   async function persistAll() {
@@ -580,7 +624,7 @@ export function NoteEditor({
 
   async function addLabel(label: Label) {
     if (note.labelIds.includes(label.id)) return;
-    await onSaveMeta({ labelIds: [...note.labelIds, label.id] });
+    await saveMeta({ labelIds: [...note.labelIds, label.id] });
   }
 
   return createPortal(
@@ -644,6 +688,28 @@ export function NoteEditor({
                 </button>
               </div>
             )}
+
+            {saveStatus !== 'idle' && (
+              <span
+                className={`${styles.saveStatus} ${
+                  saveStatus === 'saved' ? styles.savePulse : ''
+                }`}
+                role="status"
+                aria-live="polite"
+              >
+                {saveStatus === 'saving' ? (
+                  <>
+                    <Loader2 size={13} className={styles.spinner} aria-hidden />
+                    <span>Saving</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={13} aria-hidden />
+                    <span>Saved</span>
+                  </>
+                )}
+              </span>
+            )}
           </div>
 
           <div className={styles.topRight}>
@@ -652,7 +718,7 @@ export function NoteEditor({
                 <button
                   type="button"
                   className={`${styles.iconBtn} ${note.pinned ? styles.iconActive : ''}`}
-                  onClick={() => void onSaveMeta({ pinned: !note.pinned })}
+                  onClick={() => void saveMeta({ pinned: !note.pinned })}
                   aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
                   title={note.pinned ? 'Unpin' : 'Pin'}
                 >
@@ -661,7 +727,7 @@ export function NoteEditor({
                 <button
                   type="button"
                   className={`${styles.iconBtn} ${note.archived ? styles.iconActive : ''}`}
-                  onClick={() => void onSaveMeta({ archived: !note.archived })}
+                  onClick={() => void saveMeta({ archived: !note.archived })}
                   aria-label={note.archived ? 'Unarchive note' : 'Archive note'}
                   title={note.archived ? 'Unarchive' : 'Archive'}
                 >
@@ -690,7 +756,7 @@ export function NoteEditor({
                           }`}
                           style={{ background: option.surface, borderColor: option.border }}
                           onClick={() => {
-                            void onSaveMeta({ background: option.id });
+                            void saveMeta({ background: option.id });
                             setColorOpen(false);
                           }}
                           aria-label={option.label}
@@ -752,7 +818,7 @@ export function NoteEditor({
                       className={styles.moreItem}
                       role="menuitem"
                       onClick={() => {
-                        void onSaveMeta({ pinned: !note.pinned });
+                        void saveMeta({ pinned: !note.pinned });
                         setMoreOpen(false);
                       }}
                     >
@@ -764,7 +830,7 @@ export function NoteEditor({
                       className={styles.moreItem}
                       role="menuitem"
                       onClick={() => {
-                        void onSaveMeta({ archived: !note.archived });
+                        void saveMeta({ archived: !note.archived });
                         setMoreOpen(false);
                       }}
                     >
@@ -792,7 +858,7 @@ export function NoteEditor({
                             }`}
                             style={{ background: option.surface, borderColor: option.border }}
                             onClick={() => {
-                              void onSaveMeta({ background: option.id });
+                              void saveMeta({ background: option.id });
                               setColorOpen(false);
                               setMoreOpen(false);
                             }}
@@ -930,7 +996,7 @@ export function NoteEditor({
                 <TypeChip
                   type={suggestedType}
                   suggested
-                  onClick={() => void onSaveMeta({ categoryId: suggestedType.id })}
+                  onClick={() => void saveMeta({ categoryId: suggestedType.id })}
                 />
               ) : (
                 <button
@@ -1030,16 +1096,16 @@ export function NoteEditor({
             currentStockId={note.stockId}
             currentLabelIds={note.labelIds}
             onAssignDisposition={(value) =>
-              void onSaveMeta({ disposition: value })
+              void saveMeta({ disposition: value })
             }
             onAssignGuidelineLines={(guidelineLines) =>
-              void onSaveMeta({ guidelineLines })
+              void saveMeta({ guidelineLines })
             }
             onAssignCategory={(value) =>
-              void onSaveMeta({ categoryId: value })
+              void saveMeta({ categoryId: value })
             }
-            onAssignStock={(value) => void onSaveMeta({ stockId: value })}
-            onAssignLabels={(labelIds) => void onSaveMeta({ labelIds })}
+            onAssignStock={(value) => void saveMeta({ stockId: value })}
+            onAssignLabels={(labelIds) => void saveMeta({ labelIds })}
             onCreateLabel={onCreateLabel}
             onClose={() => setAssignField(null)}
           />
