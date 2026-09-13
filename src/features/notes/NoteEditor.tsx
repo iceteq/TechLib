@@ -129,6 +129,15 @@ export function NoteEditor({
   const dialogRef = useRef<HTMLDivElement>(null);
   const firstOpenRef = useRef(true);
   const dropDepth = useRef(0);
+  /** Ignore the synthetic popstate fired when Done/X pops our history trap. */
+  const ignorePopRef = useRef(false);
+  const moreOpenRef = useRef(moreOpen);
+  const colorOpenRef = useRef(colorOpen);
+  const assignFieldRef = useRef(assignField);
+  const imageBusyRef = useRef(false);
+  moreOpenRef.current = moreOpen;
+  colorOpenRef.current = colorOpen;
+  assignFieldRef.current = assignField;
   const bg = getBackground(note.background);
   const selectedType = noteTypeById(noteTypes, note.categoryId);
   const suggestedType =
@@ -154,6 +163,7 @@ export function NoteEditor({
     !(note.specialCase ?? '').trim();
 
   const imageBusy = imageBusyCount > 0;
+  imageBusyRef.current = imageBusy;
 
   useEffect(() => {
     setTitle(note.title);
@@ -394,8 +404,59 @@ export function NoteEditor({
     ]);
   }
 
-  async function finish() {
+  function clearEditorTextSelection(): boolean {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return false;
+    }
+    const anchor = selection.anchorNode;
+    if (!anchor || !dialogRef.current?.contains(anchor)) return false;
+    selection.removeAllRanges();
+    return true;
+  }
+
+  function blurEditorTextField(): boolean {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) return false;
+    if (!dialogRef.current?.contains(active)) return false;
+    if (!isTextEntryTarget(active)) return false;
+    active.blur();
+    dialogRef.current.focus({ preventScroll: true });
+    return true;
+  }
+
+  /** Soft dismiss layers (selection → menus → keyboard). Returns true if handled. */
+  function dismissEditorLayer(): boolean {
+    if (clearEditorTextSelection()) return true;
+    if (moreOpenRef.current) {
+      setMoreOpen(false);
+      setColorOpen(false);
+      return true;
+    }
+    if (colorOpenRef.current) {
+      setColorOpen(false);
+      return true;
+    }
+    if (assignFieldRef.current) {
+      setAssignField(null);
+      return true;
+    }
+    if (blurEditorTextField()) return true;
+    return false;
+  }
+
+  function releaseHistoryTrap() {
+    if (history.state && (history.state as { techlibNoteEditor?: boolean }).techlibNoteEditor) {
+      ignorePopRef.current = true;
+      history.back();
+    }
+  }
+
+  async function finish(options?: { fromBack?: boolean }) {
     await persistAll();
+    if (!options?.fromBack) {
+      releaseHistoryTrap();
+    }
     onClose();
   }
 
@@ -421,20 +482,43 @@ export function NoteEditor({
     }
   }
 
+  // Trap browser/Android Back while the editor is open so it peels dismiss
+  // layers (selection → menus → keyboard) and otherwise acts like Done.
+  useEffect(() => {
+    const marker = { techlibNoteEditor: true as const };
+    history.pushState(marker, '');
+
+    function onPopState() {
+      if (ignorePopRef.current) {
+        ignorePopRef.current = false;
+        return;
+      }
+      if (imageBusyRef.current) {
+        history.pushState(marker, '');
+        return;
+      }
+      if (dismissEditorLayer()) {
+        history.pushState(marker, '');
+        return;
+      }
+      void finish({ fromBack: true });
+    }
+
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      releaseHistoryTrap();
+    };
+    // Mount-only trap; latest UI state is read through refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         if (imageBusy) return;
-        if (assignField) return;
-        if (moreOpen) {
-          setMoreOpen(false);
-          setColorOpen(false);
-          return;
-        }
-        if (colorOpen) {
-          setColorOpen(false);
-          return;
-        }
+        // Nested surfaces (label suggestions, assign popover) stopPropagation.
+        if (dismissEditorLayer()) return;
         void finish();
         return;
       }
