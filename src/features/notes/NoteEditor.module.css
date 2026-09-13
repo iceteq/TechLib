@@ -447,6 +447,15 @@
   color: var(--accent);
 }
 
+.moreDanger {
+  color: var(--danger, #c5221f);
+}
+
+.moreDanger:hover {
+  background: rgba(197, 34, 31, 0.12);
+  color: var(--danger, #c5221f);
+}
+
 .moreSwatches {
   display: flex;
   flex-wrap: wrap;
@@ -503,5 +512,25 @@
   /* Home-indicator inset is irrelevant while the keyboard covers the bottom edge. */
   .overlay[data-keyboard-open='true'] .footer {
     padding-bottom: 0.45rem;
+  }
+
+  .iconBtn {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .topActions,
+  .footer {
+    gap: 0.35rem;
+  }
+
+  .sectionLabel {
+    margin-top: 0.15rem;
+  }
+
+  .addSpecialCase {
+    min-height: 2.5rem;
+    align-items: center;
+    padding: 0.35rem 0;
   }
 }

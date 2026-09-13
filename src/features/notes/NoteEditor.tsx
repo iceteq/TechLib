@@ -111,6 +111,10 @@ export function NoteEditor({
   const [specialCaseOpen, setSpecialCaseOpen] = useState(
     Boolean((note.specialCase ?? '').trim()),
   );
+  const [guidelineOpen, setGuidelineOpen] = useState(
+    (note.guidelineLines?.length ?? 0) > 0,
+  );
+  const [barcodeOpen, setBarcodeOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
@@ -156,11 +160,13 @@ export function NoteEditor({
     setDescription(note.description);
     setSpecialCase(note.specialCase ?? '');
     setSpecialCaseOpen(Boolean((note.specialCase ?? '').trim()));
+    setGuidelineOpen((note.guidelineLines?.length ?? 0) > 0);
+    setBarcodeOpen(false);
     setAssignField(null);
     setColorOpen(false);
     setMoreOpen(false);
     setNavBusy(false);
-  }, [note.id, note.title, note.description, note.specialCase]);
+  }, [note.id, note.title, note.description, note.specialCase, note.guidelineLines]);
 
   useEffect(() => {
     if (firstOpenRef.current) {
@@ -420,6 +426,11 @@ export function NoteEditor({
       if (e.key === 'Escape') {
         if (imageBusy) return;
         if (assignField) return;
+        if (moreOpen) {
+          setMoreOpen(false);
+          setColorOpen(false);
+          return;
+        }
         if (colorOpen) {
           setColorOpen(false);
           return;
@@ -434,7 +445,7 @@ export function NoteEditor({
         return;
       }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        if (imageBusy || navBusy || assignField || colorOpen) return;
+        if (imageBusy || navBusy || assignField || colorOpen || moreOpen) return;
         if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
         if (isTextEntryTarget(e.target)) return;
         if (e.key === 'ArrowLeft') {
@@ -694,20 +705,34 @@ export function NoteEditor({
                           : 'Add to cart'}
                       </span>
                     </button>
+                    <button
+                      type="button"
+                      className={`${styles.moreItem} ${styles.moreDanger}`}
+                      role="menuitem"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        void onDelete();
+                      }}
+                    >
+                      <Trash2 size={16} />
+                      <span>Delete</span>
+                    </button>
                   </div>
                 )}
               </div>
             )}
 
-            <button
-              type="button"
-              className={`${styles.iconBtn} ${styles.danger}`}
-              onClick={() => void onDelete()}
-              aria-label="Delete note"
-              title="Delete"
-            >
-              <Trash2 size={18} />
-            </button>
+            {!isNarrow && (
+              <button
+                type="button"
+                className={`${styles.iconBtn} ${styles.danger}`}
+                onClick={() => void onDelete()}
+                aria-label="Delete note"
+                title="Delete"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -758,13 +783,25 @@ export function NoteEditor({
           </div>
 
           <div className={styles.section}>
-            <p className={styles.sectionLabel}>Guideline</p>
-            <GuidelineLinesEditor
-              lines={note.guidelineLines ?? []}
-              onChange={(guidelineLines) =>
-                void onSaveMeta({ guidelineLines })
-              }
-            />
+            {guidelineOpen || (note.guidelineLines?.length ?? 0) > 0 ? (
+              <>
+                <p className={styles.sectionLabel}>Guideline</p>
+                <GuidelineLinesEditor
+                  lines={note.guidelineLines ?? []}
+                  onChange={(guidelineLines) =>
+                    void onSaveMeta({ guidelineLines })
+                  }
+                />
+              </>
+            ) : (
+              <button
+                type="button"
+                className={styles.addSpecialCase}
+                onClick={() => setGuidelineOpen(true)}
+              >
+                Add guideline
+              </button>
+            )}
             <div className={styles.metaRow} aria-label="Type and stock">
               {selectedType ? (
                 <TypeChip
@@ -844,8 +881,20 @@ export function NoteEditor({
 
           {showBarcodes && (
             <div className={styles.section}>
-              <p className={styles.sectionLabel}>Barcode</p>
-              <Barcode title={title || note.title} />
+              {barcodeOpen || !isNarrow ? (
+                <>
+                  <p className={styles.sectionLabel}>Barcode</p>
+                  <Barcode title={title || note.title} />
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.addSpecialCase}
+                  onClick={() => setBarcodeOpen(true)}
+                >
+                  Show barcode
+                </button>
+              )}
             </div>
           )}
         </div>
