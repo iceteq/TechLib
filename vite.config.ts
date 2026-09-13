@@ -5,11 +5,11 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // Cloud / remote agents: bind all interfaces so port forwarding works.
-    host: '0.0.0.0',
+    // Dual-stack (::) so both localhost (::1) and 127.0.0.1 work.
+    // 0.0.0.0 alone breaks browsers that resolve localhost to IPv6 first.
+    host: '::',
     port: 5173,
     strictPort: true,
-    // Allow Cursor port-forward hosts and Cloudflare quick tunnels.
     allowedHosts: true,
   },
 })
