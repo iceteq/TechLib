@@ -85,6 +85,9 @@ interface NoteGridProps {
   onDropImages?: (files: File[]) => void;
   /** > 0 while images are being saved (drop / paste create). */
   imageBusyCount?: number;
+  /** Note ids that should play a capture highlight on the wall. */
+  pulseNoteIds?: string[];
+  onPulseEnd?: (noteId: string) => void;
 }
 
 export function NoteGrid({
@@ -127,6 +130,8 @@ export function NoteGrid({
   onNotesDragStart,
   onDropImages,
   imageBusyCount = 0,
+  pulseNoteIds = [],
+  onPulseEnd,
 }: NoteGridProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -574,6 +579,8 @@ export function NoteGrid({
                 selectedIds.has(note.id) ? [...selectedIds] : undefined
               }
               onNotesDragStart={onNotesDragStart}
+              pulse={pulseNoteIds.includes(note.id)}
+              onPulseEnd={onPulseEnd}
             />
           ))}
         </div>

@@ -61,6 +61,9 @@ interface NoteCardProps {
   /** IDs included when this card is dragged (selected set). */
   dragNoteIds?: string[];
   onNotesDragStart?: () => void;
+  /** Play capture highlight when this card lands on the wall. */
+  pulse?: boolean;
+  onPulseEnd?: (noteId: string) => void;
 }
 
 export function NoteCard({
@@ -91,6 +94,8 @@ export function NoteCard({
   onCreateLabel,
   dragNoteIds,
   onNotesDragStart,
+  pulse = false,
+  onPulseEnd,
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
@@ -116,6 +121,15 @@ export function NoteCard({
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const longPressActivated = useRef(false);
   const suppressUntil = useRef(0);
+
+  // Capture combo: brief highlight when a new photo-note returns to the wall.
+  useEffect(() => {
+    if (!pulse) return;
+    const el = cardRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }, [pulse]);
+
 
   function armSuppress() {
     suppressUntil.current = Date.now() + SUPPRESS_MS;
@@ -247,7 +261,12 @@ export function NoteCard({
       ref={cardRef}
       className={`${styles.card} ${selected ? styles.selected : ''} ${
         selecting && selected ? styles.draggable : ''
-      }`}
+      } ${pulse ? styles.capturePulse : ''}`}
+      onAnimationEnd={(event) => {
+        if (!pulse) return;
+        if (event.target !== event.currentTarget) return;
+        onPulseEnd?.(note.id);
+      }}
       style={{ background: bg.surface, borderColor: bg.border }}
       draggable={selecting && selected}
       onDragStart={handleDragStart}

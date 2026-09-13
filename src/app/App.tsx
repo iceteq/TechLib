@@ -199,6 +199,9 @@ export default function App() {
   );
   const [search, setSearch] = useState(initialSession.search);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  /** Note ids waiting to pulse on the wall after a capture create. */
+  const pendingWallPulseIds = useRef<Set<string>>(new Set());
+  const [wallPulseNoteIds, setWallPulseNoteIds] = useState<string[]>([]);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [undoAction, setUndoAction] = useState<UndoAction | null>(null);
   const undoActionRef = useRef<UndoAction | null>(null);
@@ -474,8 +477,25 @@ export default function App() {
     await commitPendingDelete(previous);
   }
 
+  
+  function queueWallPulse(noteId: string) {
+    pendingWallPulseIds.current.add(noteId);
+  }
+
+  function flushWallPulses() {
+    if (pendingWallPulseIds.current.size === 0) return;
+    const ids = [...pendingWallPulseIds.current];
+    pendingWallPulseIds.current.clear();
+    setWallPulseNoteIds((prev) => [...new Set([...prev, ...ids])]);
+  }
+
+  function clearWallPulse(noteId: string) {
+    setWallPulseNoteIds((prev) => prev.filter((id) => id !== noteId));
+  }
+
   async function handleCloseEditor() {
     if (activeNote && isBlankNote(activeNote)) {
+      pendingWallPulseIds.current.delete(activeNote.id);
       await store.deleteNote(activeNote.id);
       setActiveNoteId(null);
       await refresh();
@@ -483,6 +503,8 @@ export default function App() {
       return;
     }
     setActiveNoteId(null);
+    // Reveal capture pulse once the editor no longer covers the wall.
+    flushWallPulses();
   }
 
   async function handleCreateNote() {
@@ -674,6 +696,7 @@ export default function App() {
         await store.addImage(note.id, file);
       }
       await refresh();
+      queueWallPulse(note.id);
       setActiveNoteId(note.id);
       setSidebarOpen(false);
     } finally {
@@ -1084,6 +1107,8 @@ export default function App() {
           }}
           onDropImages={(files) => void createNoteFromImages(files)}
           imageBusyCount={imageBusyCount}
+          pulseNoteIds={wallPulseNoteIds}
+          onPulseEnd={clearWallPulse}
         />
       )}
 
