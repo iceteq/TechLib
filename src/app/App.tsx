@@ -36,6 +36,9 @@ import {
   filterNotes,
   stockLabel,
 } from '../lib/searchNotes';
+import { loadRecentOpens, touchRecentOpen } from '../lib/recentOpens';
+import { sortWallNotes } from '../lib/sortWallNotes';
+
 import type { PastedNoteDraft } from '../lib/parsePastedNotes';
 import {
   describeNoteAssign,
@@ -222,12 +225,19 @@ export default function App() {
   const [imageBusyCount, setImageBusyCount] = useState(0);
   const [ready, setReady] = useState(false);
   const [viewPrefs, setViewPrefs] = useState(loadViewPrefs);
+  const [openedAtById, setOpenedAtById] = useState(loadRecentOpens);
   const [notice, setNotice] = useState<string | null>(null);
 
   function updateViewPrefs(next: typeof viewPrefs) {
     setViewPrefs(next);
     saveViewPrefs(next);
   }
+
+  function openNote(noteId: string) {
+    setOpenedAtById((prev) => touchRecentOpen(noteId, prev));
+    setActiveNoteId(noteId);
+  }
+
 
   const refresh = useCallback(async () => {
     const [nextNotes, nextLabels, nextTypes, nextStock, nextCart] =
@@ -253,31 +263,34 @@ export default function App() {
     })();
   }, [refresh]);
 
-  const visibleNotes = useMemo(
-    () =>
-      filterNotes(notes, labels, stockLocations, noteTypes, {
-        labelIds: view === 'notes' ? filterLabelIds : [],
-        search,
-        view: view === 'cart' ? 'notes' : view,
-        disposition: view === 'notes' ? filterDisposition : null,
-        categoryId: view === 'notes' ? filterCategoryId : null,
-        stockId: view === 'notes' ? filterStockId : null,
-        specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
-      }),
-    [
-      notes,
-      labels,
-      stockLocations,
-      noteTypes,
-      filterLabelIds,
-      filterDisposition,
-      filterCategoryId,
-      filterStockId,
-      specialCasesOnly,
+  const visibleNotes = useMemo(() => {
+    const filtered = filterNotes(notes, labels, stockLocations, noteTypes, {
+      labelIds: view === 'notes' ? filterLabelIds : [],
       search,
-      view,
-    ],
-  );
+      view: view === 'cart' ? 'notes' : view,
+      disposition: view === 'notes' ? filterDisposition : null,
+      categoryId: view === 'notes' ? filterCategoryId : null,
+      stockId: view === 'notes' ? filterStockId : null,
+      specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
+    });
+    // Keep search relevance ordering; apply wall sort only when browsing.
+    if (search.trim()) return filtered;
+    return sortWallNotes(filtered, viewPrefs.sort, openedAtById);
+  }, [
+    notes,
+    labels,
+    stockLocations,
+    noteTypes,
+    filterLabelIds,
+    filterDisposition,
+    filterCategoryId,
+    filterStockId,
+    specialCasesOnly,
+    search,
+    view,
+    viewPrefs.sort,
+    openedAtById,
+  ]);
 
   useEffect(() => {
     saveFilterSession({
@@ -530,7 +543,7 @@ export default function App() {
     });
     await refresh();
     setView('notes');
-    setActiveNoteId(note.id);
+    openNote(note.id);
     setSidebarOpen(false);
   }
 
@@ -645,7 +658,7 @@ export default function App() {
           }
         }
       }
-      setActiveNoteId(nextId);
+      if (nextId) openNote(nextId); else setActiveNoteId(null);
     }
 
     await store.softDeleteNotes(ids);
@@ -655,12 +668,12 @@ export default function App() {
 
   function handleNavigatePrev() {
     if (activeNavIndex <= 0) return;
-    setActiveNoteId(visibleNotes[activeNavIndex - 1].id);
+    openNote(visibleNotes[activeNavIndex - 1].id);
   }
 
   function handleNavigateNext() {
     if (activeNavIndex < 0 || activeNavIndex >= visibleNotes.length - 1) return;
-    setActiveNoteId(visibleNotes[activeNavIndex + 1].id);
+    openNote(visibleNotes[activeNavIndex + 1].id);
   }
 
   async function handleSaveMeta(patch: {
@@ -746,7 +759,7 @@ export default function App() {
       }
       await refresh();
       queueWallPulse(note.id);
-      setActiveNoteId(note.id);
+      openNote(note.id);
       setSidebarOpen(false);
     } finally {
       setImageBusyCount(0);
@@ -1107,7 +1120,7 @@ export default function App() {
           noteTypes={noteTypes}
           unitCount={cartUnitCount}
           showBarcodes={viewPrefs.barcodes}
-          onOpenNote={(id) => setActiveNoteId(id)}
+          onOpenNote={openNote}
           onChangeQuantity={(noteId, quantity) =>
             void handleCartQuantity(noteId, quantity)
           }
@@ -1135,7 +1148,7 @@ export default function App() {
           showLabels={viewPrefs.labels}
           showAge={viewPrefs.age}
           showTypeChip={viewPrefs.typeChip}
-          onOpenNote={(id) => setActiveNoteId(id)}
+          onOpenNote={openNote}
           onCreateNote={() => void handleCreateNote()}
           onPasteNotes={() => setPasteOpen(true)}
           onDeleteNotes={handleDeleteNotes}

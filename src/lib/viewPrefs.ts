@@ -1,3 +1,6 @@
+/** Wall card ordering in browse (search still ranks by relevance). */
+export type WallSort = 'default' | 'recent';
+
 export type ViewPrefs = {
   barcodes: boolean;
   photos: boolean;
@@ -7,6 +10,11 @@ export type ViewPrefs = {
   age: boolean;
   /** Show type chip on cards (muted style). */
   typeChip: boolean;
+  /**
+   * default = recently edited (pin-first).
+   * recent = recently useful (opened or edited).
+   */
+  sort: WallSort;
 };
 
 export const DEFAULT_VIEW_PREFS: ViewPrefs = {
@@ -17,6 +25,7 @@ export const DEFAULT_VIEW_PREFS: ViewPrefs = {
   labels: true,
   age: false,
   typeChip: true,
+  sort: 'default',
 };
 
 export const VIEW_PREFS_STORAGE_KEY = 'techlib.viewPrefs';
@@ -29,7 +38,9 @@ export function loadViewPrefs(): ViewPrefs {
     const raw = localStorage.getItem(VIEW_PREFS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<ViewPrefs>;
-      return { ...DEFAULT_VIEW_PREFS, ...parsed };
+      const sort: WallSort =
+        parsed.sort === 'recent' ? 'recent' : DEFAULT_VIEW_PREFS.sort;
+      return { ...DEFAULT_VIEW_PREFS, ...parsed, sort };
     }
 
     const legacy = localStorage.getItem(LEGACY_BARCODES_KEY);
