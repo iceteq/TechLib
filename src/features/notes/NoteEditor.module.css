@@ -210,7 +210,7 @@
   background: rgba(255, 255, 255, 0.55);
   resize: none;
   min-height: 3.2rem;
-  max-height: min(32dvh, 14rem);
+  /* Grow with content; the dialog body scrolls images + fields together. */
   line-height: 1.4;
   font: inherit;
   outline: none;
@@ -277,8 +277,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
   padding: 0.35rem 1.1rem 0.5rem;
 }
 
@@ -531,14 +530,17 @@
   .dialogBody {
     flex: 1 1 auto;
     min-height: 0;
+    overflow: auto;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 0.35rem;
     overscroll-behavior: contain;
   }
 
   .fields {
-    /* Don't stretch empty space to fill the sheet on short notes. */
-    flex: 0 1 auto;
+    /* Don't stretch empty space to fill the sheet on short notes.
+       Textareas grow with content so images scroll away with the body. */
+    flex: 0 0 auto;
+    min-height: 0;
   }
 
   .footer {

@@ -11,23 +11,15 @@
   border: none;
   background: transparent;
   resize: none;
-  /* ~2 lines; autosize grows with content so empty notes stay compact. */
+  /* ~2 lines; autosize grows with content so empty notes stay compact.
+     No max-height — the note sheet scrolls as a whole (images + body). */
   min-height: 2.75rem;
-  max-height: min(52dvh, 28rem);
   line-height: 1.5;
   outline: none;
   color: var(--text);
   font: inherit;
   overflow-y: hidden;
   field-sizing: content;
-}
-
-@media (max-width: 600px) {
-  .textarea {
-    /* Short notes shouldn't open with a tall empty description well. */
-    min-height: 2.75rem;
-    max-height: min(40dvh, 18rem);
-  }
 }
 
 .menu {
