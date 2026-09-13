@@ -127,7 +127,6 @@ export function NoteEditor({
   const specialCaseRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const firstOpenRef = useRef(true);
   const dropDepth = useRef(0);
   /** Ignore the synthetic popstate fired when Done/X pops our history trap. */
   const ignorePopRef = useRef(false);
@@ -181,13 +180,10 @@ export function NoteEditor({
     setNavBusy(false);
   }, [note.id, note.title, note.description, note.specialCase, note.guidelineLines]);
 
+  // Keep focus on the dialog chrome — never autofocus a text field, so mobile
+  // keyboards stay closed until the user taps something to edit.
   useEffect(() => {
-    if (firstOpenRef.current) {
-      firstOpenRef.current = false;
-      titleRef.current?.focus();
-      return;
-    }
-    dialogRef.current?.focus();
+    dialogRef.current?.focus({ preventScroll: true });
   }, [note.id]);
 
   useEffect(() => {
@@ -436,7 +432,7 @@ export function NoteEditor({
     if (!dialogRef.current?.contains(active)) return false;
     if (!isTextEntryTarget(active)) return false;
     // Only spend a Back press on blur when the soft keyboard is likely open.
-    // Otherwise autofocused title/description would force an extra Back to Done.
+    // Otherwise a focused title/description would force an extra Back to Done.
     const vv = window.visualViewport;
     const keyboardLikelyOpen = Boolean(
       vv && vv.height < window.innerHeight * 0.85,
