@@ -8,6 +8,8 @@ interface UndoToastProps {
   onDismiss: () => void;
   /** Auto-dismiss after this many ms. */
   durationMs?: number;
+  /** Subtle success chrome for import delight. */
+  tone?: 'default' | 'success';
 }
 
 export function UndoToast({
@@ -15,6 +17,7 @@ export function UndoToast({
   onUndo,
   onDismiss,
   durationMs = 20000,
+  tone = 'default',
 }: UndoToastProps) {
   useEffect(() => {
     const timer = window.setTimeout(onDismiss, durationMs);
@@ -22,7 +25,11 @@ export function UndoToast({
   }, [message, durationMs, onDismiss]);
 
   return (
-    <div className={styles.toast} role="status" aria-live="polite">
+    <div
+      className={`${styles.toast} ${tone === 'success' ? styles.success : ''}`}
+      role="status"
+      aria-live="polite"
+    >
       <p className={styles.message}>{message}</p>
       {onUndo && (
         <button type="button" className={styles.undo} onClick={onUndo}>

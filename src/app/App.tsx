@@ -10,6 +10,7 @@ import { CartView } from '../features/notes/CartView';
 import { NoteEditor } from '../features/notes/NoteEditor';
 import { NoteGrid } from '../features/notes/NoteGrid';
 import { PasteNotesDialog } from '../features/notes/PasteNotesDialog';
+import { ImportBurst } from '../features/notes/ImportBurst';
 import { UndoToast } from '../features/notes/UndoToast';
 import type {
   CartItem,
@@ -213,6 +214,7 @@ export default function App() {
   const pendingWallPulseIds = useRef<Set<string>>(new Set());
   const [wallPulseNoteIds, setWallPulseNoteIds] = useState<string[]>([]);
   const [pasteOpen, setPasteOpen] = useState(false);
+  const [importBurst, setImportBurst] = useState<{ key: number; count: number } | null>(null);
   const [undoAction, setUndoAction] = useState<UndoAction | null>(null);
   const undoActionRef = useRef<UndoAction | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -556,12 +558,24 @@ export default function App() {
       setSidebarOpen(false);
       setPasteOpen(false);
       if (createdIds.length > 0) {
+        for (const id of createdIds) queueWallPulse(id);
+        flushWallPulses();
+        setImportBurst((prev) => ({
+          key: (prev?.key ?? 0) + 1,
+          count: createdIds.length,
+        }));
         await replaceUndoAction({ kind: 'import', ids: createdIds });
       }
     } catch (err) {
       // Keep any notes that were created before the failure.
       if (createdIds.length > 0) {
         await refresh();
+        for (const id of createdIds) queueWallPulse(id);
+        flushWallPulses();
+        setImportBurst((prev) => ({
+          key: (prev?.key ?? 0) + 1,
+          count: createdIds.length,
+        }));
         await replaceUndoAction({ kind: 'import', ids: createdIds });
       }
       throw err instanceof Error
@@ -985,7 +999,7 @@ export default function App() {
       : undoAction.kind === 'import'
         ? `Imported ${undoAction.ids.length} note${
             undoAction.ids.length === 1 ? '' : 's'
-          }`
+          } · on the wall`
         : undoAction.kind === 'delete'
           ? `Deleted ${undoAction.ids.length} note${
               undoAction.ids.length === 1 ? '' : 's'
@@ -1162,11 +1176,21 @@ export default function App() {
         />
       )}
 
+      {importBurst && (
+        <ImportBurst
+          key={importBurst.key}
+          burstKey={importBurst.key}
+          count={importBurst.count}
+          onDone={() => setImportBurst(null)}
+        />
+      )}
+
       {undoToastVisible && (
         <UndoToast
           message={undoMessage}
           onUndo={() => void handleUndo()}
           onDismiss={dismissUndo}
+          tone={undoAction?.kind === 'import' ? 'success' : 'default'}
         />
       )}
 
