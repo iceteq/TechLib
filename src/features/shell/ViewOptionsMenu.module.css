@@ -45,6 +45,59 @@
   color: var(--text-muted);
 }
 
+.menuTitle + .menuTitle,
+.sortGroup + .menuTitle {
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+}
+
+.sortGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0 0.2rem 0.25rem;
+}
+
+.sortItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sortItem:hover {
+  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+}
+
+.sortItemActive {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sortLabel {
+  font-size: 0.9rem;
+  font-weight: 560;
+}
+
+.sortHint {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.sortItemActive .sortHint {
+  color: color-mix(in srgb, var(--accent) 70%, var(--text-muted));
+}
+
 .item {
   display: flex;
   align-items: center;

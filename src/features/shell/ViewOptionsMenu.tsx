@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
-import type { ViewPrefs } from '../../lib/viewPrefs';
+import type { ViewPrefs, WallSort } from '../../lib/viewPrefs';
 import styles from './ViewOptionsMenu.module.css';
 
-const OPTIONS: { key: keyof ViewPrefs; label: string }[] = [
+const SHOW_OPTIONS: { key: Exclude<keyof ViewPrefs, 'sort'>; label: string }[] = [
   { key: 'barcodes', label: 'Barcodes' },
   { key: 'photos', label: 'Photos' },
   { key: 'description', label: 'Description' },
@@ -11,6 +11,15 @@ const OPTIONS: { key: keyof ViewPrefs; label: string }[] = [
   { key: 'typeChip', label: 'Type chip' },
   { key: 'labels', label: 'Labels' },
   { key: 'age', label: 'Relative time' },
+];
+
+const SORT_OPTIONS: { value: WallSort; label: string; hint: string }[] = [
+  { value: 'default', label: 'Recently edited', hint: 'Default' },
+  {
+    value: 'recent',
+    label: 'Recently useful',
+    hint: 'Opened or edited',
+  },
 ];
 
 interface ViewOptionsMenuProps {
@@ -40,8 +49,13 @@ export function ViewOptionsMenu({ prefs, onChange }: ViewOptionsMenuProps) {
     };
   }, [open]);
 
-  function toggle(key: keyof ViewPrefs) {
+  function toggle(key: (typeof SHOW_OPTIONS)[number]['key']) {
     onChange({ ...prefs, [key]: !prefs[key] });
+  }
+
+  function setSort(sort: WallSort) {
+    if (prefs.sort === sort) return;
+    onChange({ ...prefs, sort });
   }
 
   return (
@@ -59,12 +73,32 @@ export function ViewOptionsMenu({ prefs, onChange }: ViewOptionsMenuProps) {
       </button>
       {open && (
         <div className={styles.menu} role="menu" aria-label="View options">
+          <p className={styles.menuTitle}>Order</p>
+          <div className={styles.sortGroup} role="group" aria-label="Wall order">
+            {SORT_OPTIONS.map((option) => {
+              const selected = prefs.sort === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={selected}
+                  className={`${styles.sortItem} ${selected ? styles.sortItemActive : ''}`}
+                  onClick={() => setSort(option.value)}
+                >
+                  <span className={styles.sortLabel}>{option.label}</span>
+                  <span className={styles.sortHint}>{option.hint}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <p className={styles.menuTitle}>Show on cards</p>
-          {OPTIONS.map((option) => (
+          {SHOW_OPTIONS.map((option) => (
             <label key={option.key} className={styles.item} role="menuitemcheckbox">
               <input
                 type="checkbox"
-                checked={prefs[option.key]}
+                checked={Boolean(prefs[option.key])}
                 onChange={() => toggle(option.key)}
               />
               <span>{option.label}</span>
