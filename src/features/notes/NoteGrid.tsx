@@ -581,6 +581,7 @@ export function NoteGrid({
               onNotesDragStart={onNotesDragStart}
               pulse={pulseNoteIds.includes(note.id)}
               onPulseEnd={onPulseEnd}
+              searchQuery={search}
             />
           ))}
         </div>

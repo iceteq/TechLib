@@ -24,6 +24,7 @@ import {
   type MetaAssignField,
 } from './MetaAssignPopover';
 import { setNoteDragData } from '../../lib/noteDrag';
+import { highlightMatches } from '../../lib/highlightMatch';
 import styles from './NoteCard.module.css';
 
 const LONG_PRESS_MS = 500;
@@ -64,6 +65,8 @@ interface NoteCardProps {
   /** Play capture highlight when this card lands on the wall. */
   pulse?: boolean;
   onPulseEnd?: (noteId: string) => void;
+  /** Active wall search — highlight matches on title/labels. */
+  searchQuery?: string;
 }
 
 export function NoteCard({
@@ -96,6 +99,7 @@ export function NoteCard({
   onNotesDragStart,
   pulse = false,
   onPulseEnd,
+  searchQuery = '',
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
@@ -343,7 +347,7 @@ export function NoteCard({
 
       <div className={styles.body}>
         <div className={styles.titleRow}>
-          <h3 className={styles.title}>{title}</h3>
+          <h3 className={styles.title}>{highlightMatches(title, searchQuery)}</h3>
           {showAge && (
             <time
               className={styles.age}
@@ -422,7 +426,7 @@ export function NoteCard({
           
         </div>
         {showDescription && note.description.trim() && (
-          <p className={styles.description}>{note.description.trim()}</p>
+          <p className={styles.description}>{highlightMatches(note.description.trim(), searchQuery)}</p>
         )}
         {showSpecialCase && (note.specialCase ?? '').trim() && (
           <p className={styles.specialCase} title={note.specialCase}>
@@ -460,7 +464,7 @@ export function NoteCard({
                 aria-haspopup="dialog"
                 aria-expanded={assignField === 'labels'}
               >
-                <LabelChip name={label.name} />
+                <LabelChip name={label.name} highlightQuery={searchQuery} />
               </button>
             ))}
           {showLabels && onAssignLabels && onCreateLabel && (

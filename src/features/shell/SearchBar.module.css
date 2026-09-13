@@ -1,10 +1,17 @@
 .wrap {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 0.45rem;
+  flex-direction: column;
   flex: 1;
   max-width: 420px;
   margin-left: auto;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
   padding: 0.45rem 0.75rem;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -14,7 +21,7 @@
     box-shadow var(--transition);
 }
 
-.wrap:focus-within {
+.wrap:focus-within .field {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
@@ -50,6 +57,71 @@
 
 .clear:hover {
   background: rgba(31, 35, 40, 0.14);
+  color: var(--text);
+}
+
+.recent {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated, #fff);
+  box-shadow: var(--shadow);
+}
+
+.recentRow {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.recentBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.88rem;
+  text-align: left;
+}
+
+.recentBtn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recentBtn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.recentRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.recentRemove:hover {
+  background: rgba(31, 35, 40, 0.08);
   color: var(--text);
 }
 

@@ -1,14 +1,17 @@
+import { highlightMatches } from '../../lib/highlightMatch';
 import styles from './LabelChip.module.css';
 
 interface LabelChipProps {
   name: string;
+  /** When set, matching characters are highlighted. */
+  highlightQuery?: string;
   onRemove?: () => void;
 }
 
-export function LabelChip({ name, onRemove }: LabelChipProps) {
+export function LabelChip({ name, highlightQuery, onRemove }: LabelChipProps) {
   return (
     <span className={styles.chip}>
-      {name}
+      {highlightQuery ? highlightMatches(name, highlightQuery) : name}
       {onRemove && (
         <button
           type="button"
