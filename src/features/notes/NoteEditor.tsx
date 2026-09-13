@@ -32,12 +32,12 @@ import type {
 import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
 import { DescriptionField } from '../labels/DescriptionField';
-import { LabelPicker } from '../labels/LabelPicker';
+import { LabelChip } from '../labels/LabelChip';
 import {
   MetaAssignPopover,
   type MetaAssignField,
 } from './MetaAssignPopover';
-import { GuidelineLinesEditor } from './GuidelineLinesEditor';
+import { GuidelineLinesList } from './GuidelineLinesList';
 import { TypeChip } from './TypeChip';
 import styles from './NoteEditor.module.css';
 
@@ -114,9 +114,6 @@ export function NoteEditor({
   const [specialCaseOpen, setSpecialCaseOpen] = useState(
     Boolean((note.specialCase ?? '').trim()),
   );
-  const [guidelineOpen, setGuidelineOpen] = useState(
-    (note.guidelineLines?.length ?? 0) > 0,
-  );
   const [barcodeOpen, setBarcodeOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -167,6 +164,8 @@ export function NoteEditor({
     !note.stockId &&
     !(note.specialCase ?? '').trim();
 
+  const noteLabels = labels.filter((label) => note.labelIds.includes(label.id));
+
   const imageBusy = imageBusyCount > 0;
   imageBusyRef.current = imageBusy;
 
@@ -175,7 +174,6 @@ export function NoteEditor({
     setDescription(note.description);
     setSpecialCase(note.specialCase ?? '');
     setSpecialCaseOpen(Boolean((note.specialCase ?? '').trim()));
-    setGuidelineOpen((note.guidelineLines?.length ?? 0) > 0);
     setBarcodeOpen(false);
     setAssignField(null);
     setColorOpen(false);
@@ -895,34 +893,37 @@ export function NoteEditor({
           </div>
 
           <div className={styles.section}>
-            <LabelPicker
-              labels={labels}
-              selectedIds={note.labelIds}
-              onChange={(labelIds) => void onSaveMeta({ labelIds })}
-              onCreateLabel={onCreateLabel}
-            />
-          </div>
-
-          <div className={styles.section}>
-            {guidelineOpen || (note.guidelineLines?.length ?? 0) > 0 ? (
-              <>
-                <p className={styles.sectionLabel}>Guideline</p>
-                <GuidelineLinesEditor
-                  lines={note.guidelineLines ?? []}
-                  onChange={(guidelineLines) =>
-                    void onSaveMeta({ guidelineLines })
-                  }
+            <div className={styles.metaTags} aria-label="Guidelines and labels">
+              <div className={styles.guidelineBlock}>
+                <GuidelineLinesList
+                  lines={note.guidelineLines}
+                  disposition={note.disposition}
+                  expanded={assignField === 'disposition'}
+                  onClick={() => setAssignField('disposition')}
                 />
-              </>
-            ) : (
+              </div>
+              {noteLabels.map((label) => (
+                <button
+                  key={label.id}
+                  type="button"
+                  className={styles.labelChipBtn}
+                  onClick={() => setAssignField('labels')}
+                  aria-haspopup="dialog"
+                  aria-expanded={assignField === 'labels'}
+                >
+                  <LabelChip name={label.name} />
+                </button>
+              ))}
               <button
                 type="button"
-                className={styles.addSpecialCase}
-                onClick={() => setGuidelineOpen(true)}
+                className={styles.addLabel}
+                onClick={() => setAssignField('labels')}
+                aria-haspopup="dialog"
+                aria-expanded={assignField === 'labels'}
               >
-                Add guideline
+                {noteLabels.length === 0 ? 'Add label' : '+'}
               </button>
-            )}
+            </div>
             <div className={styles.metaRow} aria-label="Type and stock">
               {selectedType ? (
                 <TypeChip
