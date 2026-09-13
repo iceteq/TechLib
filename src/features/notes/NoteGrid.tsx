@@ -38,6 +38,8 @@ interface NoteGridProps {
   filterCategoryId: string | null;
   filterStockId: string | null;
   specialCasesOnly: boolean;
+  noPhotosOnly: boolean;
+  unlabeledOnly: boolean;
   search: string;
   stockLocations: StockLocation[];
   /** noteId → quantity in cart */
@@ -76,6 +78,8 @@ interface NoteGridProps {
   onClearCategory: () => void;
   onClearStock: () => void;
   onClearSpecialCases: () => void;
+  onClearNoPhotos: () => void;
+  onClearUnlabeled: () => void;
   onClearSearch: () => void;
   onClearAllFilters: () => void;
   /** Bump to clear selection after sidebar drop-assign. */
@@ -100,6 +104,8 @@ export function NoteGrid({
   filterCategoryId,
   filterStockId,
   specialCasesOnly,
+  noPhotosOnly,
+  unlabeledOnly,
   search,
   stockLocations,
   cartQuantities,
@@ -124,6 +130,8 @@ export function NoteGrid({
   onClearCategory,
   onClearStock,
   onClearSpecialCases,
+  onClearNoPhotos,
+  onClearUnlabeled,
   onClearSearch,
   onClearAllFilters,
   selectionClearNonce = 0,
@@ -385,6 +393,8 @@ export function NoteGrid({
       filterCategoryId ||
       filterStockId ||
       specialCasesOnly ||
+      noPhotosOnly ||
+      unlabeledOnly ||
       hasSearch,
   );
   const sortedLabels = [...labels].sort((a, b) =>
@@ -495,11 +505,33 @@ export function NoteGrid({
               <X size={14} />
             </button>
           )}
+          {noPhotosOnly && (
+            <button
+              type="button"
+              className={`${styles.chip} ${styles.chipMeta}`}
+              onClick={onClearNoPhotos}
+            >
+              No photo
+              <X size={14} />
+            </button>
+          )}
+          {unlabeledOnly && (
+            <button
+              type="button"
+              className={`${styles.chip} ${styles.chipMeta}`}
+              onClick={onClearUnlabeled}
+            >
+              Unlabeled
+              <X size={14} />
+            </button>
+          )}
           {filterLabels.length > 0 &&
             (statusText ||
               typeText ||
               stockText ||
               specialCasesOnly ||
+              noPhotosOnly ||
+              unlabeledOnly ||
                       hasSearch) && (
               <span className={styles.chipDivider} aria-hidden />
             )}

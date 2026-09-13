@@ -140,6 +140,8 @@ export function filterNotes(
     /** Stock id, UNSET_STOCK_FILTER for no stock, or null for any. */
     stockId: string | null;
     specialCasesOnly?: boolean;
+    noPhotosOnly?: boolean;
+    unlabeledOnly?: boolean;
   },
 ): NoteWithUrls[] {
   const filtered = notes.filter((note) => {
@@ -170,6 +172,12 @@ export function filterNotes(
       return false;
     }
     if (options.specialCasesOnly && !(note.specialCase ?? '').trim()) {
+      return false;
+    }
+    if (options.noPhotosOnly && note.images.length > 0) {
+      return false;
+    }
+    if (options.unlabeledOnly && note.labelIds.length > 0) {
       return false;
     }
     return matchesNoteSearch(

@@ -197,6 +197,12 @@ export default function App() {
   const [specialCasesOnly, setSpecialCasesOnly] = useState(
     initialSession.specialCasesOnly,
   );
+  const [noPhotosOnly, setNoPhotosOnly] = useState(
+    initialSession.noPhotosOnly,
+  );
+  const [unlabeledOnly, setUnlabeledOnly] = useState(
+    initialSession.unlabeledOnly,
+  );
   const [search, setSearch] = useState(initialSession.search);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   /** Note ids waiting to pulse on the wall after a capture create. */
@@ -251,6 +257,8 @@ export default function App() {
         categoryId: view === 'notes' ? filterCategoryId : null,
         stockId: view === 'notes' ? filterStockId : null,
         specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
+        noPhotosOnly: view === 'notes' ? noPhotosOnly : false,
+        unlabeledOnly: view === 'notes' ? unlabeledOnly : false,
       }),
     [
       notes,
@@ -262,6 +270,8 @@ export default function App() {
       filterCategoryId,
       filterStockId,
       specialCasesOnly,
+      noPhotosOnly,
+      unlabeledOnly,
       search,
       view,
     ],
@@ -276,6 +286,8 @@ export default function App() {
       categoryId: filterCategoryId,
       stockId: filterStockId,
       specialCasesOnly,
+      noPhotosOnly,
+      unlabeledOnly,
     });
   }, [
     view,
@@ -285,6 +297,8 @@ export default function App() {
     filterCategoryId,
     filterStockId,
     specialCasesOnly,
+    noPhotosOnly,
+    unlabeledOnly,
   ]);
 
   /** Faceted counts: apply all filters except the section being counted. */
@@ -298,6 +312,8 @@ export default function App() {
         categoryId: null,
         stockId: view === 'notes' ? filterStockId : null,
         specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
+        noPhotosOnly: view === 'notes' ? noPhotosOnly : false,
+        unlabeledOnly: view === 'notes' ? unlabeledOnly : false,
       }),
     [
       notes,
@@ -308,6 +324,8 @@ export default function App() {
       filterDisposition,
       filterStockId,
       specialCasesOnly,
+      noPhotosOnly,
+      unlabeledOnly,
       search,
       view,
     ],
@@ -322,6 +340,8 @@ export default function App() {
         categoryId: view === 'notes' ? filterCategoryId : null,
         stockId: null,
         specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
+        noPhotosOnly: view === 'notes' ? noPhotosOnly : false,
+        unlabeledOnly: view === 'notes' ? unlabeledOnly : false,
       }),
     [
       notes,
@@ -332,6 +352,8 @@ export default function App() {
       filterDisposition,
       filterCategoryId,
       specialCasesOnly,
+      noPhotosOnly,
+      unlabeledOnly,
       search,
       view,
     ],
@@ -346,6 +368,8 @@ export default function App() {
         categoryId: view === 'notes' ? filterCategoryId : null,
         stockId: view === 'notes' ? filterStockId : null,
         specialCasesOnly: view === 'notes' ? specialCasesOnly : false,
+        noPhotosOnly: view === 'notes' ? noPhotosOnly : false,
+        unlabeledOnly: view === 'notes' ? unlabeledOnly : false,
       }),
     [
       notes,
@@ -356,6 +380,8 @@ export default function App() {
       filterCategoryId,
       filterStockId,
       specialCasesOnly,
+      noPhotosOnly,
+      unlabeledOnly,
       search,
       view,
     ],
@@ -410,6 +436,8 @@ export default function App() {
     if (type) parts.push(type);
     if (stock) parts.push(stock);
     if (specialCasesOnly) parts.push('Special cases');
+    if (noPhotosOnly) parts.push('No photo');
+    if (unlabeledOnly) parts.push('Unlabeled');
     parts.push(...labelNames);
     return parts.length > 0 ? parts.join(' · ') : 'No filters';
   }, [
@@ -418,6 +446,8 @@ export default function App() {
     filterStockId,
     filterLabelIds,
     specialCasesOnly,
+    noPhotosOnly,
+    unlabeledOnly,
     labels,
     noteTypes,
     stockLocations,
@@ -436,6 +466,8 @@ export default function App() {
     setFilterCategoryId(null);
     setFilterStockId(null);
     setSpecialCasesOnly(false);
+    setNoPhotosOnly(false);
+    setUnlabeledOnly(false);
     setSearch('');
   }
 
@@ -984,6 +1016,8 @@ export default function App() {
           activeCategoryId={filterCategoryId}
           activeStockId={filterStockId}
           specialCasesOnly={specialCasesOnly}
+          noPhotosOnly={noPhotosOnly}
+          unlabeledOnly={unlabeledOnly}
           cartCount={cartUnitCount}
           onSelectNotes={() => {
             setView('notes');
@@ -1024,6 +1058,16 @@ export default function App() {
           onToggleSpecialCases={() => {
             setView('notes');
             setSpecialCasesOnly((value) => !value);
+            setSidebarOpen(false);
+          }}
+          onToggleNoPhotos={() => {
+            setView('notes');
+            setNoPhotosOnly((value) => !value);
+            setSidebarOpen(false);
+          }}
+          onToggleUnlabeled={() => {
+            setView('notes');
+            setUnlabeledOnly((value) => !value);
             setSidebarOpen(false);
           }}
           onToggleLabel={toggleFilterLabel}
@@ -1069,6 +1113,8 @@ export default function App() {
           filterCategoryId={filterCategoryId}
           filterStockId={filterStockId}
           specialCasesOnly={specialCasesOnly}
+          noPhotosOnly={noPhotosOnly}
+          unlabeledOnly={unlabeledOnly}
           search={search}
           stockLocations={stockLocations}
           cartQuantities={cartQuantities}
@@ -1095,6 +1141,8 @@ export default function App() {
           onClearCategory={() => setFilterCategoryId(null)}
           onClearStock={() => setFilterStockId(null)}
           onClearSpecialCases={() => setSpecialCasesOnly(false)}
+          onClearNoPhotos={() => setNoPhotosOnly(false)}
+          onClearUnlabeled={() => setUnlabeledOnly(false)}
           onClearAllFilters={clearAllFilters}
           onClearSearch={() => setSearch('')}
           selectionClearNonce={selectionClearNonce}

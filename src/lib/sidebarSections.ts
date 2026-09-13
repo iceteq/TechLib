@@ -1,10 +1,16 @@
 const STORAGE_KEY = 'techlib.sidebarSections';
 
-export type SidebarSectionId = 'guideline' | 'type' | 'stock' | 'labels';
+export type SidebarSectionId =
+  | 'tidy'
+  | 'guideline'
+  | 'type'
+  | 'stock'
+  | 'labels';
 
 export type SidebarSectionState = Record<SidebarSectionId, boolean>;
 
 export const DEFAULT_SIDEBAR_SECTIONS: SidebarSectionState = {
+  tidy: false,
   guideline: false,
   type: false,
   stock: false,
