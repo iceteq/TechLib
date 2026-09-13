@@ -62,6 +62,7 @@ type NoteFieldPatch = {
   categoryId?: string | null;
   stockId?: string | null;
   labelIds?: string[];
+  archived?: boolean;
 };
 
 type UndoAction =
@@ -71,7 +72,8 @@ type UndoAction =
       kind: 'patch';
       message: string;
       before: Array<{ id: string; patch: NoteFieldPatch }>;
-    };
+    }
+  | { kind: 'cart-clear'; items: CartItem[] };
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -124,6 +126,9 @@ function snapshotNotePatch(
   if (patch.labelIds !== undefined) {
     before.labelIds = [...note.labelIds];
   }
+  if (patch.archived !== undefined) {
+    before.archived = note.archived;
+  }
   return before;
 }
 
@@ -171,6 +176,11 @@ function describeBulkPatch(
       return `Cleared labels on ${count} ${noteWord}`;
     }
     return `Set label on ${count} ${noteWord}`;
+  }
+  if (patch.archived !== undefined) {
+    return patch.archived
+      ? `Archived ${count} ${noteWord}`
+      : `Unarchived ${count} ${noteWord}`;
   }
   return `Updated ${count} ${noteWord}`;
 }
@@ -587,6 +597,13 @@ export default function App() {
       for (const entry of action.before) {
         await store.updateNote(entry.id, entry.patch);
       }
+    } else if (action.kind === 'cart-clear') {
+      if (action.items.length === 0) return;
+      for (const item of action.items) {
+        await store.setCartQuantity(item.noteId, item.quantity);
+      }
+      setCartItems(await store.listCartItems());
+      return;
     }
     await refresh();
   }
@@ -646,6 +663,15 @@ export default function App() {
     specialCase?: string;
   }) {
     if (!activeNoteId) return;
+    const current = notes.find((n) => n.id === activeNoteId);
+    const undoPatch: NoteFieldPatch = {};
+    if (patch.archived !== undefined) undoPatch.archived = patch.archived;
+    if (patch.labelIds !== undefined) undoPatch.labelIds = patch.labelIds;
+    const before =
+      current && Object.keys(undoPatch).length > 0
+        ? [{ id: current.id, patch: snapshotNotePatch(current, undoPatch) }]
+        : [];
+
     const updated = await store.updateNote(activeNoteId, patch);
     if (!updated) return;
     setNotes((prev) => {
@@ -657,6 +683,15 @@ export default function App() {
     });
     if (patch.labelIds) {
       setLabels(await store.listLabels());
+    }
+    if (before.length > 0) {
+      let message = 'Updated note';
+      if (patch.archived !== undefined) {
+        message = patch.archived ? 'Archived note' : 'Unarchived note';
+      } else if (patch.labelIds !== undefined) {
+        message = 'Updated labels';
+      }
+      await replaceUndoAction({ kind: 'patch', message, before });
     }
   }
 
@@ -748,8 +783,11 @@ export default function App() {
   }
 
   async function handleClearCart() {
+    if (cartItems.length === 0) return;
+    const snapshot = cartItems.map((item) => ({ ...item }));
     await store.clearCart();
     setCartItems([]);
+    await replaceUndoAction({ kind: 'cart-clear', items: snapshot });
   }
 
   async function handleUpdateNotes(
@@ -952,13 +990,17 @@ export default function App() {
           ? `Deleted ${undoAction.ids.length} note${
               undoAction.ids.length === 1 ? '' : 's'
             }`
-          : undoAction.message;
+          : undoAction.kind === 'cart-clear'
+            ? 'Cleared cart'
+            : undoAction.message;
 
   const undoToastVisible =
     undoAction != null &&
     (undoAction.kind === 'patch'
       ? undoAction.before.length > 0
-      : undoAction.ids.length > 0);
+      : undoAction.kind === 'cart-clear'
+        ? undoAction.items.length > 0
+        : undoAction.ids.length > 0);
 
   return (
     <AppShell
