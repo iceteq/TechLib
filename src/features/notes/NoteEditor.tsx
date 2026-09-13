@@ -422,6 +422,13 @@ export function NoteEditor({
     if (!(active instanceof HTMLElement)) return false;
     if (!dialogRef.current?.contains(active)) return false;
     if (!isTextEntryTarget(active)) return false;
+    // Only spend a Back press on blur when the soft keyboard is likely open.
+    // Otherwise autofocused title/description would force an extra Back to Done.
+    const vv = window.visualViewport;
+    const keyboardLikelyOpen = Boolean(
+      vv && vv.height < window.innerHeight * 0.85,
+    );
+    if (!keyboardLikelyOpen) return false;
     active.blur();
     dialogRef.current.focus({ preventScroll: true });
     return true;
