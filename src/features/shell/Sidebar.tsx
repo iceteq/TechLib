@@ -1,6 +1,7 @@
 import { useState, type DragEvent, type ReactNode } from 'react';
 import {
   AlertCircle,
+  ImageOff,
   Archive,
   ChevronDown,
   CircleOff,
@@ -13,6 +14,7 @@ import {
   Settings2,
   ShoppingCart,
   Tag,
+  Tags,
   Trash2,
   Warehouse,
   Wrench,
@@ -61,6 +63,8 @@ interface SidebarProps {
   activeCategoryId: string | null;
   activeStockId: string | null;
   specialCasesOnly: boolean;
+  noPhotosOnly: boolean;
+  unlabeledOnly: boolean;
   cartCount: number;
   onSelectNotes: () => void;
   onSelectArchive: () => void;
@@ -69,6 +73,8 @@ interface SidebarProps {
   onSelectCategoryId: (categoryId: string) => void;
   onSelectStock: (stockId: string) => void;
   onToggleSpecialCases: () => void;
+  onToggleNoPhotos: () => void;
+  onToggleUnlabeled: () => void;
   onToggleLabel: (labelId: string) => void;
   onCreateLabel: (name: string) => Promise<Label>;
   onCreateType: (name: string) => Promise<NoteType>;
@@ -114,6 +120,8 @@ export function Sidebar({
   activeCategoryId,
   activeStockId,
   specialCasesOnly,
+  noPhotosOnly,
+  unlabeledOnly,
   cartCount,
   onSelectNotes,
   onSelectArchive,
@@ -122,6 +130,8 @@ export function Sidebar({
   onSelectCategoryId,
   onSelectStock,
   onToggleSpecialCases,
+  onToggleNoPhotos,
+  onToggleUnlabeled,
   onToggleLabel,
   onCreateLabel,
   onCreateType,
@@ -185,12 +195,15 @@ export function Sidebar({
     activeDisposition === null &&
     activeCategoryId === null &&
     activeStockId === null &&
-    !specialCasesOnly;
+    !specialCasesOnly &&
+    !noPhotosOnly &&
+    !unlabeledOnly;
 
   function toggleSection(id: SidebarSectionId) {
     setSections((current) => {
       const opening = !current[id];
       const next: SidebarSectionState = {
+        tidy: false,
         guideline: false,
         type: false,
         stock: false,
@@ -207,6 +220,7 @@ export function Sidebar({
     setSections((current) => {
       if (current[id]) return current;
       const next: SidebarSectionState = {
+        tidy: false,
         guideline: false,
         type: false,
         stock: false,
@@ -262,8 +276,16 @@ export function Sidebar({
 
   function sectionHasActive(id: SidebarSectionId): boolean {
     if (view !== 'notes') return false;
+    if (id === 'tidy') {
+      return (
+        noPhotosOnly ||
+        unlabeledOnly ||
+        specialCasesOnly ||
+        activeDisposition === 'none'
+      );
+    }
     if (id === 'guideline') {
-      return activeDisposition != null || specialCasesOnly;
+      return activeDisposition != null;
     }
     if (id === 'type') return activeCategoryId != null;
     if (id === 'stock') return activeStockId != null;
@@ -284,8 +306,18 @@ export function Sidebar({
           : activeDisposition,
       );
     }
-    if (specialCasesOnly) parts.push('Special');
     if (parts.length === 0) return 'Any guideline';
+    return parts.join(' · ');
+  }
+
+  function tidySectionTitle(): string {
+    if (view !== 'notes') return 'Tidy targets';
+    const parts: string[] = [];
+    if (noPhotosOnly) parts.push('No photo');
+    if (activeDisposition === 'none') parts.push('No guideline');
+    if (unlabeledOnly) parts.push('Unlabeled');
+    if (specialCasesOnly) parts.push('Special');
+    if (parts.length === 0) return 'Tidy targets';
     return parts.join(' · ');
   }
 
@@ -436,6 +468,55 @@ export function Sidebar({
       )}
 
       <CollapsibleSection
+        id="tidy"
+        title={tidySectionTitle()}
+        open={sections.tidy}
+        hasActive={sectionHasActive('tidy')}
+        onToggle={() => toggleSection('tidy')}
+      >
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && noPhotosOnly ? styles.active : ''
+          }`}
+          onClick={onToggleNoPhotos}
+        >
+          <ImageOff size={18} />
+          <span>No photo</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && activeDisposition === 'none' ? styles.active : ''
+          }`}
+          onClick={() => onSelectDisposition('none')}
+        >
+          <CircleOff size={18} />
+          <span>No guideline</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && unlabeledOnly ? styles.active : ''
+          }`}
+          onClick={onToggleUnlabeled}
+        >
+          <Tags size={18} />
+          <span>Unlabeled</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.item} ${
+            view === 'notes' && specialCasesOnly ? styles.active : ''
+          }`}
+          onClick={onToggleSpecialCases}
+        >
+          <AlertCircle size={18} />
+          <span>Special cases</span>
+        </button>
+      </CollapsibleSection>
+
+      <CollapsibleSection
         id="guideline"
         title={guidelineSectionTitle()}
         open={sections.guideline}
@@ -520,16 +601,6 @@ export function Sidebar({
         >
           <Trash2 size={18} />
           <span>Throw away</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && specialCasesOnly ? styles.active : ''
-          }`}
-          onClick={onToggleSpecialCases}
-        >
-          <AlertCircle size={18} />
-          <span>Special cases</span>
         </button>
       </CollapsibleSection>
 
