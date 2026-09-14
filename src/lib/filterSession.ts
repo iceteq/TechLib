@@ -10,11 +10,6 @@ export type FilterSession = {
   disposition: NoteDisposition | null;
   categoryId: string | null;
   stockId: string | null;
-  specialCasesOnly: boolean;
-  /** Tidy target: notes with no images. */
-  noPhotosOnly: boolean;
-  /** Tidy target: notes with no labels. */
-  unlabeledOnly: boolean;
 };
 
 export const DEFAULT_FILTER_SESSION: FilterSession = {
@@ -24,9 +19,6 @@ export const DEFAULT_FILTER_SESSION: FilterSession = {
   disposition: null,
   categoryId: null,
   stockId: null,
-  specialCasesOnly: false,
-  noPhotosOnly: false,
-  unlabeledOnly: false,
 };
 
 const DISPOSITIONS = new Set<NoteDisposition>([
@@ -71,9 +63,6 @@ export function loadFilterSession(): FilterSession {
         categoryId === UNSET_TYPE_FILTER || categoryId ? categoryId : null,
       stockId:
         stockId === UNSET_STOCK_FILTER || stockId ? stockId : null,
-      specialCasesOnly: Boolean(parsed.specialCasesOnly),
-      noPhotosOnly: Boolean(parsed.noPhotosOnly),
-      unlabeledOnly: Boolean(parsed.unlabeledOnly),
     };
   } catch {
     return { ...DEFAULT_FILTER_SESSION };
