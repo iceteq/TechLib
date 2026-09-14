@@ -84,7 +84,6 @@
   line-height: 1;
   backdrop-filter: blur(4px);
   animation: juice-bump var(--juice-duration, 280ms) var(--juice-ease, ease);
-
 }
 
 .cartQty {
@@ -116,7 +115,6 @@
 }
 
 .stock:hover:not(:disabled) {
-  border-color: var(--accent);
   color: var(--accent);
 }
 
@@ -137,14 +135,14 @@
 }
 
 .stock {
-  padding: 0.12rem 0.45rem;
-  border-radius: 8px;
-  font-size: 0.68rem;
-  font-weight: 550;
-  letter-spacing: 0.02em;
-  background: rgba(31, 35, 40, 0.05);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  background: transparent;
   color: var(--text-muted);
-  border: 1px solid rgba(31, 35, 40, 0.1);
   cursor: pointer;
 }
 
@@ -162,14 +160,14 @@
 }
 
 .addLabel {
-  padding: 0.12rem 0.45rem;
+  padding: 0.08rem 0.38rem;
   border-radius: 999px;
-  font-size: 0.68rem;
-  font-weight: 550;
+  font-size: 0.65rem;
+  font-weight: 500;
   letter-spacing: 0.01em;
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) 85%, var(--text-muted));
   background: transparent;
-  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--accent) 28%, transparent);
   cursor: pointer;
 }
 
@@ -198,17 +196,25 @@
 
 .imageWrap {
   position: relative;
-  min-height: 120px;
-  max-height: 180px;
+  /* Image-first: photo dominates the card height. */
+  aspect-ratio: 4 / 3;
+  min-height: 160px;
+  max-height: 260px;
   overflow: hidden;
   background: rgba(31, 35, 40, 0.06);
+}
+
+.imagesSplit .imageWrap {
+  aspect-ratio: 1 / 1;
+  min-height: 140px;
+  max-height: 220px;
 }
 
 .image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  min-height: 120px;
+  min-height: 100%;
 }
 
 .overflow {
@@ -226,8 +232,21 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.9rem 1rem 1rem;
+  gap: 0.4rem;
+  padding: 0.85rem 0.95rem 0.95rem;
+}
+
+/* When a photo leads, keep identity tight and context quieter. */
+.bodyImageFirst {
+  gap: 0.32rem;
+  padding: 0.7rem 0.85rem 0.8rem;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 0;
 }
 
 .titleRow {
@@ -240,24 +259,32 @@
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
+  font-size: 0.98rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.bodyImageFirst .title {
+  font-size: 0.95rem;
 }
 
 .age {
   flex-shrink: 0;
   margin-top: 0.15rem;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 500;
   color: var(--text-muted);
   white-space: nowrap;
+  opacity: 0.85;
 }
 
 .barcode {
   display: flex;
   justify-content: center;
+  opacity: 0.82;
+  transform: scale(0.92);
+  transform-origin: center top;
 }
 
 .description {
@@ -267,70 +294,84 @@
   overflow: hidden;
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.85rem;
-  line-height: 1.4;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.bodyImageFirst .description {
+  -webkit-line-clamp: 1;
+  font-size: 0.76rem;
 }
 
 .specialCase {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin: 0;
   padding: 0;
   color: var(--text-muted);
-  font-size: 0.78rem;
-  line-height: 1.35;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  opacity: 0.92;
 }
 
 .specialCaseMark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 0.85rem;
-  height: 0.85rem;
-  margin-right: 0.3rem;
+  width: 0.78rem;
+  height: 0.78rem;
+  margin-right: 0.28rem;
   border-radius: 999px;
-  background: rgba(227, 116, 0, 0.85);
+  background: rgba(227, 116, 0, 0.75);
   color: white;
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 700;
   vertical-align: middle;
 }
-
 
 .metaPrimary {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
-  margin-top: -0.1rem;
+  gap: 0.35rem 0.55rem;
 }
 
 .metaPrimary .stock,
 .metaPrimary .missingMeta {
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 0.18rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0;
 }
 
 .metaPrimary .stock {
-  color: var(--text);
-  background: rgba(31, 35, 40, 0.07);
-  border-color: rgba(31, 35, 40, 0.14);
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
 }
 
-.labels {
+.context {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-top: 0.1rem;
+  gap: 0.25rem;
+  margin-top: 0.05rem;
   align-items: flex-start;
+  opacity: 0.9;
+}
+
+.bodyImageFirst .context {
+  opacity: 0.82;
 }
 
 .guidelineBlock {
   flex: 1 1 100%;
   min-width: 0;
+}
+
+/* Soften guideline / label chrome under photos so they don't rival identity. */
+.bodyImageFirst .guidelineBlock {
+  font-size: 0.68rem;
 }
 
 .metaWrap {
@@ -347,21 +388,22 @@
 }
 
 .missingMeta {
-  padding: 0.12rem 0.45rem;
-  border-radius: 999px;
+  padding: 0;
+  border-radius: 0;
   font-size: 0.68rem;
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--text-muted);
   background: transparent;
-  border: 1px dashed rgba(31, 35, 40, 0.22);
-  opacity: 0.85;
+  border: none;
+  border-bottom: 1px dashed rgba(31, 35, 40, 0.28);
+  opacity: 0.8;
   cursor: pointer;
 }
 
 .missingMeta:hover:not(:disabled) {
   opacity: 1;
-  border-color: var(--accent);
+  border-bottom-color: var(--accent);
   color: var(--accent);
 }
 

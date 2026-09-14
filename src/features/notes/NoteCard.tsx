@@ -345,88 +345,99 @@ export function NoteCard({
         </div>
       )}
 
-      <div className={styles.body}>
-        <div className={styles.titleRow}>
-          <h3 className={styles.title}>{highlightMatches(title, searchQuery)}</h3>
-          {showAge && (
-            <time
-              className={styles.age}
-              dateTime={new Date(note.createdAt).toISOString()}
-              title={`Created ${new Date(note.createdAt).toLocaleString()}`}
-            >
-              {formatNoteAge(note.createdAt)}
-            </time>
-          )}
+      <div
+        className={`${styles.body} ${
+          showPhotos && preview.length > 0 ? styles.bodyImageFirst : ''
+        }`}
+      >
+        <div className={styles.identity}>
+          <div className={styles.titleRow}>
+            <h3 className={styles.title}>
+              {highlightMatches(title, searchQuery)}
+            </h3>
+            {showAge && (
+              <time
+                className={styles.age}
+                dateTime={new Date(note.createdAt).toISOString()}
+                title={`Created ${new Date(note.createdAt).toLocaleString()}`}
+              >
+                {formatNoteAge(note.createdAt)}
+              </time>
+            )}
+          </div>
+          <div className={styles.metaPrimary} aria-label="Type and stock">
+            {noteType && showTypeChip ? (
+              <TypeChip
+                type={noteType}
+                muted
+                onClick={
+                  selecting || !onAssignCategory
+                    ? undefined
+                    : () => openAssign('categoryId')
+                }
+              />
+            ) : !noteType && suggestedType && showTypeChip ? (
+              <TypeChip
+                type={suggestedType}
+                suggested
+                muted
+                onClick={() => onApplyType(note.id, suggestedType.id)}
+              />
+            ) : !noteType ? (
+              <button
+                type="button"
+                className={styles.missingMeta}
+                disabled={selecting || !onAssignCategory}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAssign('categoryId');
+                }}
+                aria-haspopup="dialog"
+                aria-expanded={assignField === 'categoryId'}
+              >
+                No type
+              </button>
+            ) : null}
+            {stock ? (
+              <button
+                type="button"
+                className={styles.stock}
+                disabled={selecting || !onAssignStock}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAssign('stockId');
+                }}
+                aria-haspopup="dialog"
+                aria-expanded={assignField === 'stockId'}
+              >
+                {stock.name}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.missingMeta}
+                disabled={selecting || !onAssignStock}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAssign('stockId');
+                }}
+                aria-haspopup="dialog"
+                aria-expanded={assignField === 'stockId'}
+              >
+                No stock
+              </button>
+            )}
+          </div>
         </div>
         {showBarcodes && note.title.trim() && (
           <div className={styles.barcode}>
             <Barcode title={note.title} compact />
           </div>
         )}
-        <div className={styles.metaPrimary} aria-label="Type and stock">
-          {noteType && showTypeChip ? (
-            <TypeChip
-              type={noteType}
-              onClick={
-                selecting || !onAssignCategory
-                  ? undefined
-                  : () => openAssign('categoryId')
-              }
-            />
-          ) : !noteType && suggestedType && showTypeChip ? (
-            <TypeChip
-              type={suggestedType}
-              suggested
-              onClick={() => onApplyType(note.id, suggestedType.id)}
-            />
-          ) : !noteType ? (
-            <button
-              type="button"
-              className={styles.missingMeta}
-              disabled={selecting || !onAssignCategory}
-              onClick={(e) => {
-                e.stopPropagation();
-                openAssign('categoryId');
-              }}
-              aria-haspopup="dialog"
-              aria-expanded={assignField === 'categoryId'}
-            >
-              No type
-            </button>
-          ) : null}
-          {stock ? (
-            <button
-              type="button"
-              className={styles.stock}
-              disabled={selecting || !onAssignStock}
-              onClick={(e) => {
-                e.stopPropagation();
-                openAssign('stockId');
-              }}
-              aria-haspopup="dialog"
-              aria-expanded={assignField === 'stockId'}
-            >
-              {stock.name}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={styles.missingMeta}
-              disabled={selecting || !onAssignStock}
-              onClick={(e) => {
-                e.stopPropagation();
-                openAssign('stockId');
-              }}
-              aria-haspopup="dialog"
-              aria-expanded={assignField === 'stockId'}
-            >
-              No stock
-            </button>
-          )}
-          
-        </div>
         {showDescription && note.description.trim() && (
-          <p className={styles.description}>{highlightMatches(note.description.trim(), searchQuery)}</p>
+          <p className={styles.description}>
+            {highlightMatches(note.description.trim(), searchQuery)}
+          </p>
         )}
         {showSpecialCase && (note.specialCase ?? '').trim() && (
           <p className={styles.specialCase} title={note.specialCase}>
@@ -436,13 +447,14 @@ export function NoteCard({
             {note.specialCase.trim()}
           </p>
         )}
-        <div className={styles.labels}>
+        <div className={styles.context}>
           <div className={styles.guidelineBlock}>
             <GuidelineLinesList
               lines={note.guidelineLines}
               disposition={note.disposition}
               disabled={selecting || !onAssignDisposition}
               expanded={assignField === 'disposition'}
+              quiet={showPhotos && preview.length > 0}
               onClick={
                 selecting || !onAssignDisposition
                   ? undefined
@@ -450,7 +462,7 @@ export function NoteCard({
               }
             />
           </div>
-{showLabels &&
+          {showLabels &&
             noteLabels.map((label) => (
               <button
                 key={label.id}
@@ -464,7 +476,11 @@ export function NoteCard({
                 aria-haspopup="dialog"
                 aria-expanded={assignField === 'labels'}
               >
-                <LabelChip name={label.name} highlightQuery={searchQuery} />
+                <LabelChip
+                  name={label.name}
+                  highlightQuery={searchQuery}
+                  compact={showPhotos && preview.length > 0}
+                />
               </button>
             ))}
           {showLabels && onAssignLabels && onCreateLabel && (

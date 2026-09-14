@@ -10,6 +10,8 @@ interface GuidelineLinesListProps {
   onClick?: () => void;
   disabled?: boolean;
   expanded?: boolean;
+  /** Soften action pills so wall photos stay dominant. */
+  quiet?: boolean;
 }
 
 export function GuidelineLinesList({
@@ -18,6 +20,7 @@ export function GuidelineLinesList({
   onClick,
   disabled = false,
   expanded = false,
+  quiet = false,
 }: GuidelineLinesListProps) {
   const resolved = resolveGuidelineLines({
     guidelineLines: lines,
@@ -26,12 +29,16 @@ export function GuidelineLinesList({
 
   if (resolved.length === 0) {
     if (!onClick) {
-      return <span className={styles.missing}>No guideline</span>;
+      return (
+        <span className={`${styles.missing} ${quiet ? styles.quiet : ''}`}>
+          No guideline
+        </span>
+      );
     }
     return (
       <button
         type="button"
-        className={styles.missingBtn}
+        className={`${styles.missingBtn} ${quiet ? styles.quiet : ''}`}
         disabled={disabled}
         onClick={(e) => {
           e.stopPropagation();
@@ -46,10 +53,10 @@ export function GuidelineLinesList({
   }
 
   const content = (
-    <ul className={styles.list}>
+    <ul className={`${styles.list} ${quiet ? styles.quiet : ''}`}>
       {resolved.map((line) => {
         const action = DISPOSITIONS.find((d) => d.id === line.action);
-        const colors = dispositionColorVars(line.action);
+        const colors = quiet ? null : dispositionColorVars(line.action);
         return (
           <li key={line.id} className={styles.item}>
             <span className={styles.when}>{line.when}</span>
@@ -86,7 +93,7 @@ export function GuidelineLinesList({
   return (
     <button
       type="button"
-      className={styles.button}
+      className={`${styles.button} ${quiet ? styles.quiet : ''}`}
       disabled={disabled}
       onClick={(e) => {
         e.stopPropagation();

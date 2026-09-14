@@ -5,12 +5,19 @@ interface LabelChipProps {
   name: string;
   /** When set, matching characters are highlighted. */
   highlightQuery?: string;
+  /** Quieter chip for image-first wall cards. */
+  compact?: boolean;
   onRemove?: () => void;
 }
 
-export function LabelChip({ name, highlightQuery, onRemove }: LabelChipProps) {
+export function LabelChip({
+  name,
+  highlightQuery,
+  compact = false,
+  onRemove,
+}: LabelChipProps) {
   return (
-    <span className={styles.chip}>
+    <span className={`${styles.chip} ${compact ? styles.compact : ''}`}>
       {highlightQuery ? highlightMatches(name, highlightQuery) : name}
       {onRemove && (
         <button
