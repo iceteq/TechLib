@@ -62,6 +62,15 @@ import {
 import * as store from '../lib/notesStore';
 import { isCloudConfigured } from '../lib/supabaseClient';
 import { signOutCloud } from '../features/auth/AuthGate';
+import { MembersDialog } from '../features/auth/MembersDialog';
+import type { Session } from '@supabase/supabase-js';
+import {
+  canEditLibrary,
+  ensureWorkspaceMembership,
+  isLibraryAdmin,
+  LOCAL_MEMBERSHIP,
+  type WorkspaceMembership,
+} from '../lib/workspace';
 
 type NoteFieldPatch = {
   disposition?: NoteDisposition;
@@ -192,7 +201,14 @@ function describeBulkPatch(
   return `Updated ${count} ${noteWord}`;
 }
 
-export default function App() {
+export default function App({ session }: { session: Session | null }) {
+  const [membership, setMembership] = useState<WorkspaceMembership | null>(
+    isCloudConfigured() ? null : LOCAL_MEMBERSHIP,
+  );
+  const [membersOpen, setMembersOpen] = useState(false);
+  const canEdit = canEditLibrary(membership?.role);
+  const isAdmin = isLibraryAdmin(membership?.role);
+
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
   const [noteTypes, setNoteTypes] = useState<NoteType[]>([]);
@@ -260,11 +276,24 @@ export default function App() {
 
   useEffect(() => {
     void (async () => {
-      await store.purgeSoftDeletedNotes();
-      await refresh();
-      setReady(true);
+      try {
+        const nextMembership = isCloudConfigured()
+          ? await ensureWorkspaceMembership()
+          : LOCAL_MEMBERSHIP;
+        setMembership(nextMembership);
+        if (canEditLibrary(nextMembership.role)) {
+          await store.purgeSoftDeletedNotes();
+        }
+        await refresh();
+      } catch (err) {
+        setNotice(
+          err instanceof Error ? err.message : 'Failed to load library access',
+        );
+      } finally {
+        setReady(true);
+      }
     })();
-  }, [refresh]);
+  }, [refresh, session?.user?.id]);
 
   const visibleNotes = useMemo(() => {
     const filtered = filterNotes(notes, labels, stockLocations, noteTypes, {
@@ -516,7 +545,7 @@ export default function App() {
   }
 
   async function handleCloseEditor() {
-    if (activeNote && isBlankNote(activeNote)) {
+    if (canEdit && activeNote && isBlankNote(activeNote)) {
       pendingWallPulseIds.current.delete(activeNote.id);
       await store.deleteNote(activeNote.id);
       setActiveNoteId(null);
@@ -530,6 +559,7 @@ export default function App() {
   }
 
   async function handleCreateNote() {
+    if (!canEdit) return;
     const note = await store.createNote({
       ...createMetaFromFilters({
         disposition: filterDisposition,
@@ -545,6 +575,7 @@ export default function App() {
   }
 
   async function handlePasteImport(drafts: PastedNoteDraft[]) {
+    if (!canEdit) return;
     if (drafts.length === 0) return;
     const createdIds: string[] = [];
     const meta = createMetaFromFilters({
@@ -686,6 +717,7 @@ export default function App() {
     stockId?: string | null;
     specialCase?: string;
   }) {
+    if (!canEdit) return;
     if (!activeNoteId) return;
     const current = notes.find((n) => n.id === activeNoteId);
     const undoPatch: NoteFieldPatch = {};
@@ -720,6 +752,7 @@ export default function App() {
   }
 
   async function handleAddImages(files: FileList | File[]) {
+    if (!canEdit) return;
     if (!activeNoteId) return;
     const list = Array.from(files);
     if (list.length === 0) return;
@@ -740,6 +773,7 @@ export default function App() {
   }
 
   async function createNoteFromImages(files: File[]) {
+    if (!canEdit) return;
     if (files.length === 0) return;
     setImageBusyCount(files.length);
     try {
@@ -764,6 +798,7 @@ export default function App() {
   }
 
   async function handleRemoveImage(imageId: string) {
+    if (!canEdit) return;
     if (!activeNoteId) return;
     const updated = await store.removeImage(activeNoteId, imageId);
     if (updated) {
@@ -772,6 +807,7 @@ export default function App() {
   }
 
   async function handleReorderImages(orderedImageIds: string[]) {
+    if (!canEdit) return;
     if (!activeNoteId) return;
     const updated = await store.reorderImages(activeNoteId, orderedImageIds);
     if (updated) {
@@ -780,11 +816,13 @@ export default function App() {
   }
 
   async function handleDelete() {
+    if (!canEdit) return;
     if (!activeNoteId) return;
     await softDeleteWithUndo([activeNoteId]);
   }
 
   async function handleDeleteNotes(noteIds: string[]) {
+    if (!canEdit) return;
     await softDeleteWithUndo(noteIds);
   }
 
@@ -833,6 +871,7 @@ export default function App() {
     patch: NoteFieldPatch,
     options?: { message?: string },
   ) {
+    if (!canEdit) return;
     const ids = [...new Set(noteIds)].filter(Boolean);
     if (ids.length === 0) return;
 
@@ -861,6 +900,7 @@ export default function App() {
     noteIds: string[],
     edit: BulkGuidelineEdit,
   ) {
+    if (!canEdit) return;
     const ids = [...new Set(noteIds)].filter(Boolean);
     if (ids.length === 0) return;
 
@@ -907,6 +947,7 @@ export default function App() {
   }
 
   async function handleAddLabelToNotes(noteIds: string[], labelId: string) {
+    if (!canEdit) return;
     const ids = [...new Set(noteIds)].filter(Boolean);
     if (ids.length === 0) return;
 
@@ -937,6 +978,7 @@ export default function App() {
     noteIds: string[],
     target: NoteAssignTarget,
   ) {
+    if (!canEdit) return;
     await handleUpdateNotes(noteIds, noteAssignPatch(target), {
       message: describeNoteAssign(noteIds, target),
     });
@@ -945,12 +987,14 @@ export default function App() {
 
 
   async function handleCreateLabel(name: string) {
+    if (!canEdit) throw new Error('View-only access');
     const label = await store.createLabel(name);
     setLabels(await store.listLabels());
     return label;
   }
 
   async function handleSidebarCreateLabel(name: string) {
+    if (!canEdit) throw new Error('View-only access');
     const label = await handleCreateLabel(name);
     setView('notes');
     setFilterLabelIds((current) =>
@@ -960,6 +1004,7 @@ export default function App() {
   }
 
   async function handleCreateNoteType(name: string) {
+    if (!canEdit) throw new Error('View-only access');
     const noteType = await store.createNoteType(name);
     setNoteTypes(await store.listNoteTypes());
     setView('notes');
@@ -968,6 +1013,7 @@ export default function App() {
   }
 
   async function handleCreateStock(name: string) {
+    if (!canEdit) throw new Error('View-only access');
     const location = await store.createStockLocation(name);
     setStockLocations(await store.listStockLocations());
     setView('notes');
@@ -976,10 +1022,12 @@ export default function App() {
   }
 
   async function handleSidebarCreateStock(name: string) {
+    if (!canEdit) throw new Error('View-only access');
     return handleCreateStock(name);
   }
 
   async function handleDeleteLabel(labelId: string) {
+    if (!canEdit) return;
     await store.deleteLabel(labelId);
     setLabels(await store.listLabels());
     setFilterLabelIds((current) => current.filter((id) => id !== labelId));
@@ -988,7 +1036,7 @@ export default function App() {
 
   useEffect(() => {
     async function onPaste(e: ClipboardEvent) {
-      if (pasteOpen || view !== 'notes') return;
+      if (!canEdit || pasteOpen || view !== 'notes') return;
 
       const images = clipboardImageFiles(e.clipboardData);
       if (images.length === 0) return;
@@ -1015,6 +1063,7 @@ export default function App() {
     view,
     filterLabelIds,
     refresh,
+    canEdit,
   ]);
 
   const undoMessage =
@@ -1050,6 +1099,9 @@ export default function App() {
       onViewPrefsChange={updateViewPrefs}
       sidebar={
         <Sidebar
+          canEdit={canEdit}
+          isAdmin={isAdmin}
+          onOpenMembers={isAdmin ? () => setMembersOpen(true) : undefined}
           labels={labels}
           noteTypes={noteTypes}
           stockLocations={stockLocations}
@@ -1101,11 +1153,11 @@ export default function App() {
             // keep sidebar open for multi-hop browsing of stock
           }}
           onToggleLabel={toggleFilterLabel}
-          onCreateLabel={handleSidebarCreateLabel}
-          onCreateType={handleCreateNoteType}
-          onCreateStock={handleSidebarCreateStock}
-          onDeleteLabel={(id) => handleDeleteLabel(id)}
-          onAssignNotes={handleAssignNotes}
+          onCreateLabel={canEdit ? handleSidebarCreateLabel : undefined}
+          onCreateType={canEdit ? handleCreateNoteType : undefined}
+          onCreateStock={canEdit ? handleSidebarCreateStock : undefined}
+          onDeleteLabel={canEdit ? (id) => handleDeleteLabel(id) : undefined}
+          onAssignNotes={canEdit ? handleAssignNotes : undefined}
           onSignOut={
             isCloudConfigured()
               ? () => {
@@ -1138,6 +1190,7 @@ export default function App() {
         />
       ) : (
         <NoteGrid
+          canEdit={canEdit}
           notes={visibleNotes}
           labels={labels}
           noteTypes={noteTypes}
@@ -1158,8 +1211,8 @@ export default function App() {
           showAge={viewPrefs.age}
           showTypeChip={viewPrefs.typeChip}
           onOpenNote={openNote}
-          onCreateNote={() => void handleCreateNote()}
-          onPasteNotes={() => setPasteOpen(true)}
+          onCreateNote={canEdit ? () => void handleCreateNote() : undefined}
+          onPasteNotes={canEdit ? () => setPasteOpen(true) : undefined}
           onBrowseNotes={() => {
             setView('notes');
             clearAllFilters();
@@ -1169,7 +1222,7 @@ export default function App() {
           onAddToCart={handleAddToCart}
           onUpdateNotes={handleUpdateNotes}
           onApplyGuidelineBulk={handleApplyGuidelineBulk}
-          onCreateLabel={handleCreateLabel}
+          onCreateLabel={canEdit ? handleCreateLabel : undefined}
           onAddLabel={handleAddLabelToNotes}
           onClearLabel={(labelId) =>
             setFilterLabelIds((current) => current.filter((id) => id !== labelId))
@@ -1187,7 +1240,7 @@ export default function App() {
               setSidebarOpen(true);
             }
           }}
-          onDropImages={(files) => void createNoteFromImages(files)}
+          onDropImages={canEdit ? (files) => void createNoteFromImages(files) : undefined}
           imageBusyCount={imageBusyCount}
           pulseNoteIds={wallPulseNoteIds}
           onPulseEnd={clearWallPulse}
@@ -1229,8 +1282,19 @@ export default function App() {
         />
       )}
 
+      {membersOpen && membership && (
+        <MembersDialog
+          currentUserId={membership.userId}
+          onClose={() => setMembersOpen(false)}
+          onRoleChanged={() => {
+            void ensureWorkspaceMembership().then(setMembership);
+          }}
+        />
+      )}
+
       {activeNote && (
         <NoteEditor
+          readOnly={!canEdit}
           note={activeNote}
           labels={labels}
           noteTypes={noteTypes}
