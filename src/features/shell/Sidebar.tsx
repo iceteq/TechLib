@@ -424,7 +424,12 @@ export function Sidebar({
           onClick={onSelectCart}
         >
           <ShoppingCart size={18} />
-          <span>Cart{cartCount > 0 ? ` (${cartCount})` : ''}</span>
+          <span>Cart</span>
+          {cartCount > 0 && (
+            <span key={cartCount} className={styles.cartBadge}>
+              {cartCount}
+            </span>
+          )}
         </button>
       )}
 
