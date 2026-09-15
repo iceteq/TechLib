@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Archive,
+  ArchiveRestore,
   Camera,
   ChevronUp,
   ClipboardPaste,
@@ -29,6 +31,8 @@ import { useJuiceBurst } from '../../lib/useJuiceBurst';
 
 type BulkMenu = 'assign' | null;
 
+const EMPTY_SORTED = new Set<string>();
+
 interface NoteGridProps {
   notes: NoteWithUrls[];
   labels: Label[];
@@ -42,6 +46,8 @@ interface NoteGridProps {
   stockLocations: StockLocation[];
   /** noteId → quantity in cart */
   cartQuantities: Record<string, number>;
+  /** Note ids marked ✅ sorted. */
+  sortedNoteIds?: Set<string>;
   showBarcodes: boolean;
   showPhotos: boolean;
   showDescription: boolean;
@@ -64,6 +70,7 @@ interface NoteGridProps {
       categoryId?: string | null;
       stockId?: string | null;
       labelIds?: string[];
+      archived?: boolean;
     },
   ) => Promise<void>;
   onApplyGuidelineBulk: (
@@ -103,6 +110,7 @@ export function NoteGrid({
   search,
   stockLocations,
   cartQuantities,
+  sortedNoteIds,
   showBarcodes,
   showPhotos,
   showDescription,
@@ -134,6 +142,9 @@ export function NoteGrid({
   onPulseEnd,
 }: NoteGridProps) {
   const cartJuice = useJuiceBurst();
+  const assignJuice = useJuiceBurst();
+  const archiveJuice = useJuiceBurst();
+  const sortedSet = sortedNoteIds ?? EMPTY_SORTED;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<BulkMenu>(null);
@@ -276,12 +287,14 @@ export function NoteGrid({
 
   async function runBulk(
     action: () => Promise<void>,
-    options?: { clearAfter?: boolean },
+    options?: { clearAfter?: boolean; celebrate?: 'assign' | 'archive' },
   ) {
     setBusy(true);
     setMenu(null);
     try {
       await action();
+      if (options?.celebrate === 'assign') assignJuice.trigger();
+      if (options?.celebrate === 'archive') archiveJuice.trigger();
       if (options?.clearAfter) clearSelection();
     } finally {
       setBusy(false);
@@ -294,6 +307,15 @@ export function NoteGrid({
     await runBulk(() => onAddToCart(ids), { clearAfter: true });
   }
 
+  async function handleArchiveSelected(archived: boolean) {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    await runBulk(() => onUpdateNotes(ids, { archived }), {
+      clearAfter: true,
+      celebrate: 'archive',
+    });
+  }
+
   async function handleDelete() {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
@@ -302,33 +324,43 @@ export function NoteGrid({
 
   async function applyDisposition(disposition: NoteDisposition) {
     const ids = [...selectedIds];
-    await runBulk(() => onUpdateNotes(ids, { disposition }));
+    await runBulk(() => onUpdateNotes(ids, { disposition }), {
+      celebrate: 'assign',
+    });
   }
 
   async function applyGuidelineBulk(edit: BulkGuidelineEdit) {
     const ids = [...selectedIds];
     setBulkGuidelineOpen(false);
     setMenu(null);
-    await runBulk(() => onApplyGuidelineBulk(ids, edit));
+    await runBulk(() => onApplyGuidelineBulk(ids, edit), {
+      celebrate: 'assign',
+    });
   }
 
   async function applyCategory(categoryId: string | null) {
     const ids = [...selectedIds];
-    await runBulk(() => onUpdateNotes(ids, { categoryId }));
+    await runBulk(() => onUpdateNotes(ids, { categoryId }), {
+      celebrate: 'assign',
+    });
   }
 
   async function applyStock(stockId: string | null) {
     const ids = [...selectedIds];
-    await runBulk(() => onUpdateNotes(ids, { stockId }));
+    await runBulk(() => onUpdateNotes(ids, { stockId }), {
+      celebrate: 'assign',
+    });
   }
 
   async function applyLabel(labelId: string | null) {
     const ids = [...selectedIds];
     if (!labelId) {
-      await runBulk(() => onUpdateNotes(ids, { labelIds: [] }));
+      await runBulk(() => onUpdateNotes(ids, { labelIds: [] }), {
+        celebrate: 'assign',
+      });
       return;
     }
-    await runBulk(() => onAddLabel(ids, labelId));
+    await runBulk(() => onAddLabel(ids, labelId), { celebrate: 'assign' });
   }
 
   function toggleMenu(next: BulkMenu) {
@@ -560,6 +592,7 @@ export function NoteGrid({
               selecting={selecting}
               selected={selectedIds.has(note.id)}
               cartQuantity={cartQuantities[note.id] ?? 0}
+              sorted={sortedSet.has(note.id)}
               showBarcodes={showBarcodes}
               showPhotos={showPhotos}
               showDescription={showDescription}
@@ -624,7 +657,7 @@ export function NoteGrid({
                 type="button"
                 className={`${styles.selectionAction} ${
                   menu === 'assign' ? styles.selectionActionOpen : ''
-                }`}
+                } ${assignJuice.bursting ? styles.selectionActionJuice : ''}`}
                 onClick={() => toggleMenu('assign')}
                 disabled={busy}
                 aria-expanded={menu === 'assign'}
@@ -746,6 +779,24 @@ export function NoteGrid({
             >
               <ShoppingCart size={14} />
               Add to cart
+            </button>
+
+            <button
+              type="button"
+              className={`${styles.selectionAction} ${
+                archiveJuice.bursting ? styles.selectionActionJuice : ''
+              }`}
+              onClick={() => {
+                void handleArchiveSelected(view !== 'archive');
+              }}
+              disabled={busy}
+            >
+              {view === 'archive' ? (
+                <ArchiveRestore size={14} />
+              ) : (
+                <Archive size={14} />
+              )}
+              {view === 'archive' ? 'Unarchive' : 'Archive'}
             </button>
 
             <button

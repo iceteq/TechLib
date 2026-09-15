@@ -41,6 +41,8 @@ interface NoteCardProps {
   selected: boolean;
   /** Quantity in cart; 0 means not in cart. */
   cartQuantity: number;
+  /** ✅ sorted / handled mark. */
+  sorted?: boolean;
   showBarcodes: boolean;
   showPhotos: boolean;
   showDescription: boolean;
@@ -77,6 +79,7 @@ export function NoteCard({
   selecting,
   selected,
   cartQuantity,
+  sorted = false,
   showBarcodes,
   showPhotos,
   showDescription,
@@ -300,8 +303,17 @@ export function NoteCard({
         </span>
       )}
 
-      {(note.pinned || cartQuantity > 0) && (
+      {(note.pinned || cartQuantity > 0 || sorted) && (
         <div className={styles.badges}>
+          {sorted && (
+            <span
+              className={styles.sortedBadge}
+              title="Sorted"
+              aria-label="Sorted"
+            >
+              ✅
+            </span>
+          )}
           {cartQuantity > 0 && (
             <span
               key={cartQuantity} className={styles.cartBadge}

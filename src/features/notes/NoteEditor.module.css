@@ -147,6 +147,17 @@
   animation: juice-pop var(--juice-duration, 280ms) var(--juice-ease, ease);
 }
 
+.sortedMark {
+  font-size: 0.95rem;
+  line-height: 1;
+  filter: grayscale(0.15);
+}
+
+.iconBtn.iconActive .sortedMark {
+  filter: none;
+  transform: scale(1.05);
+}
+
 .colorWrap {
   position: relative;
 }

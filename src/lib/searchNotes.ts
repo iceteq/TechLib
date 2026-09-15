@@ -197,6 +197,13 @@ export function reactionsForNote(
   return reactions.filter((r) => r.noteId === noteId);
 }
 
+/** ✅ “sorted / handled” mark for the wall and editor. */
+export function noteIsSorted(reactions: Reaction[], noteId: string): boolean {
+  return reactions.some(
+    (r) => r.noteId === noteId && r.emoji === '✅' && r.count > 0,
+  );
+}
+
 export function dispositionLabel(id: NoteDisposition | null): string | null {
   if (!id) return null;
   return DISPOSITIONS.find((d) => d.id === id)?.short || null;

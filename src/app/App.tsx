@@ -15,6 +15,8 @@ import { UndoToast } from '../features/notes/UndoToast';
 import type {
   CartItem,
   Label,
+  Reaction,
+  ReactionEmoji,
   StockLocation,
   NoteBackground,
   NoteDisposition,
@@ -34,6 +36,7 @@ import {
   countNotesByType,
   dispositionLabel,
   filterNotes,
+  noteIsSorted,
   stockLabel,
 } from '../lib/searchNotes';
 import { loadRecentOpens, touchRecentOpen } from '../lib/recentOpens';
@@ -195,6 +198,7 @@ export default function App() {
   const [noteTypes, setNoteTypes] = useState<NoteType[]>([]);
   const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [reactions, setReactions] = useState<Reaction[]>([]);
   const initialSession = useMemo(() => loadFilterSession(), []);
   const [view, setView] = useState<NotesView>(initialSession.view);
   const [filterLabelIds, setFilterLabelIds] = useState<string[]>(
@@ -237,19 +241,21 @@ export default function App() {
 
 
   const refresh = useCallback(async () => {
-    const [nextNotes, nextLabels, nextTypes, nextStock, nextCart] =
+    const [nextNotes, nextLabels, nextTypes, nextStock, nextCart, nextReactions] =
       await Promise.all([
         store.listNotes(),
         store.listLabels(),
         store.listNoteTypes(),
         store.listStockLocations(),
         store.listCartItems(),
+        store.listAllReactions(),
       ]);
     setNotes(nextNotes);
     setLabels(nextLabels);
     setNoteTypes(nextTypes);
     setStockLocations(nextStock);
     setCartItems(nextCart);
+    setReactions(nextReactions);
   }, []);
 
   useEffect(() => {
@@ -398,6 +404,13 @@ export default function App() {
     }
     return map;
   }, [cartItems]);
+  const sortedNoteIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const note of notes) {
+      if (noteIsSorted(reactions, note.id)) ids.add(note.id);
+    }
+    return ids;
+  }, [notes, reactions]);
   const cartRows = useMemo(
     () =>
       cartItems.map((item) => ({
@@ -776,13 +789,25 @@ export default function App() {
   }
 
   async function handleAddToCart(noteIds: string[]) {
-    const nextItems = await store.addToCart(noteIds);
+    const ids = [...new Set(noteIds)].filter(Boolean);
+    if (ids.length === 0) return;
+    const nextItems = await store.addToCart(ids);
     setCartItems(nextItems);
+    const noteWord = ids.length === 1 ? 'note' : 'notes';
+    setNotice(
+      ids.length === 1 ? 'Added to cart' : `Added ${ids.length} ${noteWord} to cart`,
+    );
   }
 
   async function handleAddActiveToCart() {
     if (!activeNoteId) return;
     await handleAddToCart([activeNoteId]);
+  }
+
+  async function handleToggleSorted(noteId: string) {
+    const emoji: ReactionEmoji = '✅';
+    await store.toggleReaction(noteId, emoji);
+    setReactions(await store.listAllReactions());
   }
 
   async function handleCartQuantity(noteId: string, quantity: number) {
@@ -1122,6 +1147,7 @@ export default function App() {
           search={search}
           stockLocations={stockLocations}
           cartQuantities={cartQuantities}
+          sortedNoteIds={sortedNoteIds}
           showBarcodes={viewPrefs.barcodes}
           showPhotos={viewPrefs.photos}
           showDescription={viewPrefs.description}
@@ -1188,7 +1214,7 @@ export default function App() {
           message={undoMessage}
           onUndo={() => void handleUndo()}
           onDismiss={dismissUndo}
-          tone={undoAction?.kind === 'import' ? 'success' : 'default'}
+          tone={undoAction?.kind === 'delete' ? 'default' : 'success'}
         />
       )}
 
@@ -1197,6 +1223,7 @@ export default function App() {
           message={notice}
           onDismiss={() => setNotice(null)}
           durationMs={4000}
+          tone="success"
         />
       )}
 
@@ -1220,6 +1247,8 @@ export default function App() {
           onCreateLabel={handleCreateLabel}
           onAddToCart={handleAddActiveToCart}
           cartQuantity={cartQuantities[activeNote.id] ?? 0}
+          sorted={sortedNoteIds.has(activeNote.id)}
+          onToggleSorted={() => void handleToggleSorted(activeNote.id)}
           imageBusyCount={imageBusyCount}
         />
       )}

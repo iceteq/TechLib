@@ -84,6 +84,9 @@ interface NoteEditorProps {
   onDelete: () => Promise<void>;
   onAddToCart: () => Promise<void>;
   cartQuantity: number;
+  /** ✅ sorted / handled mark. */
+  sorted?: boolean;
+  onToggleSorted?: () => void | Promise<void>;
   onCreateLabel: (name: string) => Promise<Label>;
   /** > 0 while images are being saved. */
   imageBusyCount?: number;
@@ -107,10 +110,14 @@ export function NoteEditor({
   onDelete,
   onAddToCart,
   cartQuantity,
+  sorted = false,
+  onToggleSorted,
   onCreateLabel,
   imageBusyCount = 0,
 }: NoteEditorProps) {
   const cartJuice = useJuiceBurst();
+  const archiveJuice = useJuiceBurst();
+  const sortedJuice = useJuiceBurst();
   const [title, setTitle] = useState(note.title);
   const [description, setDescription] = useState(note.description);
   const [specialCase, setSpecialCase] = useState(note.specialCase ?? '');
@@ -728,8 +735,31 @@ export function NoteEditor({
                 </button>
                 <button
                   type="button"
-                  className={`${styles.iconBtn} ${note.archived ? styles.iconActive : ''}`}
-                  onClick={() => void saveMeta({ archived: !note.archived })}
+                  className={`${styles.iconBtn} ${sorted ? styles.iconActive : ''} ${
+                    sortedJuice.bursting ? styles.juicePop : ''
+                  }`}
+                  onClick={() => {
+                    sortedJuice.trigger();
+                    void onToggleSorted?.();
+                  }}
+                  aria-label={sorted ? 'Mark as not sorted' : 'Mark as sorted'}
+                  aria-pressed={sorted}
+                  title={sorted ? 'Sorted' : 'Mark sorted'}
+                  disabled={!onToggleSorted}
+                >
+                  <span className={styles.sortedMark} aria-hidden>
+                    ✅
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.iconBtn} ${note.archived ? styles.iconActive : ''} ${
+                    archiveJuice.bursting ? styles.juicePop : ''
+                  }`}
+                  onClick={() => {
+                    archiveJuice.trigger();
+                    void saveMeta({ archived: !note.archived });
+                  }}
                   aria-label={note.archived ? 'Unarchive note' : 'Archive note'}
                   title={note.archived ? 'Unarchive' : 'Archive'}
                 >
@@ -837,6 +867,23 @@ export function NoteEditor({
                       className={styles.moreItem}
                       role="menuitem"
                       onClick={() => {
+                        sortedJuice.trigger();
+                        void onToggleSorted?.();
+                        setMoreOpen(false);
+                      }}
+                      disabled={!onToggleSorted}
+                    >
+                      <span className={styles.sortedMark} aria-hidden>
+                        ✅
+                      </span>
+                      <span>{sorted ? 'Unmark sorted' : 'Mark sorted'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.moreItem}
+                      role="menuitem"
+                      onClick={() => {
+                        archiveJuice.trigger();
                         void saveMeta({ archived: !note.archived });
                         setMoreOpen(false);
                       }}
