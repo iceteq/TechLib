@@ -56,8 +56,10 @@ interface NoteGridProps {
   showAge: boolean;
   showTypeChip: boolean;
   onOpenNote: (noteId: string) => void;
-  onCreateNote: () => void;
-  onPasteNotes: () => void;
+  /** When false, hide create/select/assign flows (viewers). */
+  canEdit?: boolean;
+  onCreateNote?: () => void;
+  onPasteNotes?: () => void;
   /** Leave archive / return to the notes wall. */
   onBrowseNotes?: () => void;
   onDeleteNotes: (noteIds: string[]) => Promise<void>;
@@ -77,7 +79,7 @@ interface NoteGridProps {
     noteIds: string[],
     edit: BulkGuidelineEdit,
   ) => Promise<void>;
-  onCreateLabel: (name: string) => Promise<Label>;
+  onCreateLabel?: (name: string) => Promise<Label>;
   /** Add a label to notes (merge), instead of replacing. */
   onAddLabel: (noteIds: string[], labelId: string) => Promise<void>;
   onClearLabel: (labelId: string) => void;
@@ -119,6 +121,7 @@ export function NoteGrid({
   showAge,
   showTypeChip,
   onOpenNote,
+  canEdit = true,
   onCreateNote,
   onPasteNotes,
   onBrowseNotes,
@@ -200,7 +203,7 @@ export function NoteGrid({
       if (isTypingTarget(e.target)) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
-        if (notes.length === 0) return;
+        if (!canEdit || notes.length === 0) return;
         e.preventDefault();
         setSelectedIds(new Set(notes.map((n) => n.id)));
         selectionAnchorId.current = notes[0]?.id ?? null;
@@ -217,7 +220,7 @@ export function NoteGrid({
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [notes, selectedIds.size, menu, clearSelection]);
+  }, [notes, selectedIds.size, menu, clearSelection, canEdit]);
 
   useEffect(() => {
     if (!menu) return;
@@ -407,7 +410,7 @@ export function NoteGrid({
 
   const filterLabels = labels.filter((l) => filterLabelIds.includes(l.id));
   const hasSearch = search.trim().length > 0;
-  const canCreate = view === 'notes' && !selecting;
+  const canCreate = canEdit && view === 'notes' && !selecting && Boolean(onCreateNote);
   const statusText = dispositionLabel(filterDisposition);
   const typeText = categoryLabel(filterCategoryId, noteTypes);
   const stockText = stockLabel(filterStockId, stockLocations);
@@ -466,7 +469,7 @@ export function NoteGrid({
               : `${notes.length} note${notes.length === 1 ? '' : 's'}${
                   hasSearch || hasFilters ? ' found' : ''
                 }`}
-            {view === 'notes' && !selecting && notes.length > 0 && (
+            {canEdit && view === 'notes' && !selecting && notes.length > 0 && (
               <span className={styles.hint}> · Long-press a note to select</span>
             )}
           </p>
@@ -561,7 +564,7 @@ export function NoteGrid({
               Clear filters
             </button>
           )}
-          {view === 'notes' && !hasFilters && (
+          {view === 'notes' && !hasFilters && canEdit && onCreateNote && (
             <button
               type="button"
               className={styles.emptyCta}
@@ -589,8 +592,8 @@ export function NoteGrid({
               labels={labels}
               noteTypes={noteTypes}
               stockLocations={stockLocations}
-              selecting={selecting}
-              selected={selectedIds.has(note.id)}
+              selecting={canEdit && selecting}
+              selected={canEdit && selectedIds.has(note.id)}
               cartQuantity={cartQuantities[note.id] ?? 0}
               sorted={sortedSet.has(note.id)}
               showBarcodes={showBarcodes}
@@ -601,28 +604,46 @@ export function NoteGrid({
               showAge={showAge}
               showTypeChip={showTypeChip}
               onOpen={onOpenNote}
-              onToggleSelect={toggleSelect}
-              onEnterSelect={enterSelect}
-              onRangeSelect={rangeSelect}
-              onApplyType={(noteId, categoryId) =>
-                void onUpdateNotes([noteId], { categoryId })
+              onToggleSelect={canEdit ? toggleSelect : () => {}}
+              onEnterSelect={canEdit ? enterSelect : () => {}}
+              onRangeSelect={canEdit ? rangeSelect : () => {}}
+              onApplyType={
+                canEdit
+                  ? (noteId, categoryId) =>
+                      void onUpdateNotes([noteId], { categoryId })
+                  : undefined
               }
-              onAssignDisposition={(noteId, value) =>
-                void onUpdateNotes([noteId], { disposition: value })
+              onAssignDisposition={
+                canEdit
+                  ? (noteId, value) =>
+                      void onUpdateNotes([noteId], { disposition: value })
+                  : undefined
               }
-              onAssignGuidelineLines={(noteId, lines) =>
-                void onUpdateNotes([noteId], { guidelineLines: lines })
+              onAssignGuidelineLines={
+                canEdit
+                  ? (noteId, lines) =>
+                      void onUpdateNotes([noteId], { guidelineLines: lines })
+                  : undefined
               }
-              onAssignCategory={(noteId, value) =>
-                void onUpdateNotes([noteId], { categoryId: value })
+              onAssignCategory={
+                canEdit
+                  ? (noteId, value) =>
+                      void onUpdateNotes([noteId], { categoryId: value })
+                  : undefined
               }
-              onAssignStock={(noteId, value) =>
-                void onUpdateNotes([noteId], { stockId: value })
+              onAssignStock={
+                canEdit
+                  ? (noteId, value) =>
+                      void onUpdateNotes([noteId], { stockId: value })
+                  : undefined
               }
-              onAssignLabels={(noteId, labelIds) =>
-                void onUpdateNotes([noteId], { labelIds })
+              onAssignLabels={
+                canEdit
+                  ? (noteId, labelIds) =>
+                      void onUpdateNotes([noteId], { labelIds })
+                  : undefined
               }
-              onCreateLabel={onCreateLabel}
+              onCreateLabel={canEdit ? onCreateLabel : undefined}
               dragNoteIds={
                 selectedIds.has(note.id) ? [...selectedIds] : undefined
               }
@@ -635,7 +656,7 @@ export function NoteGrid({
         </div>
       )}
 
-      {selecting && (
+      {canEdit && selecting && (
         <div
           ref={barRef}
           className={styles.selectionBar}

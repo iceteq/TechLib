@@ -21,6 +21,7 @@ import {
   primaryDispositionFromLines,
   resolveGuidelineLines,
 } from './guidelineLines';
+import { fetchLibraryOwnerId } from './workspace';
 
 const BUCKET = 'note-images';
 
@@ -81,6 +82,18 @@ async function requireUserId(): Promise<string> {
   const { data, error } = await getSupabase().auth.getUser();
   if (error || !data.user) throw new Error('Not signed in');
   return data.user.id;
+}
+
+/** Shared library owner — all notes/labels/types/images use this id. */
+async function requireLibraryOwnerId(): Promise<string> {
+  await requireUserId();
+  return fetchLibraryOwnerId();
+}
+
+async function canEditLibraryRpc(): Promise<boolean> {
+  const { data, error } = await getSupabase().rpc('can_edit_library');
+  if (error) throw new Error(error.message);
+  return Boolean(data);
 }
 
 function throwIf(error: { message: string } | null) {
@@ -198,7 +211,10 @@ async function replaceNoteLabels(noteId: string, labelIds: string[]) {
 }
 
 export async function listNotes(): Promise<NoteWithUrls[]> {
-  await ensureDefaultNoteTypes();
+  // Seed defaults only when the caller can edit (viewers must not insert).
+  if (await canEditLibraryRpc()) {
+    await ensureDefaultNoteTypes();
+  }
   const { data, error } = await getSupabase()
     .from('notes')
     .select('*')
@@ -231,7 +247,7 @@ export async function createNote(input?: {
   specialCase?: string;
   labelIds?: string[];
 }): Promise<NoteWithUrls> {
-  const ownerId = await requireUserId();
+  const ownerId = await requireLibraryOwnerId();
   await ensureDefaultNoteTypes();
   const guidelineLines =
     input?.guidelineLines != null
@@ -346,7 +362,7 @@ export async function restoreNotes(ids: string[]): Promise<void> {
 
 export async function purgeNotes(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
-  const ownerId = await requireUserId();
+  const ownerId = await requireLibraryOwnerId();
   const supabase = getSupabase();
 
   const { data: images, error: imgError } = await supabase
@@ -370,6 +386,7 @@ export async function purgeNotes(ids: string[]): Promise<void> {
 }
 
 export async function purgeSoftDeletedNotes(): Promise<void> {
+  if (!(await canEditLibraryRpc())) return;
   await requireUserId();
   const { data, error } = await getSupabase()
     .from('notes')
@@ -388,7 +405,7 @@ export async function addImage(
   noteId: string,
   file: File | Blob,
 ): Promise<NoteWithUrls | undefined> {
-  const ownerId = await requireUserId();
+  const ownerId = await requireLibraryOwnerId();
   const supabase = getSupabase();
   const imageId = crypto.randomUUID();
   const path = `${ownerId}/${noteId}/${imageId}`;
@@ -493,7 +510,7 @@ export async function listLabels(): Promise<Label[]> {
 }
 
 export async function createLabel(name: string): Promise<Label> {
-  const ownerId = await requireUserId();
+  const ownerId = await requireLibraryOwnerId();
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Label name required');
   const { data, error } = await getSupabase()
@@ -513,7 +530,7 @@ export async function deleteLabel(id: string): Promise<void> {
 }
 
 async function ensureDefaultNoteTypes(): Promise<void> {
-  const ownerId = await requireUserId();
+  const ownerId = await requireLibraryOwnerId();
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('note_types')
@@ -547,7 +564,9 @@ function mapNoteTypeRow(row: NoteTypeRow): NoteType {
 }
 
 export async function listNoteTypes(): Promise<NoteType[]> {
-  await ensureDefaultNoteTypes();
+  if (await canEditLibraryRpc()) {
+    await ensureDefaultNoteTypes();
+  }
   const { data, error } = await getSupabase()
     .from('note_types')
     .select('id, name, color, icon')
@@ -561,7 +580,7 @@ export async function listNoteTypes(): Promise<NoteType[]> {
 }
 
 export async function createNoteType(name: string): Promise<NoteType> {
-  const ownerId = await requireUserId();
+  const ownerId = await requireLibraryOwnerId();
   await ensureDefaultNoteTypes();
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Type name required');
@@ -621,7 +640,7 @@ export async function listStockLocations(): Promise<StockLocation[]> {
 }
 
 export async function createStockLocation(name: string): Promise<StockLocation> {
-  const ownerId = await requireUserId();
+  const ownerId = await requireLibraryOwnerId();
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Stock name required');
   const { data, error } = await getSupabase()

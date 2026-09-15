@@ -1,5 +1,6 @@
--- TechLib Supabase schema (solo owner now; ready for later sharing)
--- Run this once in: Supabase Dashboard → SQL Editor → New query
+-- TechLib Supabase schema
+-- Solo install: run this file, then migrations/001_workspace_roles.sql
+-- (001 adds shared-library membership: viewer / editor / admin)
 
 -- Stock locations (bay / shelf codes) — before notes so notes.stock_id can FK
 create table if not exists public.stock_locations (

@@ -6,6 +6,7 @@ import {
   Hash,
   Lightbulb,
   LogOut,
+  Users,
   Package,
   Minus,
   Plus,
@@ -46,6 +47,10 @@ import {
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
+  /** False for viewers — hide create/delete/assign. */
+  canEdit?: boolean;
+  isAdmin?: boolean;
+  onOpenMembers?: () => void;
   labels: Label[];
   noteTypes: NoteType[];
   stockLocations: StockLocation[];
@@ -67,10 +72,10 @@ interface SidebarProps {
   onSelectCategoryId: (categoryId: string) => void;
   onSelectStock: (stockId: string) => void;
   onToggleLabel: (labelId: string) => void;
-  onCreateLabel: (name: string) => Promise<Label>;
-  onCreateType: (name: string) => Promise<NoteType>;
-  onCreateStock: (name: string) => Promise<StockLocation>;
-  onDeleteLabel: (labelId: string) => Promise<void>;
+  onCreateLabel?: (name: string) => Promise<Label>;
+  onCreateType?: (name: string) => Promise<NoteType>;
+  onCreateStock?: (name: string) => Promise<StockLocation>;
+  onDeleteLabel?: (labelId: string) => Promise<void>;
   onSignOut?: () => void;
   onAssignNotes?: (
     noteIds: string[],
@@ -97,6 +102,9 @@ function confirmDelete(
 }
 
 export function Sidebar({
+  canEdit = true,
+  isAdmin = false,
+  onOpenMembers,
   labels,
   noteTypes,
   stockLocations,
@@ -218,6 +226,7 @@ export function Sidebar({
     if (!name || creatingBusy) return;
     setCreatingBusy(true);
     try {
+      if (!onCreateLabel) return;
       await onCreateLabel(name);
       setNewLabelName('');
       setCreatingLabel(false);
@@ -232,6 +241,7 @@ export function Sidebar({
     if (!name || creatingBusy) return;
     setCreatingBusy(true);
     try {
+      if (!onCreateType) return;
       await onCreateType(name);
       setNewTypeName('');
       setCreatingType(false);
@@ -246,6 +256,7 @@ export function Sidebar({
     if (!name || creatingBusy) return;
     setCreatingBusy(true);
     try {
+      if (!onCreateStock) return;
       await onCreateStock(name);
       setNewStockName('');
       setCreatingStock(false);
@@ -385,21 +396,23 @@ export function Sidebar({
             <Minus size={16} strokeWidth={2.25} />
           </button>
         )}
-        <button
-          type="button"
-          className={`${styles.addLabelBtn} ${
-            options.creating ? styles.addLabelBtnActive : ''
-          }`}
-          onClick={(e) => {
-            e.stopPropagation();
-            options.onToggleCreate();
-          }}
-          aria-label={options.createLabel}
-          title={options.createLabel}
-          aria-expanded={options.creating}
-        >
-          <Plus size={16} strokeWidth={2.25} />
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            className={`${styles.addLabelBtn} ${
+              options.creating ? styles.addLabelBtnActive : ''
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              options.onToggleCreate();
+            }}
+            aria-label={options.createLabel}
+            title={options.createLabel}
+            aria-expanded={options.creating}
+          >
+            <Plus size={16} strokeWidth={2.25} />
+          </button>
+        )}
       </div>
     );
   }
@@ -723,7 +736,7 @@ export function Sidebar({
         onToggle={() => toggleSection('labels')}
         trailing={
           sectionActions('labels', {
-            canEdit: labels.length > 0,
+            canEdit: canEdit && labels.length > 0,
             creating: creatingLabel,
             onToggleCreate: () => toggleCreate('labels', setCreatingLabel),
             createLabel: 'Create label',
@@ -789,7 +802,7 @@ export function Sidebar({
                       e.stopPropagation();
                       const count = labelCounts[label.id] ?? 0;
                       if (!confirmDelete('label', label.name, count)) return;
-                      void onDeleteLabel(label.id);
+                      void onDeleteLabel?.(label.id);
                     }}
                   >
                     <X size={14} strokeWidth={2.25} />
@@ -813,6 +826,16 @@ export function Sidebar({
           <Archive size={16} />
           <span>Archive</span>
         </button>
+        {isAdmin && onOpenMembers && (
+          <button
+            type="button"
+            className={styles.itemQuiet}
+            onClick={onOpenMembers}
+          >
+            <Users size={16} />
+            <span>Members</span>
+          </button>
+        )}
         {onSignOut && (
           <button
             type="button"

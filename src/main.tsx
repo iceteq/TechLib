@@ -6,6 +6,6 @@ import { AuthGate } from './features/auth/AuthGate';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthGate>{() => <App />}</AuthGate>
+    <AuthGate>{(session) => <App session={session} />}</AuthGate>
   </StrictMode>,
 );

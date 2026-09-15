@@ -22,8 +22,8 @@ import styles from './ImageGallery.module.css';
 
 interface ImageGalleryProps {
   images: NoteImageWithUrl[];
-  onRemove: (imageId: string) => void;
-  onReorder: (orderedImageIds: string[]) => void;
+  onRemove?: (imageId: string) => void;
+  onReorder?: (orderedImageIds: string[]) => void;
 }
 
 function SortableThumb({
@@ -31,14 +31,16 @@ function SortableThumb({
   index,
   onOpen,
   onRemove,
+  canEdit,
 }: {
   img: NoteImageWithUrl;
   index: number;
   onOpen: () => void;
-  onRemove: () => void;
+  onRemove?: () => void;
+  canEdit: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: img.id });
+    useSortable({ id: img.id, disabled: !canEdit });
 
   return (
     <div
@@ -49,15 +51,17 @@ function SortableThumb({
         transition,
       }}
     >
-      <button
-        type="button"
-        className={styles.dragHandle}
-        aria-label={`Drag to reorder image ${index + 1}`}
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical size={14} />
-      </button>
+      {canEdit && (
+        <button
+          type="button"
+          className={styles.dragHandle}
+          aria-label={`Drag to reorder image ${index + 1}`}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={14} />
+        </button>
+      )}
       <button
         type="button"
         className={styles.thumbOpen}
@@ -66,19 +70,22 @@ function SortableThumb({
       >
         <img src={img.url} alt="" />
       </button>
-      <button
-        type="button"
-        className={styles.remove}
-        onClick={onRemove}
-        aria-label="Remove image"
-      >
-        <Trash2 size={12} />
-      </button>
+      {canEdit && onRemove && (
+        <button
+          type="button"
+          className={styles.remove}
+          onClick={onRemove}
+          aria-label="Remove image"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
     </div>
   );
 }
 
 export function ImageGallery({ images, onRemove, onReorder }: ImageGalleryProps) {
+  const canEdit = Boolean(onRemove && onReorder);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -117,6 +124,7 @@ export function ImageGallery({ images, onRemove, onReorder }: ImageGalleryProps)
   const active = lightboxIndex !== null ? images[lightboxIndex] : null;
 
   function handleDragEnd(event: DragEndEvent) {
+    if (!onReorder) return;
     const { active: dragActive, over } = event;
     if (!over || dragActive.id === over.id) return;
 
@@ -149,15 +157,18 @@ export function ImageGallery({ images, onRemove, onReorder }: ImageGalleryProps)
                 key={img.id}
                 img={img}
                 index={index}
+                canEdit={canEdit}
                 onOpen={() => setLightboxIndex(index)}
-                onRemove={() => onRemove(img.id)}
+                onRemove={
+                  onRemove ? () => onRemove(img.id) : undefined
+                }
               />
             ))}
           </div>
         </SortableContext>
       </DndContext>
 
-      {images.length > 1 && (
+      {canEdit && images.length > 1 && (
         <p className={styles.hint}>Drag the handle to reorder images</p>
       )}
 

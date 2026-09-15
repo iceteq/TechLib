@@ -54,7 +54,7 @@ interface NoteCardProps {
   onToggleSelect: (noteId: string) => void;
   onEnterSelect: (noteId: string) => void;
   onRangeSelect: (noteId: string) => void;
-  onApplyType: (noteId: string, categoryId: string) => void;
+  onApplyType?: (noteId: string, categoryId: string) => void;
   onAssignDisposition?: (noteId: string, value: NoteDisposition) => void;
   onAssignGuidelineLines?: (noteId: string, lines: GuidelineLine[]) => void;
   onAssignCategory?: (noteId: string, value: string | null) => void;
@@ -388,7 +388,7 @@ export function NoteCard({
                     : () => openAssign('categoryId')
                 }
               />
-            ) : !noteType && suggestedType && showTypeChip ? (
+            ) : !noteType && suggestedType && showTypeChip && onApplyType ? (
               <TypeChip
                 type={suggestedType}
                 suggested

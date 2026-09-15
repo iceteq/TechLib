@@ -54,6 +54,8 @@ function isTextEntryTarget(target: EventTarget | null): boolean {
 }
 
 interface NoteEditorProps {
+  /** Viewers: browse only — no meta/image/content edits. */
+  readOnly?: boolean;
   note: NoteWithUrls;
   labels: Label[];
   noteTypes: NoteType[];
@@ -93,6 +95,7 @@ interface NoteEditorProps {
 }
 
 export function NoteEditor({
+  readOnly = false,
   note,
   labels,
   noteTypes,
@@ -407,12 +410,14 @@ export function NoteEditor({
     dropDepth.current = 0;
     setDropActive(false);
     const files = dataTransferImageFiles(e.dataTransfer);
+    if (readOnly) return;
     if (files.length > 0) void onAddImages(files);
   }
 
   async function saveMeta(
     patch: Parameters<NoteEditorProps['onSaveMeta']>[0],
   ): Promise<void> {
+    if (readOnly) return;
     if (saveHideTimerRef.current) {
       clearTimeout(saveHideTimerRef.current);
       saveHideTimerRef.current = null;
@@ -724,6 +729,7 @@ export function NoteEditor({
           <div className={styles.topRight}>
             {!isNarrow && (
               <>
+                {!readOnly && (
                 <button
                   type="button"
                   className={`${styles.iconBtn} ${note.pinned ? styles.iconActive : ''}`}
@@ -733,6 +739,7 @@ export function NoteEditor({
                 >
                   {note.pinned ? <PinOff size={18} /> : <Pin size={18} />}
                 </button>
+                )}
                 <button
                   type="button"
                   className={`${styles.iconBtn} ${sorted ? styles.iconActive : ''} ${
@@ -751,6 +758,7 @@ export function NoteEditor({
                     ✅
                   </span>
                 </button>
+                {!readOnly && (
                 <button
                   type="button"
                   className={`${styles.iconBtn} ${note.archived ? styles.iconActive : ''} ${
@@ -765,7 +773,9 @@ export function NoteEditor({
                 >
                   {note.archived ? <ArchiveRestore size={18} /> : <Archive size={18} />}
                 </button>
+                )}
 
+                {!readOnly && (
                 <div className={styles.colorWrap}>
                   <button
                     type="button"
@@ -798,6 +808,7 @@ export function NoteEditor({
                     </div>
                   )}
                 </div>
+                )}
 
                 <button
                   type="button"
@@ -850,6 +861,7 @@ export function NoteEditor({
                 </button>
                 {moreOpen && (
                   <div className={styles.moreMenu} role="menu" aria-label="Note actions">
+                    {!readOnly && (
                     <button
                       type="button"
                       className={styles.moreItem}
@@ -862,6 +874,7 @@ export function NoteEditor({
                       {note.pinned ? <PinOff size={16} /> : <Pin size={16} />}
                       <span>{note.pinned ? 'Unpin' : 'Pin'}</span>
                     </button>
+                    )}
                     <button
                       type="button"
                       className={styles.moreItem}
@@ -878,6 +891,8 @@ export function NoteEditor({
                       </span>
                       <span>{sorted ? 'Unmark sorted' : 'Mark sorted'}</span>
                     </button>
+                    {!readOnly && (
+                    <>
                     <button
                       type="button"
                       className={styles.moreItem}
@@ -922,6 +937,8 @@ export function NoteEditor({
                         ))}
                       </div>
                     )}
+                    </>
+                    )}
                     <button
                       type="button"
                       className={styles.moreItem}
@@ -941,6 +958,7 @@ export function NoteEditor({
                           : 'Add to cart'}
                       </span>
                     </button>
+                    {!readOnly && (
                     <button
                       type="button"
                       className={`${styles.moreItem} ${styles.moreDanger}`}
@@ -953,12 +971,13 @@ export function NoteEditor({
                       <Trash2 size={16} />
                       <span>Delete</span>
                     </button>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {!isNarrow && (
+            {!readOnly && !isNarrow && (
               <button
                 type="button"
                 className={`${styles.iconBtn} ${styles.danger}`}
@@ -975,8 +994,8 @@ export function NoteEditor({
         <div className={styles.dialogBody}>
           <ImageGallery
             images={note.images}
-            onRemove={(id) => void onRemoveImage(id)}
-            onReorder={(ids) => void onReorderImages(ids)}
+            onRemove={readOnly ? undefined : (id) => void onRemoveImage(id)}
+            onReorder={readOnly ? undefined : (ids) => void onReorderImages(ids)}
           />
           {imageBusy && (
             <div className={styles.imageBusy} role="status" aria-live="polite">
@@ -997,15 +1016,22 @@ export function NoteEditor({
               onBlur={() => void persistTitle()}
               placeholder="Part number"
               aria-label="Part number"
+              readOnly={readOnly}
             />
             <DescriptionField
               value={description}
               labels={labels}
               selectedIds={note.labelIds}
-              onChange={setDescription}
-              onBlur={() => void persistDescription()}
-              onAddLabel={(label) => void addLabel(label)}
-              onCreateLabel={onCreateLabel}
+              onChange={readOnly ? () => {} : setDescription}
+              onBlur={readOnly ? () => {} : () => void persistDescription()}
+              onAddLabel={readOnly ? () => {} : (label) => void addLabel(label)}
+              onCreateLabel={
+                readOnly
+                  ? async () => {
+                      throw new Error('View-only access');
+                    }
+                  : onCreateLabel
+              }
             />
           </div>
 
@@ -1016,7 +1042,9 @@ export function NoteEditor({
                   lines={note.guidelineLines}
                   disposition={note.disposition}
                   expanded={assignField === 'disposition'}
-                  onClick={() => setAssignField('disposition')}
+                  onClick={() => {
+                    if (!readOnly) setAssignField('disposition');
+                  }}
                 />
               </div>
               {noteLabels.map((label) => (
@@ -1024,7 +1052,7 @@ export function NoteEditor({
                   key={label.id}
                   type="button"
                   className={styles.labelChipBtn}
-                  onClick={() => setAssignField('labels')}
+                  onClick={() => { if (!readOnly) setAssignField('labels'); }}
                   aria-haspopup="dialog"
                   aria-expanded={assignField === 'labels'}
                 >
@@ -1034,7 +1062,7 @@ export function NoteEditor({
               <button
                 type="button"
                 className={styles.addLabel}
-                onClick={() => setAssignField('labels')}
+                onClick={() => { if (!readOnly) setAssignField('labels'); }}
                 aria-haspopup="dialog"
                 aria-expanded={assignField === 'labels'}
               >
@@ -1045,7 +1073,7 @@ export function NoteEditor({
               {selectedType ? (
                 <TypeChip
                   type={selectedType}
-                  onClick={() => setAssignField('categoryId')}
+                  onClick={() => { if (!readOnly) setAssignField('categoryId'); }}
                 />
               ) : suggestedType ? (
                 <TypeChip
@@ -1057,7 +1085,7 @@ export function NoteEditor({
                 <button
                   type="button"
                   className={styles.metaMissing}
-                  onClick={() => setAssignField('categoryId')}
+                  onClick={() => { if (!readOnly) setAssignField('categoryId'); }}
                   aria-haspopup="dialog"
                   aria-expanded={assignField === 'categoryId'}
                 >
@@ -1069,7 +1097,7 @@ export function NoteEditor({
                 <button
                   type="button"
                   className={styles.metaMissing}
-                  onClick={() => setAssignField('categoryId')}
+                  onClick={() => { if (!readOnly) setAssignField('categoryId'); }}
                   aria-haspopup="dialog"
                   aria-expanded={assignField === 'categoryId'}
                 >
@@ -1080,7 +1108,7 @@ export function NoteEditor({
               <button
                 type="button"
                 className={stock ? styles.metaStock : styles.metaMissing}
-                onClick={() => setAssignField('stockId')}
+                onClick={() => { if (!readOnly) setAssignField('stockId'); }}
                 aria-haspopup="dialog"
                 aria-expanded={assignField === 'stockId'}
               >
@@ -1183,6 +1211,8 @@ export function NoteEditor({
             hidden
             onChange={handleFileInput}
           />
+          {!readOnly && (
+            <>
           <button
             type="button"
             className={styles.iconBtn}
@@ -1203,6 +1233,8 @@ export function NoteEditor({
           >
             <ImagePlus size={18} />
           </button>
+            </>
+          )}
           {imageBusy ? (
             <span className={styles.imageBusyInline} role="status">
               <Loader2 size={15} className={styles.spinner} aria-hidden />

@@ -82,7 +82,8 @@ export function AuthGate({ children }: AuthGateProps) {
             <h1 className={styles.title}>TechLib</h1>
           </div>
           <p className={styles.muted}>
-            Sign in to sync notes between your phone and PC.
+            Sign in to browse the shared TechLib library. New accounts can view;
+            an admin can grant edit access.
           </p>
           <label className={styles.field}>
             <span>Email</span>
