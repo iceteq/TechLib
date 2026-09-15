@@ -794,6 +794,8 @@ export default function App() {
     const nextItems = await store.addToCart(ids);
     setCartItems(nextItems);
     const noteWord = ids.length === 1 ? 'note' : 'notes';
+    // Prefer the cart commit toast over any lingering undo banner.
+    await replaceUndoAction(null);
     setNotice(
       ids.length === 1 ? 'Added to cart' : `Added ${ids.length} ${noteWord} to cart`,
     );
