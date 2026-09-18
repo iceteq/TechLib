@@ -592,10 +592,6 @@ export function NoteEditor({
         ignorePopRef.current = false;
         return;
       }
-      if (imageBusyRef.current) {
-        history.pushState(marker, '');
-        return;
-      }
       if (dismissEditorLayer()) {
         history.pushState(marker, '');
         return;
@@ -621,14 +617,13 @@ export function NoteEditor({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        if (imageBusy) return;
         // Nested surfaces (label suggestions, assign popover) stopPropagation.
         if (dismissEditorLayer()) return;
         void finish();
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        if (imageBusy || assignField) return;
+        if (assignField) return;
         e.preventDefault();
         void finish();
         return;
@@ -1265,7 +1260,6 @@ export function NoteEditor({
             type="button"
             className={styles.primaryBtn}
             onClick={() => void finish()}
-            disabled={imageBusy}
           >
             Done
           </button>

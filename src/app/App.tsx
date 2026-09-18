@@ -545,7 +545,13 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleCloseEditor() {
-    if (canEdit && activeNote && isBlankNote(activeNote)) {
+    // Don't junk a brand-new photo note while images are still uploading.
+    if (
+      canEdit &&
+      activeNote &&
+      isBlankNote(activeNote) &&
+      imageBusyCount === 0
+    ) {
       pendingWallPulseIds.current.delete(activeNote.id);
       await store.deleteNote(activeNote.id);
       setActiveNoteId(null);
@@ -775,8 +781,8 @@ export default function App({ session }: { session: Session | null }) {
   async function createNoteFromImages(files: File[]) {
     if (!canEdit) return;
     if (files.length === 0) return;
-    setImageBusyCount(files.length);
     try {
+      // Create + open first (no wall "Adding…" wait). Upload afterward.
       const note = await store.createNote({
         ...createMetaFromFilters({
           disposition: filterDisposition,
@@ -785,14 +791,14 @@ export default function App({ session }: { session: Session | null }) {
         }),
         labelIds: filterLabelIds,
       });
-      // Put the note in state and open immediately so part-number autofocus
-      // can run while photos upload.
       setNotes((prev) =>
         prev.some((n) => n.id === note.id) ? prev : [note, ...prev],
       );
       queueWallPulse(note.id);
       openNote(note.id);
       setSidebarOpen(false);
+
+      setImageBusyCount(files.length);
       for (const file of files) {
         const updated = await store.addImage(note.id, file);
         if (updated) {
@@ -800,6 +806,7 @@ export default function App({ session }: { session: Session | null }) {
             prev.map((n) => (n.id === updated.id ? updated : n)),
           );
         }
+        setImageBusyCount((count) => Math.max(0, count - 1));
       }
       await refresh();
     } finally {
