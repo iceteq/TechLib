@@ -71,7 +71,13 @@ export interface NoteImage {
 }
 
 export interface NoteImageWithUrl extends NoteImage {
+  /** Full-resolution signed (or blob) URL — editor / lightbox. */
   url: string;
+  /**
+   * Smaller wall-card URL when available (transformed thumbnail).
+   * Fall back to `url` when missing or when the transform fails to load.
+   */
+  previewUrl?: string;
 }
 
 export interface Note {
