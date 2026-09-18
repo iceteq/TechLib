@@ -178,9 +178,10 @@ async function hydrateNote(note: Note): Promise<NoteWithUrls> {
       .map(async (img) => {
         const record = await db.get('imageBlobs', img.id);
         if (!record) {
-          return { ...img, url: '' };
+          return { ...img, url: '', thumbUrl: '' };
         }
-        return { ...img, url: getOrCreateUrl(img.id, record.blob) };
+        const url = getOrCreateUrl(img.id, record.blob);
+        return { ...img, url, thumbUrl: url };
       }),
   );
 
