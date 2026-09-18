@@ -100,12 +100,57 @@ function throwIf(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
 
-async function signedUrl(path: string): Promise<string> {
-  const { data, error } = await getSupabase()
-    .storage.from(BUCKET)
-    .createSignedUrl(path, 60 * 60 * 12);
-  throwIf(error);
-  return data!.signedUrl;
+/** 12h — matches a long browsing session without re-signing constantly. */
+const SIGNED_URL_TTL_SEC = 60 * 60 * 12;
+/** Wall cards top out ~260px; 480 covers 2x DPR without shipping originals. */
+const WALL_THUMB_WIDTH = 480;
+
+async function signedUrlsForPaths(paths: string[]): Promise<{
+  fullByPath: Map<string, string>;
+  thumbByPath: Map<string, string>;
+}> {
+  const unique = [...new Set(paths.filter(Boolean))];
+  const fullByPath = new Map<string, string>();
+  const thumbByPath = new Map<string, string>();
+  if (unique.length === 0) return { fullByPath, thumbByPath };
+
+  const storage = getSupabase().storage.from(BUCKET);
+
+  const { data: fullData, error: fullError } = await storage.createSignedUrls(
+    unique,
+    SIGNED_URL_TTL_SEC,
+  );
+  throwIf(fullError);
+  for (const item of fullData ?? []) {
+    if (item.path && item.signedUrl) {
+      fullByPath.set(item.path, item.signedUrl);
+    }
+  }
+
+  await Promise.all(
+    unique.map(async (path) => {
+      const full = fullByPath.get(path);
+      if (!full) return;
+      const { data, error } = await storage.createSignedUrl(
+        path,
+        SIGNED_URL_TTL_SEC,
+        {
+          transform: {
+            width: WALL_THUMB_WIDTH,
+            resize: 'contain',
+            quality: 70,
+          },
+        },
+      );
+      if (!error && data?.signedUrl) {
+        thumbByPath.set(path, data.signedUrl);
+      } else {
+        thumbByPath.set(path, full);
+      }
+    }),
+  );
+
+  return { fullByPath, thumbByPath };
 }
 
 async function labelIdsByNote(
@@ -152,42 +197,53 @@ async function hydrateRows(rows: NoteRow[]): Promise<NoteWithUrls[]> {
     imagesByNote(ids),
   ]);
 
-  const notes = await Promise.all(
-    rows.map(async (row) => {
-      const imageRows = imagesMap.get(row.id) ?? [];
-      const images = await Promise.all(
-        imageRows.map(async (img) => ({
+  const allPaths: string[] = [];
+  for (const id of ids) {
+    for (const img of imagesMap.get(id) ?? []) {
+      allPaths.push(img.storage_path);
+    }
+  }
+  const { fullByPath, thumbByPath } = await signedUrlsForPaths(allPaths);
+
+  const notes = rows.map((row) => {
+    const imageRows = imagesMap.get(row.id) ?? [];
+    const images = imageRows
+      .map((img) => {
+        const url = fullByPath.get(img.storage_path);
+        if (!url) return null;
+        return {
           id: img.id,
           position: img.position,
-          url: await signedUrl(img.storage_path),
-        })),
-      );
-      const guidelineLines = resolveGuidelineLines({
-        guidelineLines: row.guideline_lines,
-        disposition: (row.disposition as NoteDisposition) ?? 'none',
-      });
-      const note: NoteWithUrls = {
-        id: row.id,
-        title: row.title,
-        description: row.description,
-        background: row.background as NoteBackground,
-        disposition: primaryDispositionFromLines(guidelineLines),
-        guidelineLines,
-        categoryId:
-          row.category_id ?? legacyCategoryToTypeId(row.category),
-        stockId: row.stock_id ?? null,
-        specialCase: row.special_case ?? '',
-        pinned: row.pinned,
-        archived: row.archived,
-        deletedAt: row.deleted_at ? ms(row.deleted_at) : null,
-        createdAt: ms(row.created_at),
-        updatedAt: ms(row.updated_at),
-        labelIds: labelsMap.get(row.id) ?? [],
-        images,
-      };
-      return note;
-    }),
-  );
+          url,
+          thumbUrl: thumbByPath.get(img.storage_path) ?? url,
+        };
+      })
+      .filter((img): img is NonNullable<typeof img> => img != null);
+    const guidelineLines = resolveGuidelineLines({
+      guidelineLines: row.guideline_lines,
+      disposition: (row.disposition as NoteDisposition) ?? 'none',
+    });
+    const note: NoteWithUrls = {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      background: row.background as NoteBackground,
+      disposition: primaryDispositionFromLines(guidelineLines),
+      guidelineLines,
+      categoryId:
+        row.category_id ?? legacyCategoryToTypeId(row.category),
+      stockId: row.stock_id ?? null,
+      specialCase: row.special_case ?? '',
+      pinned: row.pinned,
+      archived: row.archived,
+      deletedAt: row.deleted_at ? ms(row.deleted_at) : null,
+      createdAt: ms(row.created_at),
+      updatedAt: ms(row.updated_at),
+      labelIds: labelsMap.get(row.id) ?? [],
+      images,
+    };
+    return note;
+  });
 
   return notes.sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
