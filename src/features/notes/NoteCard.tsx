@@ -348,7 +348,19 @@ export function NoteCard({
         >
           {preview.map((img, index) => (
             <div key={img.id} className={styles.imageWrap}>
-              <img src={img.url} alt="" className={styles.image} />
+              <img
+                src={img.previewUrl ?? img.url}
+                alt=""
+                className={styles.image}
+                loading="lazy"
+                decoding="async"
+                onError={(e) => {
+                  const el = e.currentTarget;
+                  if (img.previewUrl && el.src !== img.url) {
+                    el.src = img.url;
+                  }
+                }}
+              />
               {overflow > 0 && index === preview.length - 1 && (
                 <span className={styles.overflow}>+{overflow}</span>
               )}
