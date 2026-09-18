@@ -785,13 +785,23 @@ export default function App({ session }: { session: Session | null }) {
         }),
         labelIds: filterLabelIds,
       });
-      for (const file of files) {
-        await store.addImage(note.id, file);
-      }
-      await refresh();
+      // Put the note in state and open immediately so part-number autofocus
+      // can run while photos upload.
+      setNotes((prev) =>
+        prev.some((n) => n.id === note.id) ? prev : [note, ...prev],
+      );
       queueWallPulse(note.id);
       openNote(note.id);
       setSidebarOpen(false);
+      for (const file of files) {
+        const updated = await store.addImage(note.id, file);
+        if (updated) {
+          setNotes((prev) =>
+            prev.map((n) => (n.id === updated.id ? updated : n)),
+          );
+        }
+      }
+      await refresh();
     } finally {
       setImageBusyCount(0);
     }
