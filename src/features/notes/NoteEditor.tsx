@@ -213,11 +213,27 @@ export function NoteEditor({
     };
   }, []);
 
-  // Keep focus on the dialog chrome — never autofocus a text field, so mobile
-  // keyboards stay closed until the user taps something to edit.
+  // New notes (empty part number): focus + select the title so a scanner or
+  // keyboard can enter the part # immediately. Existing notes keep chrome focus
+  // so opening them does not pop the soft keyboard.
   useEffect(() => {
+    if (readOnly) {
+      dialogRef.current?.focus({ preventScroll: true });
+      return;
+    }
+
+    if (!note.title.trim()) {
+      const input = titleRef.current;
+      if (!input) return;
+      const timer = window.setTimeout(() => {
+        input.focus({ preventScroll: true });
+        input.select();
+      }, 50);
+      return () => window.clearTimeout(timer);
+    }
+
     dialogRef.current?.focus({ preventScroll: true });
-  }, [note.id]);
+  }, [note.id, note.title, readOnly]);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 600px)');
@@ -576,10 +592,6 @@ export function NoteEditor({
         ignorePopRef.current = false;
         return;
       }
-      if (imageBusyRef.current) {
-        history.pushState(marker, '');
-        return;
-      }
       if (dismissEditorLayer()) {
         history.pushState(marker, '');
         return;
@@ -605,14 +617,13 @@ export function NoteEditor({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        if (imageBusy) return;
         // Nested surfaces (label suggestions, assign popover) stopPropagation.
         if (dismissEditorLayer()) return;
         void finish();
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        if (imageBusy || assignField) return;
+        if (assignField) return;
         e.preventDefault();
         void finish();
         return;
@@ -1249,7 +1260,6 @@ export function NoteEditor({
             type="button"
             className={styles.primaryBtn}
             onClick={() => void finish()}
-            disabled={imageBusy}
           >
             Done
           </button>
