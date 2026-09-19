@@ -25,6 +25,7 @@ import { useJuiceBurst } from '../../lib/useJuiceBurst';
 import type {
   GuidelineLine,
   Label,
+  NoteAskItem,
   NoteBackground,
   NoteDisposition,
   NoteType,
@@ -39,6 +40,7 @@ import {
   MetaAssignPopover,
   type MetaAssignField,
 } from './MetaAssignPopover';
+import { AskSection } from './AskSection';
 import { GuidelineLinesList } from './GuidelineLinesList';
 import { TypeChip } from './TypeChip';
 import styles from './NoteEditor.module.css';
@@ -56,6 +58,8 @@ function isTextEntryTarget(target: EventTarget | null): boolean {
 interface NoteEditorProps {
   /** Viewers: browse only — no meta/image/content edits. */
   readOnly?: boolean;
+  /** Admins can manage AI ask Q&A (generate + edit). */
+  canManageAsk?: boolean;
   note: NoteWithUrls;
   labels: Label[];
   noteTypes: NoteType[];
@@ -79,6 +83,7 @@ interface NoteEditorProps {
     categoryId?: string | null;
     stockId?: string | null;
     specialCase?: string;
+    askItems?: NoteAskItem[];
   }) => Promise<void>;
   onAddImages: (files: FileList | File[]) => Promise<void>;
   onRemoveImage: (imageId: string) => Promise<void>;
@@ -96,6 +101,7 @@ interface NoteEditorProps {
 
 export function NoteEditor({
   readOnly = false,
+  canManageAsk = false,
   note,
   labels,
   noteTypes,
@@ -179,7 +185,8 @@ export function NoteEditor({
     (note.guidelineLines?.length ?? 0) === 0 &&
     !note.categoryId &&
     !note.stockId &&
-    !(note.specialCase ?? '').trim();
+    !(note.specialCase ?? '').trim() &&
+    (note.askItems?.length ?? 0) === 0;
 
   const noteLabels = labels.filter((label) => note.labelIds.includes(label.id));
 
@@ -435,7 +442,11 @@ export function NoteEditor({
   async function saveMeta(
     patch: Parameters<NoteEditorProps['onSaveMeta']>[0],
   ): Promise<void> {
-    if (readOnly) return;
+    if (patch.askItems !== undefined) {
+      if (!canManageAsk) return;
+    } else if (readOnly) {
+      return;
+    }
     if (saveHideTimerRef.current) {
       clearTimeout(saveHideTimerRef.current);
       saveHideTimerRef.current = null;
@@ -1171,6 +1182,16 @@ export function NoteEditor({
                 Add definitions / notes
               </button>
             )}
+            <AskSection
+              items={note.askItems ?? []}
+              typeName={
+                selectedType
+                  ? noteTypePathLabel(noteTypes, selectedType.id)
+                  : null
+              }
+              canManage={canManageAsk}
+              onChange={(askItems) => saveMeta({ askItems })}
+            />
           </div>
 
           {showBarcodes && (

@@ -19,6 +19,7 @@ import {
   primaryDispositionFromLines,
   resolveGuidelineLines,
 } from './guidelineLines';
+import { normalizeAskItems } from './noteAskItems';
 
 interface TechLibDB extends DBSchema {
   notes: {
@@ -88,6 +89,7 @@ function normalizeNote(note: Note & { category?: string }): Note {
     background: note.background,
     disposition: primaryDispositionFromLines(guidelineLines),
     guidelineLines,
+    askItems: normalizeAskItems(note.askItems),
     categoryId,
     stockId: note.stockId ?? null,
     specialCase: note.specialCase ?? '',
@@ -238,6 +240,7 @@ export async function createNote(input?: {
     background: input?.background ?? 'default',
     disposition: primaryDispositionFromLines(guidelineLines),
     guidelineLines,
+    askItems: [],
     categoryId: input?.categoryId ?? null,
     stockId: input?.stockId ?? null,
     specialCase: input?.specialCase ?? '',
@@ -269,6 +272,7 @@ export async function updateNote(
       | 'categoryId'
       | 'stockId'
       | 'specialCase'
+      | 'askItems'
     >
   >,
 ): Promise<NoteWithUrls | undefined> {
@@ -290,10 +294,11 @@ export async function updateNote(
     disposition = primaryDispositionFromLines(guidelineLines);
   }
 
-  const { guidelineLines: _gl, disposition: _d, ...rest } = patch;
+  const { guidelineLines: _gl, disposition: _d, askItems, ...rest } = patch;
   const next: Note = {
     ...base,
     ...rest,
+    ...(askItems !== undefined ? { askItems: normalizeAskItems(askItems) } : {}),
     guidelineLines,
     disposition,
     updatedAt: Date.now(),
