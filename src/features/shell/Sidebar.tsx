@@ -11,7 +11,7 @@ import {
   Minus,
   Plus,
   Settings2,
-  ShoppingCart,
+  Layers,
   Tag,
   Trash2,
   Warehouse,
@@ -64,10 +64,10 @@ interface SidebarProps {
   activeDisposition: NoteDisposition | null;
   activeCategoryId: string | null;
   activeStockId: string | null;
-  cartCount: number;
+  collectionCount: number;
   onSelectNotes: () => void;
   onSelectArchive: () => void;
-  onSelectCart: () => void;
+  onSelectCollection: () => void;
   onSelectDisposition: (disposition: NoteDisposition) => void;
   onSelectCategoryId: (categoryId: string) => void;
   onSelectStock: (stockId: string) => void;
@@ -119,10 +119,10 @@ export function Sidebar({
   activeDisposition,
   activeCategoryId,
   activeStockId,
-  cartCount,
+  collectionCount,
   onSelectNotes,
   onSelectArchive,
-  onSelectCart,
+  onSelectCollection,
   onSelectDisposition,
   onSelectCategoryId,
   onSelectStock,
@@ -440,7 +440,7 @@ export function Sidebar({
     );
   }
 
-  const showCart = cartCount > 0 || view === 'cart';
+  const showCollection = collectionCount > 0 || view === 'collection';
 
   return (
     <nav className={styles.nav} aria-label="Notes navigation">
@@ -453,14 +453,14 @@ export function Sidebar({
         <span>All notes</span>
       </button>
 
-      {showCart && (
+      {showCollection && (
         <button
           type="button"
-          className={`${styles.item} ${view === 'cart' ? styles.active : ''}`}
-          onClick={onSelectCart}
+          className={`${styles.item} ${view === 'collection' ? styles.active : ''}`}
+          onClick={onSelectCollection}
         >
-          <ShoppingCart size={18} />
-          <span>Cart{cartCount > 0 ? ` (${cartCount})` : ''}</span>
+          <Layers size={18} />
+          <span>Collection{collectionCount > 0 ? ` (${collectionCount})` : ''}</span>
         </button>
       )}
 

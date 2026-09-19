@@ -7,7 +7,7 @@ import {
   ClipboardPaste,
   ImagePlus,
   Plus,
-  ShoppingCart,
+  Layers,
   Trash2,
   X,
 } from 'lucide-react';
@@ -91,7 +91,7 @@ interface NoteGridProps {
   filterStockId: string | null;
   search: string;
   stockLocations: StockLocation[];
-  /** noteId → quantity in cart */
+  /** noteId → quantity in collection */
   cartQuantities: Record<string, number>;
   /** Note ids marked ✅ sorted. */
   sortedNoteIds?: Set<string>;
@@ -892,8 +892,8 @@ export function NoteGrid({
               }}
               disabled={busy}
             >
-              <ShoppingCart size={14} />
-              Add to cart
+              <Layers size={14} />
+              Add to collection
             </button>
 
             <button

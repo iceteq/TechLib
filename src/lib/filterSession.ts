@@ -39,12 +39,15 @@ export function loadFilterSession(): FilterSession {
     const raw = localStorage.getItem(FILTER_SESSION_KEY);
     if (!raw) return { ...DEFAULT_FILTER_SESSION };
     const parsed = JSON.parse(raw) as Partial<FilterSession>;
-    const view =
-      parsed.view === 'archive' ||
-      parsed.view === 'cart' ||
-      parsed.view === 'notes'
-        ? parsed.view
-        : 'notes';
+    const rawView = parsed.view as string | undefined;
+    const view: NotesView =
+      rawView === 'archive' ||
+      rawView === 'collection' ||
+      rawView === 'notes'
+        ? rawView
+        : rawView === 'cart'
+          ? 'collection'
+          : 'notes';
     const disposition =
       typeof parsed.disposition === 'string' &&
       DISPOSITIONS.has(parsed.disposition as NoteDisposition)

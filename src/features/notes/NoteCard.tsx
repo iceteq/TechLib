@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Check,
-  ShoppingCart,
+  Layers,
 } from 'lucide-react';
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
@@ -39,7 +39,7 @@ interface NoteCardProps {
   stockLocations: StockLocation[];
   selecting: boolean;
   selected: boolean;
-  /** Quantity in cart; 0 means not in cart. */
+  /** Quantity in collection; 0 means not in collection. */
   cartQuantity: number;
   /** ✅ sorted / handled mark. */
   sorted?: boolean;
@@ -319,16 +319,16 @@ export function NoteCard({
               key={cartQuantity} className={styles.cartBadge}
               title={
                 cartQuantity === 1
-                  ? 'In cart'
-                  : `In cart ×${cartQuantity}`
+                  ? 'In collection'
+                  : `In collection ×${cartQuantity}`
               }
               aria-label={
                 cartQuantity === 1
-                  ? 'In cart'
-                  : `In cart, quantity ${cartQuantity}`
+                  ? 'In collection'
+                  : `In collection, quantity ${cartQuantity}`
               }
             >
-              <ShoppingCart size={12} strokeWidth={2.4} aria-hidden />
+              <Layers size={12} strokeWidth={2.4} aria-hidden />
               {cartQuantity > 1 && (
                 <span className={styles.cartQty}>{cartQuantity}</span>
               )}
