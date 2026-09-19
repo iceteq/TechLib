@@ -69,7 +69,8 @@ export function AskSection({
   }
 
   function setLocal(next: NoteAskItem[]) {
-    setDraft(normalizeAskItems(next));
+    // Don't trim while typing — trailing spaces would vanish on every keystroke.
+    setDraft(normalizeAskItems(next, { trim: false }));
   }
 
   async function addItem(preset?: string) {
