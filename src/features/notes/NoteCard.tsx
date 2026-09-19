@@ -352,6 +352,7 @@ export function NoteCard({
                 src={img.thumbUrl || img.url}
                 alt=""
                 className={styles.image}
+                draggable={false}
                 loading="lazy"
                 decoding="async"
                 onError={(event) => {
