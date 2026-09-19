@@ -116,6 +116,9 @@
   padding: 2rem;
   background: rgba(10, 12, 16, 0.88);
   animation: fade 160ms ease;
+  /* Keep preview above the note editor portal and outside its scroll/transform. */
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .lightboxImage {
@@ -167,6 +170,8 @@
 .counter {
   position: absolute;
   bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
   margin: 0;
   color: rgba(255, 255, 255, 0.8);
   font-size: 0.9rem;
@@ -216,11 +221,31 @@
     display: none;
   }
 
+  .lightbox {
+    /* Match the visual viewport so iOS chrome / keyboard don't shift centering. */
+    top: var(--vv-offset-top, 0px);
+    left: var(--vv-offset-left, 0px);
+    right: auto;
+    bottom: auto;
+    width: var(--vv-width, 100%);
+    height: var(--vv-height, 100%);
+    padding: 0.75rem;
+  }
+
+  .lightboxImage {
+    max-width: 100%;
+    max-height: calc(var(--vv-height, 100dvh) - 5.5rem);
+  }
+
   .navPrev {
     left: 0.35rem;
   }
 
   .navNext {
     right: 0.35rem;
+  }
+
+  .counter {
+    bottom: max(0.85rem, env(safe-area-inset-bottom, 0px));
   }
 }
