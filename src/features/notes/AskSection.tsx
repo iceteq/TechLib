@@ -1,5 +1,5 @@
 import { Loader2, Sparkles, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { generateAskAnswer } from '../../lib/noteAsk';
 import {
   createEmptyAskItem,
@@ -10,7 +10,13 @@ import {
 import type { NoteAskItem } from '../../lib/types';
 import styles from './AskSection.module.css';
 
-const PRESETS = [
+const PLACEHOLDERS = [
+  'What is CEE 7 and how do you recognize it?',
+  'What can this be mixed up with?',
+  'What is special about G8?',
+];
+
+const EXAMPLES = [
   'What is … and how do you recognize it?',
   'What can this be mixed up with?',
   'What is special about …?',
@@ -31,13 +37,24 @@ export function AskSection({
   canManage,
   onChange,
 }: AskSectionProps) {
+  const examplesId = useId();
   const [draft, setDraft] = useState(() => normalizeAskItems(items));
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errorById, setErrorById] = useState<Record<string, string>>({});
+  const [editingAnswerId, setEditingAnswerId] = useState<string | null>(null);
+  const [examplesOpen, setExamplesOpen] = useState(false);
+  const answerRef = useRef<HTMLTextAreaElement>(null);
+  const placeholder =
+    PLACEHOLDERS[draft.length % PLACEHOLDERS.length] ?? PLACEHOLDERS[0];
 
   useEffect(() => {
     setDraft(normalizeAskItems(items));
   }, [items]);
+
+  useEffect(() => {
+    if (!editingAnswerId) return;
+    answerRef.current?.focus();
+  }, [editingAnswerId]);
 
   const hasContent = draft.some(
     (item) => item.question.trim() || item.answer.trim(),
@@ -59,11 +76,13 @@ export function AskSection({
     if (!canManage || draft.length >= MAX_NOTE_ASK_ITEMS) return;
     const item = createEmptyAskItem();
     if (preset) item.question = preset;
+    setExamplesOpen(false);
     await persist([...draft, item]);
   }
 
   async function removeItem(id: string) {
     if (!canManage) return;
+    if (editingAnswerId === id) setEditingAnswerId(null);
     await persist(draft.filter((item) => item.id !== id));
   }
 
@@ -86,7 +105,7 @@ export function AskSection({
           patch.answeredAt !== undefined
             ? patch.answeredAt
             : answer
-              ? item.answeredAt ?? Date.now()
+              ? (item.answeredAt ?? Date.now())
               : null,
       };
     });
@@ -97,7 +116,10 @@ export function AskSection({
     if (!canManage) return;
     const question = item.question.trim();
     if (!question) {
-      setErrorById((prev) => ({ ...prev, [item.id]: 'Enter a question first.' }));
+      setErrorById((prev) => ({
+        ...prev,
+        [item.id]: 'Enter a question first.',
+      }));
       return;
     }
     if (!typeName?.trim()) {
@@ -109,6 +131,7 @@ export function AskSection({
     }
 
     setBusyId(item.id);
+    setEditingAnswerId(null);
     setErrorById((prev) => {
       const next = { ...prev };
       delete next[item.id];
@@ -135,6 +158,21 @@ export function AskSection({
     }
   }
 
+  // Collapsed empty state — matches “Add definitions / notes”.
+  if (canManage && draft.length === 0) {
+    return (
+      <div className={styles.wrap}>
+        <button
+          type="button"
+          className={styles.addLink}
+          onClick={() => void addItem()}
+        >
+          Add ask
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.wrap}>
       <div className={styles.header}>
@@ -144,28 +182,25 @@ export function AskSection({
         )}
       </div>
 
-      {draft.length === 0 && canManage ? (
-        <button
-          type="button"
-          className={styles.addLink}
-          onClick={() => void addItem()}
-        >
-          Add ask
-        </button>
-      ) : (
-        <ul className={styles.list}>
-          {draft.map((item) => {
-            const busy = busyId === item.id;
-            const error = errorById[item.id];
-            return (
-              <li key={item.id} className={styles.row}>
-                {canManage ? (
+      <ul className={styles.list}>
+        {draft.map((item, index) => {
+          const busy = busyId === item.id;
+          const error = errorById[item.id];
+          const editingAnswer = editingAnswerId === item.id;
+          const questionPlaceholder =
+            index === 0 ? placeholder : PLACEHOLDERS[index % PLACEHOLDERS.length];
+
+          return (
+            <li key={item.id} className={styles.row}>
+              {canManage ? (
+                <div className={styles.questionRow}>
                   <input
                     className={styles.question}
                     value={item.question}
                     maxLength={MAX_NOTE_ASK_QUESTION_LEN}
-                    placeholder="What is CEE 7 and how do you recognize it?"
+                    placeholder={questionPlaceholder}
                     aria-label="Ask question"
+                    disabled={busy}
                     onChange={(e) => {
                       setLocal(
                         draft.map((row) =>
@@ -189,24 +224,24 @@ export function AskSection({
                       });
                     }}
                   />
-                ) : (
-                  <p className={styles.questionRead}>{item.question}</p>
-                )}
-
-                {canManage && (
                   <div className={styles.actions}>
                     <button
                       type="button"
                       className={styles.askBtn}
                       disabled={busy || !item.question.trim()}
                       onClick={() => void ask(item)}
+                      title={item.answer ? 'Refresh answer' : 'Ask'}
                     >
                       {busy ? (
-                        <Loader2 size={14} className={styles.spin} aria-hidden />
+                        <Loader2
+                          size={14}
+                          className={styles.spin}
+                          aria-hidden
+                        />
                       ) : (
                         <Sparkles size={14} aria-hidden />
                       )}
-                      {item.answer ? 'Refresh' : 'Ask'}
+                      <span>{busy ? '…' : item.answer ? 'Refresh' : 'Ask'}</span>
                     </button>
                     <button
                       type="button"
@@ -218,18 +253,31 @@ export function AskSection({
                       <Trash2 size={14} />
                     </button>
                   </div>
-                )}
+                </div>
+              ) : (
+                item.question.trim() && (
+                  <p className={styles.questionRead}>{item.question}</p>
+                )
+              )}
 
-                {error && <p className={styles.error}>{error}</p>}
+              {error && <p className={styles.error}>{error}</p>}
 
-                {canManage ? (
+              {busy && (
+                <p className={styles.thinking} role="status">
+                  Thinking…
+                </p>
+              )}
+
+              {!busy &&
+                canManage &&
+                (editingAnswer ? (
                   <textarea
-                    className={styles.answer}
+                    ref={answerRef}
+                    className={styles.answerEdit}
                     value={item.answer}
                     rows={2}
                     placeholder="Short answer…"
                     aria-label="Ask answer"
-                    disabled={busy}
                     onChange={(e) => {
                       setLocal(
                         draft.map((row) =>
@@ -246,21 +294,39 @@ export function AskSection({
                       );
                     }}
                     onBlur={(e) => {
+                      setEditingAnswerId(null);
                       void commitItem(item.id, { answer: e.target.value });
                     }}
                   />
                 ) : (
                   item.answer.trim() && (
-                    <p className={styles.answerRead}>{item.answer}</p>
+                    <button
+                      type="button"
+                      className={styles.answerButton}
+                      onClick={() => setEditingAnswerId(item.id)}
+                    >
+                      <span className={styles.answerMark} aria-hidden>
+                        AI
+                      </span>
+                      <span className={styles.answerText}>{item.answer}</span>
+                    </button>
                   )
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                ))}
 
-      {canManage && draft.length > 0 && draft.length < MAX_NOTE_ASK_ITEMS && (
+              {!busy && !canManage && item.answer.trim() && (
+                <p className={styles.answerRead}>
+                  <span className={styles.answerMark} aria-hidden>
+                    AI
+                  </span>
+                  {item.answer}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      {canManage && draft.length < MAX_NOTE_ASK_ITEMS && (
         <div className={styles.footer}>
           <button
             type="button"
@@ -269,17 +335,31 @@ export function AskSection({
           >
             Add another ask
           </button>
-          <div className={styles.presets}>
-            {PRESETS.map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                className={styles.preset}
-                onClick={() => void addItem(preset)}
-              >
-                {preset}
-              </button>
-            ))}
+          <div className={styles.examplesWrap}>
+            <button
+              type="button"
+              className={styles.examplesToggle}
+              aria-expanded={examplesOpen}
+              aria-controls={examplesId}
+              onClick={() => setExamplesOpen((open) => !open)}
+            >
+              {examplesOpen ? 'Hide examples' : 'Examples'}
+            </button>
+            {examplesOpen && (
+              <ul id={examplesId} className={styles.examples}>
+                {EXAMPLES.map((example) => (
+                  <li key={example}>
+                    <button
+                      type="button"
+                      className={styles.exampleItem}
+                      onClick={() => void addItem(example)}
+                    >
+                      {example}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}
