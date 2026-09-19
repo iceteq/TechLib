@@ -20,6 +20,7 @@ import type {
   StockLocation,
 } from '../../lib/types';
 import { categoryLabel, dispositionLabel, stockLabel } from '../../lib/searchNotes';
+import { childNoteTypes, rootNoteTypes } from '../../lib/noteTypes';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { NoteCard } from './NoteCard';
 import {
@@ -796,18 +797,34 @@ export function NoteGrid({
                   >
                     No type
                   </button>
-                  {noteTypes.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      className={styles.menuItem}
-                      role="menuitem"
-                      disabled={busy}
-                      onClick={() => void applyCategory(option.id)}
-                    >
-                      {option.name}
-                    </button>
-                  ))}
+                  {rootNoteTypes(noteTypes).map((option) => {
+                    const subtypes = childNoteTypes(noteTypes, option.id);
+                    return (
+                      <div key={option.id}>
+                        <button
+                          type="button"
+                          className={styles.menuItem}
+                          role="menuitem"
+                          disabled={busy}
+                          onClick={() => void applyCategory(option.id)}
+                        >
+                          {option.name}
+                        </button>
+                        {subtypes.map((subtype) => (
+                          <button
+                            key={subtype.id}
+                            type="button"
+                            className={`${styles.menuItem} ${styles.menuItemNested}`}
+                            role="menuitem"
+                            disabled={busy}
+                            onClick={() => void applyCategory(subtype.id)}
+                          >
+                            {subtype.name}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
                   <p className={styles.assignSection}>Stock</p>
                   <button
                     type="button"

@@ -8,7 +8,7 @@ import type {
   StockLocation,
 } from './types';
 import { DISPOSITIONS, UNSET_STOCK_FILTER, UNSET_TYPE_FILTER } from './types';
-import { noteTypeLabel } from './noteTypes';
+import { noteTypeLabel, noteTypePathLabel, noteMatchesTypeFilter } from './noteTypes';
 import {
   guidelineLinesSearchText,
   noteMatchesDispositionFilter,
@@ -58,8 +58,10 @@ function tokenSearchRank(
     }
   }
 
-  const typeName = noteTypeLabel(noteTypes, note.categoryId);
+  const typeName = noteTypePathLabel(noteTypes, note.categoryId);
   if (typeName && typeName.toLowerCase().includes(token)) return 30;
+  const typeOnly = noteTypeLabel(noteTypes, note.categoryId);
+  if (typeOnly && typeOnly.toLowerCase().includes(token)) return 30;
 
   const stock = stockLocations.find((s) => s.id === note.stockId);
   if (stock && stock.name.toLowerCase().includes(token)) return 30;
@@ -160,7 +162,10 @@ export function filterNotes(
     }
     if (options.categoryId === UNSET_TYPE_FILTER) {
       if (note.categoryId) return false;
-    } else if (options.categoryId && note.categoryId !== options.categoryId) {
+    } else if (
+      options.categoryId &&
+      !noteMatchesTypeFilter(note.categoryId, options.categoryId, noteTypes)
+    ) {
       return false;
     }
     if (options.stockId === UNSET_STOCK_FILTER) {
@@ -216,7 +221,7 @@ export function categoryLabel(
   if (!categoryId || categoryId === UNSET_TYPE_FILTER) {
     return categoryId === UNSET_TYPE_FILTER ? 'No type' : null;
   }
-  return noteTypeLabel(noteTypes, categoryId);
+  return noteTypePathLabel(noteTypes, categoryId);
 }
 
 export function stockLabel(

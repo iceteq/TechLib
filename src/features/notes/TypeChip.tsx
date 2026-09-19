@@ -7,6 +7,8 @@ interface TypeChipProps {
   className?: string;
   showLabel?: boolean;
   suggested?: boolean;
+  /** Override visible label (e.g. “Cables · Adapter”). */
+  label?: string;
   /** Neutral gray chip — for browse cards so Guideline color wins. */
   muted?: boolean;
   onClick?: () => void;
@@ -17,11 +19,13 @@ export function TypeChip({
   className = '',
   showLabel = true,
   suggested = false,
+  label,
   muted = false,
   onClick,
 }: TypeChipProps) {
   const Icon = noteTypeIcon(type.icon);
   const colors = typeColorVars(type.color);
+  const displayName = label ?? type.name;
   const classNames = `${styles.chip} ${suggested ? styles.suggested : ''} ${
     muted ? styles.muted : ''
   } ${className}`;
@@ -35,7 +39,7 @@ export function TypeChip({
   const content = (
     <>
       <Icon size={12} strokeWidth={2.25} aria-hidden />
-      {showLabel ? <span>{type.name}</span> : null}
+      {showLabel ? <span>{displayName}</span> : null}
     </>
   );
 
@@ -45,7 +49,7 @@ export function TypeChip({
         type="button"
         className={classNames}
         style={style}
-        title={suggested ? `Set type to ${type.name}` : type.name}
+        title={suggested ? `Set type to ${displayName}` : displayName}
         onClick={(e) => {
           e.stopPropagation();
           onClick();
@@ -57,7 +61,7 @@ export function TypeChip({
   }
 
   return (
-    <span className={classNames} style={style} title={type.name}>
+    <span className={classNames} style={style} title={displayName}>
       {content}
     </span>
   );

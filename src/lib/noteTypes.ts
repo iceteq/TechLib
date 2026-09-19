@@ -103,6 +103,93 @@ export function noteTypeLabel(
   return noteTypeById(types, id)?.name ?? null;
 }
 
+/** Top-level types only (no parent). */
+export function rootNoteTypes(types: NoteType[]): NoteType[] {
+  return types
+    .filter((t) => !t.parentId)
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    );
+}
+
+/** Direct subtypes of a parent type. */
+export function childNoteTypes(
+  types: NoteType[],
+  parentId: string,
+): NoteType[] {
+  return types
+    .filter((t) => t.parentId === parentId)
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    );
+}
+
+/** "Cables · Adapter" for subtypes; plain name for roots. */
+export function noteTypePathLabel(
+  types: NoteType[],
+  id: string | null | undefined,
+): string | null {
+  const type = noteTypeById(types, id);
+  if (!type) return null;
+  if (!type.parentId) return type.name;
+  const parent = noteTypeById(types, type.parentId);
+  return parent ? `${parent.name} · ${type.name}` : type.name;
+}
+
+/**
+ * Ids included when filtering by a type: the type itself, plus children
+ * when the filter is a parent.
+ */
+export function noteTypeFilterIds(
+  types: NoteType[],
+  filterId: string,
+): Set<string> {
+  const ids = new Set<string>([filterId]);
+  for (const type of types) {
+    if (type.parentId === filterId) ids.add(type.id);
+  }
+  return ids;
+}
+
+export function noteMatchesTypeFilter(
+  noteCategoryId: string | null | undefined,
+  filterId: string,
+  types: NoteType[],
+): boolean {
+  if (!noteCategoryId) return false;
+  return noteTypeFilterIds(types, filterId).has(noteCategoryId);
+}
+
+/** Parent count rolls up subtypes; subtype count is direct only. */
+export function rolledTypeCount(
+  typeId: string,
+  byTypeId: Record<string, number>,
+  types: NoteType[],
+): number {
+  const type = noteTypeById(types, typeId);
+  if (!type) return 0;
+  if (type.parentId) return byTypeId[typeId] ?? 0;
+  let total = byTypeId[typeId] ?? 0;
+  for (const child of types) {
+    if (child.parentId === typeId) {
+      total += byTypeId[child.id] ?? 0;
+    }
+  }
+  return total;
+}
+
+/** Ids removed when deleting a type (self + direct subtypes). */
+export function noteTypeDeleteIds(
+  types: NoteType[],
+  id: string,
+): Set<string> {
+  const ids = new Set<string>([id]);
+  for (const type of types) {
+    if (type.parentId === id) ids.add(type.id);
+  }
+  return ids;
+}
+
 export function nextNoteTypeColor(existing: NoteType[]): NoteTypeColor {
   const used = new Set(existing.map((t) => t.color));
   return (
@@ -153,6 +240,9 @@ export function suggestNoteType(
         score += keyword.length >= 5 ? 2 : 1;
       }
     }
+
+    // Prefer a matching subtype over its parent when scores are close.
+    if (type.parentId) score += 0.5;
 
     if (score > 0 && (!best || score > best.score)) {
       best = { type, score };

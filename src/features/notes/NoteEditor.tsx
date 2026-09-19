@@ -20,7 +20,7 @@ import {
 import { autosizeTextarea } from '../../lib/autosizeTextarea';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
-import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
+import { noteTypeById, noteTypePathLabel, suggestNoteType } from '../../lib/noteTypes';
 import { useJuiceBurst } from '../../lib/useJuiceBurst';
 import type {
   GuidelineLine,
@@ -1094,11 +1094,17 @@ export function NoteEditor({
               {selectedType ? (
                 <TypeChip
                   type={selectedType}
+                  label={
+                    noteTypePathLabel(noteTypes, selectedType.id) ?? undefined
+                  }
                   onClick={() => { if (!readOnly) setAssignField('categoryId'); }}
                 />
               ) : suggestedType ? (
                 <TypeChip
                   type={suggestedType}
+                  label={
+                    noteTypePathLabel(noteTypes, suggestedType.id) ?? undefined
+                  }
                   suggested
                   onClick={() => void saveMeta({ categoryId: suggestedType.id })}
                 />

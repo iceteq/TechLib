@@ -114,6 +114,25 @@
   font-weight: 650;
 }
 
+.typeGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.itemNested {
+  padding-left: 1.35rem;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.itemNested.itemActive,
+.itemNested:hover,
+.itemNested:focus-visible {
+  color: var(--accent);
+}
+
 .empty {
   margin: 0;
   padding: 0.7rem 0.75rem;

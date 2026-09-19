@@ -39,6 +39,7 @@ import {
   noteIsSorted,
   stockLabel,
 } from '../lib/searchNotes';
+import { noteTypeDeleteIds, noteTypePathLabel } from '../lib/noteTypes';
 import { loadRecentOpens, touchRecentOpen } from '../lib/recentOpens';
 import { sortWallNotes } from '../lib/sortWallNotes';
 
@@ -176,7 +177,7 @@ function describeBulkPatch(
       return `Cleared Type on ${count} ${noteWord}`;
     }
     const name =
-      noteTypes.find((t) => t.id === patch.categoryId)?.name ?? 'Type';
+      noteTypePathLabel(noteTypes, patch.categoryId) ?? 'Type';
     return `Set Type to “${name}” on ${count} ${noteWord}`;
   }
   if ('stockId' in patch) {
@@ -1020,9 +1021,12 @@ export default function App({ session }: { session: Session | null }) {
     return label;
   }
 
-  async function handleCreateNoteType(name: string) {
+  async function handleCreateNoteType(
+    name: string,
+    parentId?: string | null,
+  ) {
     if (!canEdit) throw new Error('View-only access');
-    const noteType = await store.createNoteType(name);
+    const noteType = await store.createNoteType(name, parentId);
     setNoteTypes(await store.listNoteTypes());
     setView('notes');
     setFilterCategoryId(noteType.id);
@@ -1048,6 +1052,17 @@ export default function App({ session }: { session: Session | null }) {
     await store.deleteLabel(labelId);
     setLabels(await store.listLabels());
     setFilterLabelIds((current) => current.filter((id) => id !== labelId));
+    await refresh();
+  }
+
+  async function handleDeleteNoteType(typeId: string) {
+    if (!canEdit) return;
+    const removeIds = noteTypeDeleteIds(noteTypes, typeId);
+    await store.deleteNoteType(typeId);
+    setNoteTypes(await store.listNoteTypes());
+    setFilterCategoryId((current) =>
+      current && removeIds.has(current) ? null : current,
+    );
     await refresh();
   }
 
@@ -1174,6 +1189,7 @@ export default function App({ session }: { session: Session | null }) {
           onCreateType={canEdit ? handleCreateNoteType : undefined}
           onCreateStock={canEdit ? handleSidebarCreateStock : undefined}
           onDeleteLabel={canEdit ? (id) => handleDeleteLabel(id) : undefined}
+          onDeleteType={canEdit ? (id) => handleDeleteNoteType(id) : undefined}
           onAssignNotes={canEdit ? handleAssignNotes : undefined}
           onSignOut={
             isCloudConfigured()

@@ -351,6 +351,12 @@
   background: rgba(31, 35, 40, 0.06);
 }
 
+.menuItemNested {
+  padding-left: 1.25rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 .menuEmpty {
   margin: 0;
   padding: 0.5rem 0.65rem;

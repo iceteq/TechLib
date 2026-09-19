@@ -26,7 +26,7 @@ import type {
   StockLocation,
 } from '../../lib/types';
 import { UNSET_STOCK_FILTER, UNSET_TYPE_FILTER, DISPOSITIONS } from '../../lib/types';
-import { noteTypeIcon, typeColorVars, noteTypeLabel } from '../../lib/noteTypes';
+import { noteTypeIcon, typeColorVars, noteTypePathLabel, rootNoteTypes, childNoteTypes, rolledTypeCount, noteTypeDeleteIds } from '../../lib/noteTypes';
 import {
   loadSidebarSections,
   saveSidebarSections,
@@ -73,9 +73,10 @@ interface SidebarProps {
   onSelectStock: (stockId: string) => void;
   onToggleLabel: (labelId: string) => void;
   onCreateLabel?: (name: string) => Promise<Label>;
-  onCreateType?: (name: string) => Promise<NoteType>;
+  onCreateType?: (name: string, parentId?: string | null) => Promise<NoteType>;
   onCreateStock?: (name: string) => Promise<StockLocation>;
   onDeleteLabel?: (labelId: string) => Promise<void>;
+  onDeleteType?: (typeId: string) => Promise<void>;
   onSignOut?: () => void;
   onAssignNotes?: (
     noteIds: string[],
@@ -130,6 +131,7 @@ export function Sidebar({
   onCreateType,
   onCreateStock,
   onDeleteLabel,
+  onDeleteType,
   onSignOut,
   onAssignNotes,
 }: SidebarProps) {
@@ -140,6 +142,9 @@ export function Sidebar({
   const [creatingLabel, setCreatingLabel] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
   const [creatingType, setCreatingType] = useState(false);
+  const [creatingSubtypeParentId, setCreatingSubtypeParentId] = useState<
+    string | null
+  >(null);
   const [newTypeName, setNewTypeName] = useState('');
   const [creatingStock, setCreatingStock] = useState(false);
   const [newStockName, setNewStockName] = useState('');
@@ -180,7 +185,9 @@ export function Sidebar({
     };
   }
 
-  const [editingSection, setEditingSection] = useState<'labels' | null>(null);
+  const [editingSection, setEditingSection] = useState<
+    'labels' | 'type' | null
+  >(null);
 
   const allActive =
     view === 'notes' &&
@@ -202,7 +209,8 @@ export function Sidebar({
       saveSidebarSections(next);
       return next;
     });
-    if (id !== 'labels') setEditingSection(null);
+    if (editingSection && editingSection !== id) setEditingSection(null);
+    if (id !== 'type') setCreatingSubtypeParentId(null);
   }
 
   function openSection(id: SidebarSectionId) {
@@ -242,9 +250,10 @@ export function Sidebar({
     setCreatingBusy(true);
     try {
       if (!onCreateType) return;
-      await onCreateType(name);
+      await onCreateType(name, creatingSubtypeParentId);
       setNewTypeName('');
       setCreatingType(false);
+      setCreatingSubtypeParentId(null);
     } finally {
       setCreatingBusy(false);
     }
@@ -296,7 +305,7 @@ export function Sidebar({
   function typeSectionTitle(): string {
     if (view !== 'notes' || activeCategoryId == null) return 'Any type';
     if (activeCategoryId === UNSET_TYPE_FILTER) return 'No type';
-    return noteTypeLabel(noteTypes, activeCategoryId) ?? 'Any type';
+    return noteTypePathLabel(noteTypes, activeCategoryId) ?? 'Any type';
   }
 
   function stockSectionTitle(): string {
@@ -322,14 +331,28 @@ export function Sidebar({
     setCreating: (value: boolean | ((open: boolean) => boolean)) => void,
   ) {
     setEditingSection(null);
+    setCreatingSubtypeParentId(null);
     setCreating((open) => !open);
     openSection(section);
   }
 
-  function toggleEditing(section: 'labels') {
+  function startCreateSubtype(parentId: string) {
+    setEditingSection(null);
+    setCreatingLabel(false);
+    setCreatingStock(false);
+    setCreatingType(false);
+    setNewTypeName('');
+    setCreatingSubtypeParentId((current) =>
+      current === parentId ? null : parentId,
+    );
+    openSection('type');
+  }
+
+  function toggleEditing(section: 'labels' | 'type') {
     setCreatingType(false);
     setCreatingStock(false);
     setCreatingLabel(false);
+    setCreatingSubtypeParentId(null);
     setEditingSection((current) => (current === section ? null : section));
     openSection(section);
   }
@@ -385,7 +408,7 @@ export function Sidebar({
             }`}
             onClick={(e) => {
               e.stopPropagation();
-              toggleEditing(section as 'labels');
+              toggleEditing(section as 'labels' | 'type');
             }}
             aria-label={
               editing ? `Done editing ${section}` : `Remove ${section}`
@@ -537,7 +560,8 @@ export function Sidebar({
         onToggle={() => toggleSection('type')}
         trailing={
           sectionActions('type', {
-            creating: creatingType,
+            canEdit: canEdit && noteTypes.length > 0,
+            creating: creatingType || creatingSubtypeParentId != null,
             onToggleCreate: () => toggleCreate('type', setCreatingType),
             createLabel: 'Create type',
           })
@@ -588,39 +612,171 @@ export function Sidebar({
               <CircleOff size={18} />
               <span className={styles.itemText}>No type</span>
               {showCounts.type && (
-              <span className={styles.itemCount}>{unsetCount}</span>
-            )}
+                <span className={styles.itemCount}>{unsetCount}</span>
+              )}
             </button>
           </li>
-          {noteTypes.map((type) => {
+          {rootNoteTypes(noteTypes).map((type) => {
             const Icon = noteTypeIcon(type.icon);
             const colors = typeColorVars(type.color);
             const active =
               view === 'notes' && activeCategoryId === type.id;
+            const subtypes = childNoteTypes(noteTypes, type.id);
+            const count = rolledTypeCount(type.id, typeCounts, noteTypes);
             return (
-              <li key={type.id} className={`${styles.row} ${active ? styles.rowActive : ''}`}>
-                <button
-                  type="button"
-                  className={`${styles.item} ${active ? styles.active : ''}${dropClass(`category:${type.id}`)}`}
-                  onClick={() => onSelectCategoryId(type.id)}
-                  aria-pressed={active}
-                  {...noteDropHandlers(`category:${type.id}`, {
-                    field: 'categoryId',
-                    value: type.id,
-                    label: type.name,
-                  })}
+              <li key={type.id} className={styles.typeGroup}>
+                <div
+                  className={`${styles.row} ${active ? styles.rowActive : ''}`}
                 >
-                  <Icon
-                    size={18}
-                    style={{ color: colors.fg, opacity: 0.9 }}
-                  />
-                  <span className={styles.itemText}>{type.name}</span>
-                  {showCounts.type && (
-                    <span className={styles.itemCount}>
-                      {typeCounts[type.id] ?? 0}
-                    </span>
+                  <button
+                    type="button"
+                    className={`${styles.item} ${active ? styles.active : ''}${dropClass(`category:${type.id}`)}`}
+                    onClick={() => onSelectCategoryId(type.id)}
+                    aria-pressed={active}
+                    {...noteDropHandlers(`category:${type.id}`, {
+                      field: 'categoryId',
+                      value: type.id,
+                      label: type.name,
+                    })}
+                  >
+                    <Icon
+                      size={18}
+                      style={{ color: colors.fg, opacity: 0.9 }}
+                    />
+                    <span className={styles.itemText}>{type.name}</span>
+                    {showCounts.type && (
+                      <span className={styles.itemCount}>{count}</span>
+                    )}
+                  </button>
+                  {canEdit && !editingSection && (
+                    <button
+                      type="button"
+                      className={styles.addSubtypeBtn}
+                      aria-label={`Add subtype under ${type.name}`}
+                      title="Add subtype"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startCreateSubtype(type.id);
+                      }}
+                    >
+                      <Plus size={14} strokeWidth={2.25} />
+                    </button>
                   )}
-                </button>
+                  {editingSection === 'type' && (
+                    <button
+                      type="button"
+                      className={styles.deleteBtn}
+                      aria-label={`Delete type ${type.name}`}
+                      title="Delete type"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const removeIds = noteTypeDeleteIds(noteTypes, type.id);
+                        let affected = 0;
+                        for (const removeId of removeIds) {
+                          affected += typeCounts[removeId] ?? 0;
+                        }
+                        const subtypeCount = subtypes.length;
+                        const extra =
+                          subtypeCount > 0
+                            ? `\n\nAlso deletes ${subtypeCount} subtype${subtypeCount === 1 ? '' : 's'}.`
+                            : '';
+                        if (
+                          !window.confirm(
+                            `Delete type "${type.name}"?\n\n${
+                              affected === 0
+                                ? 'No notes currently use it.'
+                                : `It will be cleared from ${affected} ${noteWord(affected)}.`
+                            }${extra}`,
+                          )
+                        ) {
+                          return;
+                        }
+                        void onDeleteType?.(type.id);
+                      }}
+                    >
+                      <X size={14} strokeWidth={2.25} />
+                    </button>
+                  )}
+                </div>
+                {creatingSubtypeParentId === type.id && (
+                  <form
+                    className={`${styles.createLabel} ${styles.createSubtype}`}
+                    onSubmit={(e) => void submitNewType(e)}
+                  >
+                    <input
+                      className={styles.createLabelInput}
+                      value={newTypeName}
+                      onChange={(e) => setNewTypeName(e.target.value)}
+                      placeholder={`Subtype of ${type.name}`}
+                      aria-label={`New subtype under ${type.name}`}
+                      autoFocus
+                      disabled={creatingBusy}
+                    />
+                    <button
+                      type="submit"
+                      className={styles.createLabelSubmit}
+                      disabled={creatingBusy || !newTypeName.trim()}
+                    >
+                      Add
+                    </button>
+                  </form>
+                )}
+                {subtypes.length > 0 && (
+                  <ul className={styles.subList}>
+                    {subtypes.map((subtype) => {
+                      const subActive =
+                        view === 'notes' && activeCategoryId === subtype.id;
+                      return (
+                        <li
+                          key={subtype.id}
+                          className={`${styles.row} ${subActive ? styles.rowActive : ''}`}
+                        >
+                          <button
+                            type="button"
+                            className={`${styles.item} ${styles.subItem} ${subActive ? styles.active : ''}${dropClass(`category:${subtype.id}`)}`}
+                            onClick={() => onSelectCategoryId(subtype.id)}
+                            aria-pressed={subActive}
+                            {...noteDropHandlers(`category:${subtype.id}`, {
+                              field: 'categoryId',
+                              value: subtype.id,
+                              label: subtype.name,
+                            })}
+                          >
+                            <span className={styles.subDot} aria-hidden />
+                            <span className={styles.itemText}>
+                              {subtype.name}
+                            </span>
+                            {showCounts.type && (
+                              <span className={styles.itemCount}>
+                                {typeCounts[subtype.id] ?? 0}
+                              </span>
+                            )}
+                          </button>
+                          {editingSection === 'type' && (
+                            <button
+                              type="button"
+                              className={styles.deleteBtn}
+                              aria-label={`Delete subtype ${subtype.name}`}
+                              title="Delete subtype"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const count = typeCounts[subtype.id] ?? 0;
+                                if (
+                                  !confirmDelete('type', subtype.name, count)
+                                ) {
+                                  return;
+                                }
+                                void onDeleteType?.(subtype.id);
+                              }}
+                            >
+                              <X size={14} strokeWidth={2.25} />
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </li>
             );
           })}

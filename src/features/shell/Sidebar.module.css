@@ -307,6 +307,74 @@
   font-weight: 600;
 }
 
+.typeGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.subList {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.subItem {
+  padding-left: 0.65rem;
+}
+
+.subDot {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--text-muted);
+  opacity: 0.55;
+  flex-shrink: 0;
+  margin-left: 0.2rem;
+}
+
+.active .subDot {
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.addSubtypeBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin-right: 0.3rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.row:hover .addSubtypeBtn,
+.row:focus-within .addSubtypeBtn,
+.typeGroup:hover > .row .addSubtypeBtn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.addSubtypeBtn:hover,
+.addSubtypeBtn:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.createSubtype {
+  padding-left: 1.35rem;
+}
+
 .deleteBtn {
   flex-shrink: 0;
   display: inline-flex;

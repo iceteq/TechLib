@@ -9,6 +9,7 @@ import type {
   StockLocation,
 } from '../../lib/types';
 import { resolveGuidelineLines } from '../../lib/guidelineLines';
+import { childNoteTypes, rootNoteTypes } from '../../lib/noteTypes';
 import { LabelPicker } from '../labels/LabelPicker';
 import { GuidelineLinesEditor } from './GuidelineLinesEditor';
 import styles from './MetaAssignPopover.module.css';
@@ -214,23 +215,48 @@ export function MetaAssignPopover({
                 >
                   No type
                 </button>
-                {noteTypes.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className={`${styles.item} ${
-                      currentCategoryId === option.id ? styles.itemActive : ''
-                    }`}
-                    role="option"
-                    aria-selected={currentCategoryId === option.id}
-                    onClick={() => {
-                      onAssignCategory(option.id);
-                      onClose();
-                    }}
-                  >
-                    {option.name}
-                  </button>
-                ))}
+                {rootNoteTypes(noteTypes).map((option) => {
+                  const subtypes = childNoteTypes(noteTypes, option.id);
+                  return (
+                    <div key={option.id} className={styles.typeGroup}>
+                      <button
+                        type="button"
+                        className={`${styles.item} ${
+                          currentCategoryId === option.id
+                            ? styles.itemActive
+                            : ''
+                        }`}
+                        role="option"
+                        aria-selected={currentCategoryId === option.id}
+                        onClick={() => {
+                          onAssignCategory(option.id);
+                          onClose();
+                        }}
+                      >
+                        {option.name}
+                      </button>
+                      {subtypes.map((subtype) => (
+                        <button
+                          key={subtype.id}
+                          type="button"
+                          className={`${styles.item} ${styles.itemNested} ${
+                            currentCategoryId === subtype.id
+                              ? styles.itemActive
+                              : ''
+                          }`}
+                          role="option"
+                          aria-selected={currentCategoryId === subtype.id}
+                          onClick={() => {
+                            onAssignCategory(subtype.id);
+                            onClose();
+                          }}
+                        >
+                          {subtype.name}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
               </>
             )}
             {field === 'stockId' && (

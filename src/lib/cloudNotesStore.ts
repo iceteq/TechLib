@@ -50,6 +50,7 @@ type NoteTypeRow = {
   name: string;
   color: string;
   icon: string;
+  parent_id: string | null;
 };
 
 type ImageRow = {
@@ -588,23 +589,21 @@ export async function deleteLabel(id: string): Promise<void> {
 async function ensureDefaultNoteTypes(): Promise<void> {
   const ownerId = await requireLibraryOwnerId();
   const supabase = getSupabase();
-  const { data, error } = await supabase
+  const { count, error } = await supabase
     .from('note_types')
-    .select('id')
+    .select('id', { count: 'exact', head: true })
     .eq('owner_id', ownerId);
   throwIf(error);
-  const existing = new Set(
-    ((data ?? []) as { id: string }[]).map((row) => row.id),
-  );
-  const missing = DEFAULT_NOTE_TYPES.filter((type) => !existing.has(type.id));
-  if (missing.length === 0) return;
+  // Only seed on a completely empty catalog so deleted defaults stay gone.
+  if ((count ?? 0) > 0) return;
   const { error: insertError } = await supabase.from('note_types').insert(
-    missing.map((type) => ({
+    DEFAULT_NOTE_TYPES.map((type) => ({
       id: type.id,
       owner_id: ownerId,
       name: type.name,
       color: type.color,
       icon: type.icon,
+      parent_id: null,
     })),
   );
   throwIf(insertError);
@@ -616,6 +615,7 @@ function mapNoteTypeRow(row: NoteTypeRow): NoteType {
     name: row.name,
     color: row.color as NoteTypeColor,
     icon: row.icon as NoteTypeIcon,
+    parentId: row.parent_id ?? null,
   };
 }
 
@@ -625,7 +625,7 @@ export async function listNoteTypes(): Promise<NoteType[]> {
   }
   const { data, error } = await getSupabase()
     .from('note_types')
-    .select('id, name, color, icon')
+    .select('id, name, color, icon, parent_id')
     .order('name');
   throwIf(error);
   return ((data ?? []) as NoteTypeRow[])
@@ -635,16 +635,36 @@ export async function listNoteTypes(): Promise<NoteType[]> {
     );
 }
 
-export async function createNoteType(name: string): Promise<NoteType> {
+export async function createNoteType(
+  name: string,
+  parentId?: string | null,
+): Promise<NoteType> {
   const ownerId = await requireLibraryOwnerId();
   await ensureDefaultNoteTypes();
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Type name required');
 
+  let resolvedParentId: string | null = parentId ?? null;
   const supabase = getSupabase();
+
+  if (resolvedParentId) {
+    const { data: parentRow, error: parentError } = await supabase
+      .from('note_types')
+      .select('id, name, color, icon, parent_id')
+      .eq('owner_id', ownerId)
+      .eq('id', resolvedParentId)
+      .maybeSingle();
+    throwIf(parentError);
+    if (!parentRow) throw new Error('Parent type not found');
+    const parent = mapNoteTypeRow(parentRow as NoteTypeRow);
+    if (parent.parentId) {
+      throw new Error('Subtypes can only be added under a top-level type');
+    }
+  }
+
   const { data: existing, error: existingError } = await supabase
     .from('note_types')
-    .select('id, name, color, icon')
+    .select('id, name, color, icon, parent_id')
     .eq('owner_id', ownerId)
     .eq('name', trimmed)
     .maybeSingle();
@@ -652,11 +672,15 @@ export async function createNoteType(name: string): Promise<NoteType> {
   if (existing) return mapNoteTypeRow(existing as NoteTypeRow);
 
   const all = await listNoteTypes();
+  const parent = resolvedParentId
+    ? all.find((t) => t.id === resolvedParentId) ?? null
+    : null;
   const noteType: NoteType = {
     id: crypto.randomUUID(),
     name: trimmed,
-    color: nextNoteTypeColor(all),
-    icon: guessIconFromName(trimmed),
+    color: parent?.color ?? nextNoteTypeColor(all),
+    icon: parent?.icon ?? guessIconFromName(trimmed),
+    parentId: resolvedParentId,
   };
   const { data, error } = await supabase
     .from('note_types')
@@ -666,8 +690,9 @@ export async function createNoteType(name: string): Promise<NoteType> {
       name: noteType.name,
       color: noteType.color,
       icon: noteType.icon,
+      parent_id: noteType.parentId,
     })
-    .select('id, name, color, icon')
+    .select('id, name, color, icon, parent_id')
     .single();
   throwIf(error);
   return mapNoteTypeRow(data as NoteTypeRow);
@@ -676,11 +701,24 @@ export async function createNoteType(name: string): Promise<NoteType> {
 export async function deleteNoteType(id: string): Promise<void> {
   await requireUserId();
   const supabase = getSupabase();
+  const all = await listNoteTypes();
+  const removeIds = [id, ...all.filter((t) => t.parentId === id).map((t) => t.id)];
+
   const { error: clearError } = await supabase
     .from('notes')
     .update({ category_id: null, updated_at: new Date().toISOString() })
-    .eq('category_id', id);
+    .in('category_id', removeIds);
   throwIf(clearError);
+
+  // Delete children first, then parent (parent_id cascade also covers this).
+  const childIds = removeIds.filter((removeId) => removeId !== id);
+  if (childIds.length > 0) {
+    const { error: childError } = await supabase
+      .from('note_types')
+      .delete()
+      .in('id', childIds);
+    throwIf(childError);
+  }
   const { error } = await supabase.from('note_types').delete().eq('id', id);
   throwIf(error);
 }

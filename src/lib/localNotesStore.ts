@@ -507,9 +507,19 @@ export async function setNoteLabels(
 
 async function ensureDefaultNoteTypes(): Promise<void> {
   const db = await getDb();
-  for (const seed of DEFAULT_NOTE_TYPES) {
-    const existing = await db.get('noteTypes', seed.id);
-    if (!existing) await db.put('noteTypes', seed);
+  const existing = await db.getAll('noteTypes');
+  // Only seed on a completely empty catalog so deleted defaults stay gone.
+  if (existing.length === 0) {
+    for (const seed of DEFAULT_NOTE_TYPES) {
+      await db.put('noteTypes', seed);
+    }
+  } else {
+    // Backfill parentId for types stored before subtypes existed.
+    for (const raw of existing) {
+      if (raw.parentId === undefined) {
+        await db.put('noteTypes', { ...raw, parentId: null });
+      }
+    }
   }
 
   const notes = await db.getAll('notes');
@@ -526,30 +536,58 @@ async function ensureDefaultNoteTypes(): Promise<void> {
   }
 }
 
+function normalizeNoteType(raw: NoteType): NoteType {
+  return {
+    id: raw.id,
+    name: raw.name,
+    color: raw.color,
+    icon: raw.icon,
+    parentId: raw.parentId ?? null,
+  };
+}
+
 export async function listNoteTypes(): Promise<NoteType[]> {
   await ensureDefaultNoteTypes();
   const db = await getDb();
   const types = await db.getAll('noteTypes');
-  return types.sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-  );
+  return types
+    .map(normalizeNoteType)
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    );
 }
 
-export async function createNoteType(name: string): Promise<NoteType> {
+export async function createNoteType(
+  name: string,
+  parentId?: string | null,
+): Promise<NoteType> {
   await ensureDefaultNoteTypes();
   const db = await getDb();
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Type name is required');
 
-  const existing = await db.getAllFromIndex('noteTypes', 'by-name', trimmed);
-  if (existing[0]) return existing[0];
+  let resolvedParentId: string | null = parentId ?? null;
+  if (resolvedParentId) {
+    const parent = await db.get('noteTypes', resolvedParentId);
+    if (!parent) throw new Error('Parent type not found');
+    if (parent.parentId) {
+      throw new Error('Subtypes can only be added under a top-level type');
+    }
+  }
 
-  const all = await db.getAll('noteTypes');
+  const existing = await db.getAllFromIndex('noteTypes', 'by-name', trimmed);
+  if (existing[0]) return normalizeNoteType(existing[0]);
+
+  const all = (await db.getAll('noteTypes')).map(normalizeNoteType);
+  const parent = resolvedParentId
+    ? all.find((t) => t.id === resolvedParentId) ?? null
+    : null;
   const noteType: NoteType = {
     id: uid(),
     name: trimmed,
-    color: nextNoteTypeColor(all),
-    icon: guessIconFromName(trimmed),
+    color: parent?.color ?? nextNoteTypeColor(all),
+    icon: parent?.icon ?? guessIconFromName(trimmed),
+    parentId: resolvedParentId,
   };
   await db.put('noteTypes', noteType);
   return noteType;
@@ -557,17 +595,27 @@ export async function createNoteType(name: string): Promise<NoteType> {
 
 export async function deleteNoteType(id: string): Promise<void> {
   const db = await getDb();
-  await db.delete('noteTypes', id);
+  const all = (await db.getAll('noteTypes')).map(normalizeNoteType);
+  const removeIds = new Set<string>([id]);
+  for (const type of all) {
+    if (type.parentId === id) removeIds.add(type.id);
+  }
 
   const notes = await db.getAll('notes');
   for (const note of notes) {
     const normalized = normalizeNote(note);
-    if (normalized.categoryId !== id) continue;
+    if (!normalized.categoryId || !removeIds.has(normalized.categoryId)) {
+      continue;
+    }
     await db.put('notes', {
       ...normalized,
       categoryId: null,
       updatedAt: Date.now(),
     });
+  }
+
+  for (const removeId of removeIds) {
+    await db.delete('noteTypes', removeId);
   }
 }
 

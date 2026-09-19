@@ -6,7 +6,7 @@ import {
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
 import { formatNoteAge } from '../../lib/formatNoteAge';
-import { noteTypeById, suggestNoteType } from '../../lib/noteTypes';
+import { noteTypeById, noteTypePathLabel, suggestNoteType } from '../../lib/noteTypes';
 import type {
   GuidelineLine,
   Label,
@@ -393,6 +393,7 @@ export function NoteCard({
             {noteType && showTypeChip ? (
               <TypeChip
                 type={noteType}
+                label={noteTypePathLabel(noteTypes, noteType.id) ?? undefined}
                 muted
                 onClick={
                   selecting || !onAssignCategory
@@ -403,6 +404,9 @@ export function NoteCard({
             ) : !noteType && suggestedType && showTypeChip && onApplyType ? (
               <TypeChip
                 type={suggestedType}
+                label={
+                  noteTypePathLabel(noteTypes, suggestedType.id) ?? undefined
+                }
                 suggested
                 muted
                 onClick={() => onApplyType(note.id, suggestedType.id)}

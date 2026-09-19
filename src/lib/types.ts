@@ -127,6 +127,11 @@ export interface NoteType {
   name: string;
   color: NoteTypeColor;
   icon: NoteTypeIcon;
+  /**
+   * Optional parent type id for one-level subtypes
+   * (e.g. Cables → Network cable). Null for top-level types.
+   */
+  parentId: string | null;
 }
 
 /** User-defined stock location (e.g. 3209, 3209b). */
@@ -180,13 +185,13 @@ export const NOTE_TYPE_COLORS: NoteTypeColor[] = [
 
 /** Seeded types; ids match legacy category enum values for migration. */
 export const DEFAULT_NOTE_TYPES: NoteType[] = [
-  { id: 'monitor', name: 'Monitor', color: 'blue', icon: 'monitor' },
-  { id: 'computer', name: 'Computer', color: 'violet', icon: 'computer' },
-  { id: 'printer', name: 'Printer', color: 'amber', icon: 'printer' },
-  { id: 'network', name: 'Network', color: 'teal', icon: 'network' },
-  { id: 'scanner', name: 'Scanner', color: 'green', icon: 'scanner' },
-  { id: 'cables', name: 'Cables', color: 'orange', icon: 'cables' },
-  { id: 'other', name: 'Other', color: 'slate', icon: 'other' },
+  { id: 'monitor', name: 'Monitor', color: 'blue', icon: 'monitor', parentId: null },
+  { id: 'computer', name: 'Computer', color: 'violet', icon: 'computer', parentId: null },
+  { id: 'printer', name: 'Printer', color: 'amber', icon: 'printer', parentId: null },
+  { id: 'network', name: 'Network', color: 'teal', icon: 'network', parentId: null },
+  { id: 'scanner', name: 'Scanner', color: 'green', icon: 'scanner', parentId: null },
+  { id: 'cables', name: 'Cables', color: 'orange', icon: 'cables', parentId: null },
+  { id: 'other', name: 'Other', color: 'slate', icon: 'other', parentId: null },
 ];
 
 const LEGACY_CATEGORY_IDS = new Set(DEFAULT_NOTE_TYPES.map((t) => t.id));

@@ -1,6 +1,8 @@
 -- TechLib Supabase schema
 -- Solo install: run this file, then migrations/001_workspace_roles.sql
 -- (001 adds shared-library membership: viewer / editor / admin)
+-- and migrations/002_note_type_parent.sql if upgrading an older DB
+-- (002 is already included in this file for fresh installs).
 
 -- Stock locations (bay / shelf codes) — before notes so notes.stock_id can FK
 create table if not exists public.stock_locations (
@@ -13,15 +15,24 @@ create table if not exists public.stock_locations (
 
 -- User-defined product types (Monitor, Printer, custom, …)
 -- Text PK so seeded ids like `monitor` work. Solo-owner for now.
+-- parent_id enables one-level subtypes (e.g. Cables → Network cable).
 create table if not exists public.note_types (
   id text primary key,
   owner_id uuid not null references auth.users (id) on delete cascade,
   name text not null,
   color text not null default 'slate',
   icon text not null default 'package',
+  parent_id text references public.note_types (id) on delete cascade,
   created_at timestamptz not null default now(),
   unique (owner_id, name)
 );
+
+create index if not exists note_types_owner_parent_idx
+  on public.note_types (owner_id, parent_id);
+
+-- For databases created before parent_id existed
+alter table public.note_types
+  add column if not exists parent_id text references public.note_types (id) on delete cascade;
 
 -- Notes
 create table if not exists public.notes (
