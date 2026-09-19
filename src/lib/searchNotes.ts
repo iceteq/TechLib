@@ -144,7 +144,7 @@ export function filterNotes(
   },
 ): NoteWithUrls[] {
   const filtered = notes.filter((note) => {
-    if (options.view === 'cart') return false;
+    if (options.view === 'collection') return false;
     if (options.view === 'archive' ? !note.archived : note.archived) {
       return false;
     }

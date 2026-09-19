@@ -104,8 +104,96 @@
   filter: brightness(0.97);
 }
 
-.printSheet {
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.item {
   display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.itemControls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.15rem;
+}
+
+.qtyGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.qty {
+  display: inline-block;
+  min-width: 1.35rem;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  animation: juice-bump var(--juice-duration, 280ms) var(--juice-ease, ease);
+}
+
+.qtyPrint {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.qtyBtn,
+.removeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  transition:
+    transform var(--juice-press, 90ms ease),
+    background var(--transition),
+    color var(--transition);
+}
+
+.qtyBtn:hover,
+.removeBtn:hover {
+  color: var(--text);
+  background: rgba(31, 35, 40, 0.05);
+}
+
+.qtyBtn:active,
+.removeBtn:active {
+  transform: scale(0.88);
+}
+
+.missingCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+}
+
+.missing {
+  margin: 0;
+  color: #c5221f;
+  font-size: 0.85rem;
+  font-weight: 560;
+}
+
+.printSheet {
+  display: none;
   flex-direction: column;
   gap: 0.5rem;
   min-width: 0;
@@ -203,72 +291,14 @@
   word-break: break-word;
 }
 
-.colActions {
-  width: 6.5rem;
-  white-space: nowrap;
-}
-
-.qty {
+.titleFallback {
   display: inline-block;
-  min-width: 1.35rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  animation: juice-bump var(--juice-duration, 280ms) var(--juice-ease, ease);
-}
-
-.barcodeBtn {
-  display: inline-flex;
-  align-items: center;
-  border: none;
-  padding: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.barcodeBtn:hover {
-  opacity: 0.88;
-}
-
-.missing {
-  color: #c5221f;
-  font-size: 0.85rem;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 560;
-}
-
-.rowActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.qtyBtn,
-.removeBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.65rem;
-  height: 1.65rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.qtyBtn:hover,
-.removeBtn:hover {
-  color: var(--text);
-  background: rgba(31, 35, 40, 0.05);
-}
-
-.qtyBtn,
-.removeBtn {
-  transition: transform var(--juice-press, 90ms ease), background var(--transition), color var(--transition);
-}
-
-.qtyBtn:active,
-.removeBtn:active {
-  transform: scale(0.88);
+  text-align: left;
 }
 
 @keyframes fadeIn {
@@ -303,8 +333,9 @@
     display: none !important;
   }
 
-  .printOnly {
-    display: block !important;
+  .printOnly,
+  .printSheet {
+    display: flex !important;
   }
 
   .section {
@@ -377,10 +408,6 @@
     color: #000;
   }
 
-  .barcodeBtn {
-    color: #000;
-  }
-
   .colStatus,
   .colType,
   .colLabels,
@@ -392,14 +419,4 @@
     color: #000;
     font-style: italic;
   }
-}
-
-.titleFallback {
-  display: inline-block;
-  max-width: 12rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 560;
-  text-align: left;
 }

@@ -13,7 +13,7 @@ import {
   Palette,
   Pin,
   PinOff,
-  ShoppingCart,
+  Layers,
   Trash2,
   X,
 } from 'lucide-react';
@@ -854,19 +854,19 @@ export function NoteEditor({
                   aria-label={
                     cartQuantity > 0
                       ? cartQuantity === 1
-                        ? 'In cart — add another'
-                        : `In cart ×${cartQuantity} — add another`
-                      : 'Add to cart'
+                        ? 'In collection — add another'
+                        : `In collection ×${cartQuantity} — add another`
+                      : 'Add to collection'
                   }
                   title={
                     cartQuantity > 0
                       ? cartQuantity === 1
-                        ? 'In cart — click to add another'
-                        : `In cart ×${cartQuantity} — click to add another`
-                      : 'Add to cart'
+                        ? 'In collection — click to add another'
+                        : `In collection ×${cartQuantity} — click to add another`
+                      : 'Add to collection'
                   }
                 >
-                  <ShoppingCart size={18} />
+                  <Layers size={18} />
                   {cartQuantity > 0 && (
                     <span key={cartQuantity} className={styles.cartBadge}>
                       {cartQuantity}
@@ -981,13 +981,13 @@ export function NoteEditor({
                         setMoreOpen(false);
                       }}
                     >
-                      <ShoppingCart size={16} />
+                      <Layers size={16} />
                       <span>
                         {cartQuantity > 0
                           ? cartQuantity === 1
-                            ? 'In cart — add another'
-                            : `In cart ×${cartQuantity} — add another`
-                          : 'Add to cart'}
+                            ? 'In collection — add another'
+                            : `In collection ×${cartQuantity} — add another`
+                          : 'Add to collection'}
                       </span>
                     </button>
                     {!readOnly && (

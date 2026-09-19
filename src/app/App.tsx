@@ -6,7 +6,7 @@ import {
 } from '../lib/filterSession';
 import { AppShell } from '../features/shell/AppShell';
 import { Sidebar } from '../features/shell/Sidebar';
-import { CartView } from '../features/notes/CartView';
+import { CollectionView } from '../features/notes/CollectionView';
 import { NoteEditor } from '../features/notes/NoteEditor';
 import { NoteGrid } from '../features/notes/NoteGrid';
 import { PasteNotesDialog } from '../features/notes/PasteNotesDialog';
@@ -300,7 +300,7 @@ export default function App({ session }: { session: Session | null }) {
     const filtered = filterNotes(notes, labels, stockLocations, noteTypes, {
       labelIds: view === 'notes' ? filterLabelIds : [],
       search,
-      view: view === 'cart' ? 'notes' : view,
+      view: view === 'collection' ? 'notes' : view,
       disposition: view === 'notes' ? filterDisposition : null,
       categoryId: view === 'notes' ? filterCategoryId : null,
       stockId: view === 'notes' ? filterStockId : null,
@@ -856,10 +856,10 @@ export default function App({ session }: { session: Session | null }) {
     const nextItems = await store.addToCart(ids);
     setCartItems(nextItems);
     const noteWord = ids.length === 1 ? 'note' : 'notes';
-    // Prefer the cart commit toast over any lingering undo banner.
+    // Prefer the collection commit toast over any lingering undo banner.
     await replaceUndoAction(null);
     setNotice(
-      ids.length === 1 ? 'Added to cart' : `Added ${ids.length} ${noteWord} to cart`,
+      ids.length === 1 ? 'Added to collection' : `Added ${ids.length} ${noteWord} to collection`,
     );
   }
 
@@ -1116,7 +1116,7 @@ export default function App({ session }: { session: Session | null }) {
               undoAction.ids.length === 1 ? '' : 's'
             }`
           : undoAction.kind === 'cart-clear'
-            ? 'Cleared cart'
+            ? 'Cleared collection'
             : undoAction.message;
 
   const undoToastVisible =
@@ -1153,7 +1153,7 @@ export default function App({ session }: { session: Session | null }) {
           activeDisposition={filterDisposition}
           activeCategoryId={filterCategoryId}
           activeStockId={filterStockId}
-          cartCount={cartUnitCount}
+          collectionCount={cartUnitCount}
           onSelectNotes={() => {
             setView('notes');
             clearAllFilters();
@@ -1164,8 +1164,8 @@ export default function App({ session }: { session: Session | null }) {
             clearAllFilters();
             setSidebarOpen(false);
           }}
-          onSelectCart={() => {
-            setView('cart');
+          onSelectCollection={() => {
+            setView('collection');
             clearAllFilters();
             setSidebarOpen(false);
           }}
@@ -1209,13 +1209,20 @@ export default function App({ session }: { session: Session | null }) {
     >
       {!ready ? (
         <p style={{ color: 'var(--text-muted)' }}>Loading notes…</p>
-      ) : view === 'cart' ? (
-        <CartView
+      ) : view === 'collection' ? (
+        <CollectionView
           rows={cartRows}
           labels={labels}
           noteTypes={noteTypes}
+          stockLocations={stockLocations}
           unitCount={cartUnitCount}
           showBarcodes={viewPrefs.barcodes}
+          showPhotos={viewPrefs.photos}
+          showDescription={viewPrefs.description}
+          showSpecialCase={viewPrefs.specialCase}
+          showLabels={viewPrefs.labels}
+          showAge={viewPrefs.age}
+          showTypeChip={viewPrefs.typeChip}
           onOpenNote={openNote}
           onChangeQuantity={(noteId, quantity) =>
             void handleCartQuantity(noteId, quantity)

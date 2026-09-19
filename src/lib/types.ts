@@ -157,7 +157,7 @@ export interface Reaction {
   count: number;
 }
 
-export type NotesView = 'notes' | 'archive' | 'cart';
+export type NotesView = 'notes' | 'archive' | 'collection';
 
 export interface CartItem {
   noteId: string;
