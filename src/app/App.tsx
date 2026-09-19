@@ -512,7 +512,8 @@ export default function App({ session }: { session: Session | null }) {
       (note.guidelineLines?.length ?? 0) === 0 &&
       !note.categoryId &&
       !note.stockId &&
-      !(note.specialCase ?? '').trim()
+      !(note.specialCase ?? '').trim() &&
+      (note.askItems?.length ?? 0) === 0
     );
   }
 
@@ -723,8 +724,13 @@ export default function App({ session }: { session: Session | null }) {
     categoryId?: string | null;
     stockId?: string | null;
     specialCase?: string;
+    askItems?: import('../lib/types').NoteAskItem[];
   }) {
-    if (!canEdit) return;
+    if (patch.askItems !== undefined) {
+      if (!isAdmin) return;
+    } else if (!canEdit) {
+      return;
+    }
     if (!activeNoteId) return;
     const current = notes.find((n) => n.id === activeNoteId);
     const undoPatch: NoteFieldPatch = {};
@@ -1328,6 +1334,7 @@ export default function App({ session }: { session: Session | null }) {
       {activeNote && (
         <NoteEditor
           readOnly={!canEdit}
+          canManageAsk={isAdmin}
           note={activeNote}
           labels={labels}
           noteTypes={noteTypes}

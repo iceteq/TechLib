@@ -80,6 +80,14 @@ export interface NoteImageWithUrl extends NoteImage {
   thumbUrl: string;
 }
 
+/** One short admin Q&A pin (question + optional AI answer). */
+export interface NoteAskItem {
+  id: string;
+  question: string;
+  answer: string;
+  answeredAt: number | null;
+}
+
 export interface Note {
   id: string;
   /** Warehouse part number (shown as “Part number” in the UI). */
@@ -93,6 +101,8 @@ export interface Note {
   disposition: NoteDisposition;
   /** If → then decision lines (source of truth for guidelines). */
   guidelineLines: GuidelineLine[];
+  /** Admin-curated short asks (max 3); answers from OpenAI. */
+  askItems: NoteAskItem[];
   /** User-defined product type id, or null when unset. */
   categoryId: string | null;
   /** Single stock location (bay/shelf code), or null when unset. */

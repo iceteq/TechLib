@@ -3,6 +3,7 @@ import type {
   GuidelineLine,
   Label,
   Note,
+  NoteAskItem,
   NoteBackground,
   NoteDisposition,
   NoteType,
@@ -21,6 +22,7 @@ import {
   primaryDispositionFromLines,
   resolveGuidelineLines,
 } from './guidelineLines';
+import { normalizeAskItems } from './noteAskItems';
 import { fetchLibraryOwnerId } from './workspace';
 
 const BUCKET = 'note-images';
@@ -43,6 +45,7 @@ type NoteRow = {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  ask_items?: NoteAskItem[] | null;
 };
 
 type NoteTypeRow = {
@@ -235,6 +238,7 @@ async function hydrateRows(rows: NoteRow[]): Promise<NoteWithUrls[]> {
         row.category_id ?? legacyCategoryToTypeId(row.category),
       stockId: row.stock_id ?? null,
       specialCase: row.special_case ?? '',
+      askItems: normalizeAskItems(row.ask_items),
       pinned: row.pinned,
       archived: row.archived,
       deletedAt: row.deleted_at ? ms(row.deleted_at) : null,
@@ -324,6 +328,7 @@ export async function createNote(input?: {
       category_id: input?.categoryId ?? null,
       stock_id: input?.stockId ?? null,
       special_case: input?.specialCase ?? '',
+      ask_items: [],
     })
     .select('*')
     .single();
@@ -353,6 +358,7 @@ export async function updateNote(
       | 'categoryId'
       | 'stockId'
       | 'specialCase'
+      | 'askItems'
     >
   >,
 ): Promise<NoteWithUrls | undefined> {
@@ -364,6 +370,7 @@ export async function updateNote(
     categoryId,
     guidelineLines,
     disposition,
+    askItems,
     ...rest
   } = patch;
   const update: Record<string, unknown> = {
@@ -377,6 +384,7 @@ export async function updateNote(
   if (categoryId !== undefined) update.category_id = categoryId;
   if (stockId !== undefined) update.stock_id = stockId;
   if (specialCase !== undefined) update.special_case = specialCase;
+  if (askItems !== undefined) update.ask_items = normalizeAskItems(askItems);
 
   if (guidelineLines !== undefined) {
     const lines = resolveGuidelineLines({ guidelineLines });
