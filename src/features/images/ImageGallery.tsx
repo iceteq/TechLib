@@ -16,7 +16,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronLeft, ChevronRight, GripVertical, Trash2, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { NoteImageWithUrl } from '../../lib/types';
 import styles from './ImageGallery.module.css';
 
@@ -87,6 +88,7 @@ function SortableThumb({
 export function ImageGallery({ images, onRemove, onReorder }: ImageGalleryProps) {
   const canEdit = Boolean(onRemove && onReorder);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const lightboxRef = useRef<HTMLDivElement>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -118,6 +120,31 @@ export function ImageGallery({ images, onRemove, onReorder }: ImageGalleryProps)
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [lightboxIndex, images.length]);
+
+  // Pin the portaled lightbox to the visual viewport (iOS chrome / keyboard).
+  useLayoutEffect(() => {
+    if (lightboxIndex === null) return;
+    const el = lightboxRef.current;
+    const vv = window.visualViewport;
+    if (!el || !vv) return;
+
+    const sync = () => {
+      el.style.setProperty('--vv-offset-top', `${vv.offsetTop}px`);
+      el.style.setProperty('--vv-offset-left', `${vv.offsetLeft}px`);
+      el.style.setProperty('--vv-width', `${vv.width}px`);
+      el.style.setProperty('--vv-height', `${vv.height}px`);
+    };
+
+    sync();
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      vv.removeEventListener('resize', sync);
+      vv.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }, [lightboxIndex]);
 
   if (images.length === 0) return null;
 
@@ -172,63 +199,67 @@ export function ImageGallery({ images, onRemove, onReorder }: ImageGalleryProps)
         <p className={styles.hint}>Drag the handle to reorder images</p>
       )}
 
-      {active && lightboxIndex !== null && (
-        <div
-          className={styles.lightbox}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Image preview"
-          onClick={() => setLightboxIndex(null)}
-        >
-          <button
-            type="button"
-            className={styles.lightboxClose}
+      {active &&
+        lightboxIndex !== null &&
+        createPortal(
+          <div
+            ref={lightboxRef}
+            className={styles.lightbox}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Image preview"
             onClick={() => setLightboxIndex(null)}
-            aria-label="Close preview"
           >
-            <X size={20} />
-          </button>
+            <button
+              type="button"
+              className={styles.lightboxClose}
+              onClick={() => setLightboxIndex(null)}
+              aria-label="Close preview"
+            >
+              <X size={20} />
+            </button>
 
-          {images.length > 1 && (
-            <>
-              <button
-                type="button"
-                className={`${styles.nav} ${styles.navPrev}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxIndex(
-                    (lightboxIndex - 1 + images.length) % images.length,
-                  );
-                }}
-                aria-label="Previous image"
-              >
-                <ChevronLeft size={24} />
-              </button>
-              <button
-                type="button"
-                className={`${styles.nav} ${styles.navNext}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxIndex((lightboxIndex + 1) % images.length);
-                }}
-                aria-label="Next image"
-              >
-                <ChevronRight size={24} />
-              </button>
-            </>
-          )}
+            {images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className={`${styles.nav} ${styles.navPrev}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex(
+                      (lightboxIndex - 1 + images.length) % images.length,
+                    );
+                  }}
+                  aria-label="Previous image"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.nav} ${styles.navNext}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex((lightboxIndex + 1) % images.length);
+                  }}
+                  aria-label="Next image"
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </>
+            )}
 
-          <img
-            src={active.url}
-            alt=""
-            className={styles.lightboxImage}
-            onClick={(e) => e.stopPropagation()}
-          />
-          <p className={styles.counter}>
-            {lightboxIndex + 1} / {images.length}
-          </p>
-        </div>
-      )}
+            <img
+              src={active.url}
+              alt=""
+              className={styles.lightboxImage}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <p className={styles.counter}>
+              {lightboxIndex + 1} / {images.length}
+            </p>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
