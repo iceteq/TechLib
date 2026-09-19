@@ -28,8 +28,54 @@ import {
 } from './BulkGuidelineDialog';
 import styles from './NoteGrid.module.css';
 import { useJuiceBurst } from '../../lib/useJuiceBurst';
+import {
+  loadCreateFabAction,
+  saveCreateFabAction,
+  type CreateFabAction,
+} from '../../lib/createFabAction';
 
 type BulkMenu = 'assign' | null;
+
+const CREATE_FAB_ACTIONS: CreateFabAction[] = [
+  'note',
+  'paste',
+  'photos',
+  'camera',
+];
+
+function createFabMeta(action: CreateFabAction): {
+  Icon: typeof Plus;
+  label: string;
+  title: string;
+} {
+  switch (action) {
+    case 'paste':
+      return {
+        Icon: ClipboardPaste,
+        label: 'Paste notes',
+        title: 'Paste notes',
+      };
+    case 'photos':
+      return {
+        Icon: ImagePlus,
+        label: 'Add images',
+        title: 'Add images — creates a note',
+      };
+    case 'camera':
+      return {
+        Icon: Camera,
+        label: 'Take photo',
+        title: 'Take photo — creates a note',
+      };
+    case 'note':
+    default:
+      return {
+        Icon: Plus,
+        label: 'New note',
+        title: 'New note',
+      };
+  }
+}
 
 const EMPTY_SORTED = new Set<string>();
 
@@ -152,6 +198,9 @@ export function NoteGrid({
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<BulkMenu>(null);
   const [fabOpen, setFabOpen] = useState(false);
+  const [primaryCreate, setPrimaryCreate] = useState<CreateFabAction>(
+    loadCreateFabAction,
+  );
   const [bulkGuidelineOpen, setBulkGuidelineOpen] = useState(false);
   const [imageDropActive, setImageDropActive] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
@@ -408,9 +457,37 @@ export function NoteGrid({
     onDropImages(files);
   }
 
+  function rememberCreate(action: CreateFabAction) {
+    setPrimaryCreate(action);
+    saveCreateFabAction(action);
+  }
+
+  function runCreate(action: CreateFabAction) {
+    rememberCreate(action);
+    setFabOpen(false);
+    if (action === 'note') {
+      onCreateNote?.();
+      return;
+    }
+    if (action === 'paste') {
+      onPasteNotes?.();
+      return;
+    }
+    if (action === 'photos') {
+      galleryRef.current?.click();
+      return;
+    }
+    cameraRef.current?.click();
+  }
+
   const filterLabels = labels.filter((l) => filterLabelIds.includes(l.id));
   const hasSearch = search.trim().length > 0;
   const canCreate = canEdit && view === 'notes' && !selecting && Boolean(onCreateNote);
+  const primaryCreateMeta = createFabMeta(primaryCreate);
+  const PrimaryCreateIcon = primaryCreateMeta.Icon;
+  const overflowCreate = CREATE_FAB_ACTIONS.filter(
+    (action) => action !== primaryCreate,
+  );
   const statusText = dispositionLabel(filterDisposition);
   const typeText = categoryLabel(filterCategoryId, noteTypes);
   const stockText = stockLabel(filterStockId, stockLocations);
@@ -860,54 +937,42 @@ export function NoteGrid({
             hidden
             onChange={handleCreateFromFiles}
           />
-          {fabOpen && (
-            <>
-              <button
-                type="button"
-                className={styles.fabSecondary}
-                onClick={onPasteNotes}
-                aria-label="Paste notes"
-                title="Paste notes"
-                disabled={imageBusy}
-              >
-                <ClipboardPaste size={20} strokeWidth={2.25} />
-              </button>
-              <button
-                type="button"
-                className={styles.fabSecondary}
-                onClick={() => galleryRef.current?.click()}
-                aria-label="Add images"
-                title="Add images — creates a note"
-                disabled={imageBusy || !onDropImages}
-              >
-                <ImagePlus size={20} strokeWidth={2.25} />
-              </button>
-              <button
-                type="button"
-                className={styles.fabSecondary}
-                onClick={() => cameraRef.current?.click()}
-                aria-label="Take photo"
-                title="Take photo — creates a note"
-                disabled={imageBusy || !onDropImages}
-              >
-                <Camera size={20} strokeWidth={2.25} />
-              </button>
-            </>
-          )}
+          {fabOpen &&
+            overflowCreate.map((action) => {
+              const meta = createFabMeta(action);
+              return (
+                <button
+                  key={action}
+                  type="button"
+                  className={styles.fabSecondary}
+                  onClick={() => runCreate(action)}
+                  aria-label={meta.label}
+                  title={meta.title}
+                  disabled={
+                    imageBusy ||
+                    ((action === 'photos' || action === 'camera') &&
+                      !onDropImages)
+                  }
+                >
+                  <meta.Icon size={20} strokeWidth={2.25} />
+                </button>
+              );
+            })}
           <button
             type="button"
             className={styles.fabSecondary}
             onClick={() => setFabOpen((open) => !open)}
             aria-label={fabOpen ? 'Hide create options' : 'More create options'}
             aria-expanded={fabOpen}
-            title={fabOpen ? 'Hide options' : 'Paste, photos, camera'}
+            title={fabOpen ? 'Hide options' : 'More create options'}
             disabled={imageBusy}
           >
             <ChevronUp
               size={20}
               strokeWidth={2.25}
               style={{
-                transform: fabOpen ? 'rotate(0deg)' : 'rotate(180deg)',
+                /* Closed: point up (options expand upward). Open: point down. */
+                transform: fabOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                 transition: 'transform 160ms ease',
               }}
             />
@@ -915,12 +980,16 @@ export function NoteGrid({
           <button
             type="button"
             className={styles.fab}
-            onClick={onCreateNote}
-            aria-label="New note"
-            title="New note"
-            disabled={imageBusy}
+            onClick={() => runCreate(primaryCreate)}
+            aria-label={primaryCreateMeta.label}
+            title={primaryCreateMeta.title}
+            disabled={
+              imageBusy ||
+              ((primaryCreate === 'photos' || primaryCreate === 'camera') &&
+                !onDropImages)
+            }
           >
-            <Plus size={24} strokeWidth={2.25} />
+            <PrimaryCreateIcon size={24} strokeWidth={2.25} />
           </button>
         </div>
       )}
