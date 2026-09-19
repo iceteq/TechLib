@@ -141,6 +141,8 @@ export function NoteEditor({
   const specialCaseRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  /** Only dismiss when press + release both started on the backdrop (not a text-drag). */
+  const overlayDismissRef = useRef(false);
   const dropDepth = useRef(0);
   /** Ignore the synthetic popstate fired when Done/X pops our history trap. */
   const ignorePopRef = useRef(false);
@@ -657,7 +659,15 @@ export function NoteEditor({
       ref={overlayRef}
       className={styles.overlay}
       role="presentation"
-      onClick={() => void finish()}
+      onPointerDown={(e) => {
+        overlayDismissRef.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (!overlayDismissRef.current) return;
+        overlayDismissRef.current = false;
+        void finish();
+      }}
     >
       <div
         ref={dialogRef}
