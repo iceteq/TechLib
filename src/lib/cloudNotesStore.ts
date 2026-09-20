@@ -6,6 +6,7 @@ import type {
   NoteAskItem,
   NoteBackground,
   NoteDisposition,
+  NoteLink,
   NoteType,
   NoteTypeColor,
   NoteTypeIcon,
@@ -24,6 +25,7 @@ import {
 } from './guidelineLines';
 import { normalizeAskItems } from './noteAskItems';
 import { fetchLibraryOwnerId } from './workspace';
+import { linkKey, meshLinkPairs, normalizeLinkPair } from './noteLinks';
 
 const BUCKET = 'note-images';
 
@@ -915,6 +917,97 @@ export async function clearCart(): Promise<void> {
 
 export function cartUnitCount(items: CartItem[]): number {
   return items.reduce((sum, item) => sum + item.quantity, 0);
+}
+
+type NoteLinkRow = { note_id_a: string; note_id_b: string };
+
+export async function listNoteLinks(): Promise<NoteLink[]> {
+  await requireUserId();
+  const { data, error } = await getSupabase()
+    .from('note_links')
+    .select('note_id_a, note_id_b');
+  throwIf(error);
+  return ((data ?? []) as NoteLinkRow[])
+    .map((row) => ({ noteIdA: row.note_id_a, noteIdB: row.note_id_b }))
+    .sort((a, b) => linkKey(a).localeCompare(linkKey(b)));
+}
+
+export async function linkNotes(
+  noteIds: string[],
+): Promise<{ links: NoteLink[]; created: NoteLink[] }> {
+  const pairs = meshLinkPairs(noteIds);
+  if (pairs.length === 0) {
+    return { links: await listNoteLinks(), created: [] };
+  }
+  await requireUserId();
+  const existing = await listNoteLinks();
+  const existingKeys = new Set(existing.map(linkKey));
+  const created = pairs.filter((p) => !existingKeys.has(linkKey(p)));
+  if (created.length > 0) {
+    const { error } = await getSupabase().from('note_links').upsert(
+      created.map((p) => ({
+        note_id_a: p.noteIdA,
+        note_id_b: p.noteIdB,
+      })),
+      { onConflict: 'note_id_a,note_id_b', ignoreDuplicates: true },
+    );
+    throwIf(error);
+  }
+  return { links: await listNoteLinks(), created };
+}
+
+export async function unlinkNotes(
+  noteIdA: string,
+  noteIdB: string,
+): Promise<NoteLink[]> {
+  const pair = normalizeLinkPair(noteIdA, noteIdB);
+  if (!pair) return listNoteLinks();
+  await requireUserId();
+  const { error } = await getSupabase()
+    .from('note_links')
+    .delete()
+    .eq('note_id_a', pair.noteIdA)
+    .eq('note_id_b', pair.noteIdB);
+  throwIf(error);
+  return listNoteLinks();
+}
+
+export async function restoreNoteLinks(
+  pairs: NoteLink[],
+): Promise<NoteLink[]> {
+  if (pairs.length === 0) return listNoteLinks();
+  await requireUserId();
+  const normalized = pairs
+    .map((p) => normalizeLinkPair(p.noteIdA, p.noteIdB))
+    .filter((p): p is NoteLink => Boolean(p));
+  if (normalized.length === 0) return listNoteLinks();
+  const { error } = await getSupabase().from('note_links').upsert(
+    normalized.map((p) => ({
+      note_id_a: p.noteIdA,
+      note_id_b: p.noteIdB,
+    })),
+    { onConflict: 'note_id_a,note_id_b', ignoreDuplicates: true },
+  );
+  throwIf(error);
+  return listNoteLinks();
+}
+
+export async function removeNoteLinks(
+  pairs: NoteLink[],
+): Promise<NoteLink[]> {
+  if (pairs.length === 0) return listNoteLinks();
+  await requireUserId();
+  for (const raw of pairs) {
+    const pair = normalizeLinkPair(raw.noteIdA, raw.noteIdB);
+    if (!pair) continue;
+    const { error } = await getSupabase()
+      .from('note_links')
+      .delete()
+      .eq('note_id_a', pair.noteIdA)
+      .eq('note_id_b', pair.noteIdB);
+    throwIf(error);
+  }
+  return listNoteLinks();
 }
 
 // silence unused iso helper if tree-shaken awkwardly

@@ -34,6 +34,7 @@ import type {
 } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
+import { RelatedSection } from './RelatedSection';
 import { DescriptionField } from '../labels/DescriptionField';
 import { LabelChip } from '../labels/LabelChip';
 import {
@@ -97,6 +98,13 @@ interface NoteEditorProps {
   onCreateLabel: (name: string) => Promise<Label>;
   /** > 0 while images are being saved. */
   imageBusyCount?: number;
+  /** Notes linked to this one (hydrated). */
+  relatedNotes?: NoteWithUrls[];
+  /** Pool for the related-note picker. */
+  linkCandidateNotes?: NoteWithUrls[];
+  onOpenRelated?: (noteId: string) => void;
+  onAddRelated?: (noteId: string) => Promise<void>;
+  onRemoveRelated?: (noteId: string) => Promise<void>;
 }
 
 export function NoteEditor({
@@ -123,6 +131,11 @@ export function NoteEditor({
   onToggleSorted,
   onCreateLabel,
   imageBusyCount = 0,
+  relatedNotes = [],
+  linkCandidateNotes = [],
+  onOpenRelated,
+  onAddRelated,
+  onRemoveRelated,
 }: NoteEditorProps) {
   const cartJuice = useJuiceBurst();
   const archiveJuice = useJuiceBurst();
@@ -1153,6 +1166,22 @@ export function NoteEditor({
                 {stock ? stock.name : 'No stock'}
               </button>
             </div>
+
+            {(onAddRelated || relatedNotes.length > 0) && (
+              <RelatedSection
+                noteId={note.id}
+                relatedNotes={relatedNotes}
+                candidateNotes={linkCandidateNotes}
+                noteTypes={noteTypes}
+                labels={labels}
+                stockLocations={stockLocations}
+                readOnly={readOnly || !onAddRelated}
+                onOpen={(id) => onOpenRelated?.(id)}
+                onAdd={onAddRelated ?? (async () => {})}
+                onRemove={onRemoveRelated ?? (async () => {})}
+              />
+            )}
+
             {specialCaseOpen ? (
               <>
                 <label className={styles.specialCaseLabel} htmlFor="special-case">

@@ -5,6 +5,7 @@ import type {
   Note,
   NoteBackground,
   NoteDisposition,
+  NoteLink,
   NoteType,
   NoteWithUrls,
   Reaction,
@@ -20,6 +21,7 @@ import {
   resolveGuidelineLines,
 } from './guidelineLines';
 import { normalizeAskItems } from './noteAskItems';
+import { linkKey, meshLinkPairs, normalizeLinkPair } from './noteLinks';
 
 interface TechLibDB extends DBSchema {
   notes: {
@@ -60,10 +62,14 @@ interface TechLibDB extends DBSchema {
     key: string;
     value: CartItem;
   };
+  noteLinks: {
+    key: string;
+    value: NoteLink & { id: string };
+  };
 }
 
 const DB_NAME = 'techlib';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 let dbPromise: Promise<IDBPDatabase<TechLibDB>> | null = null;
 const urlCache = new Map<string, string>();
@@ -147,6 +153,12 @@ function getDb() {
               keyPath: 'id',
             });
             types.createIndex('by-name', 'name', { unique: true });
+          }
+        }
+
+        if (oldVersion < 6) {
+          if (!db.objectStoreNames.contains('noteLinks')) {
+            db.createObjectStore('noteLinks', { keyPath: 'id' });
           }
         }
       },
@@ -372,6 +384,16 @@ export async function deleteNote(id: string): Promise<void> {
   const reactions = await db.getAllFromIndex('reactions', 'by-note', id);
   for (const reaction of reactions) {
     await db.delete('reactions', reaction.id);
+  }
+
+  const cart = await db.get('cartItems', id);
+  if (cart) await db.delete('cartItems', id);
+
+  const links = await db.getAll('noteLinks');
+  for (const link of links) {
+    if (link.noteIdA === id || link.noteIdB === id) {
+      await db.delete('noteLinks', link.id);
+    }
   }
 
   await db.delete('notes', id);
@@ -747,4 +769,72 @@ export async function clearCart(): Promise<void> {
 
 export function cartUnitCount(items: CartItem[]): number {
   return items.reduce((sum, item) => sum + item.quantity, 0);
+}
+
+export async function listNoteLinks(): Promise<NoteLink[]> {
+  const db = await getDb();
+  const links = await db.getAll('noteLinks');
+  return links
+    .map(({ noteIdA, noteIdB }) => ({ noteIdA, noteIdB }))
+    .sort((a, b) => linkKey(a).localeCompare(linkKey(b)));
+}
+
+/** Link every pair among noteIds (full mesh). Returns newly created pairs. */
+export async function linkNotes(
+  noteIds: string[],
+): Promise<{ links: NoteLink[]; created: NoteLink[] }> {
+  const pairs = meshLinkPairs(noteIds);
+  if (pairs.length === 0) {
+    return { links: await listNoteLinks(), created: [] };
+  }
+  const db = await getDb();
+  const created: NoteLink[] = [];
+  for (const pair of pairs) {
+    const id = linkKey(pair);
+    const existing = await db.get('noteLinks', id);
+    if (!existing) {
+      await db.put('noteLinks', { id, ...pair });
+      created.push(pair);
+    }
+  }
+  return { links: await listNoteLinks(), created };
+}
+
+export async function unlinkNotes(
+  noteIdA: string,
+  noteIdB: string,
+): Promise<NoteLink[]> {
+  const pair = normalizeLinkPair(noteIdA, noteIdB);
+  if (!pair) return listNoteLinks();
+  const db = await getDb();
+  await db.delete('noteLinks', linkKey(pair));
+  return listNoteLinks();
+}
+
+/** Re-create specific pairs (undo unlink / restore). */
+export async function restoreNoteLinks(
+  pairs: NoteLink[],
+): Promise<NoteLink[]> {
+  if (pairs.length === 0) return listNoteLinks();
+  const db = await getDb();
+  for (const raw of pairs) {
+    const pair = normalizeLinkPair(raw.noteIdA, raw.noteIdB);
+    if (!pair) continue;
+    await db.put('noteLinks', { id: linkKey(pair), ...pair });
+  }
+  return listNoteLinks();
+}
+
+/** Remove specific pairs (undo link). */
+export async function removeNoteLinks(
+  pairs: NoteLink[],
+): Promise<NoteLink[]> {
+  if (pairs.length === 0) return listNoteLinks();
+  const db = await getDb();
+  for (const raw of pairs) {
+    const pair = normalizeLinkPair(raw.noteIdA, raw.noteIdB);
+    if (!pair) continue;
+    await db.delete('noteLinks', linkKey(pair));
+  }
+  return listNoteLinks();
 }

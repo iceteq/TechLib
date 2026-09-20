@@ -83,3 +83,16 @@ export const removeFromCart = (
 export const clearCart = (...args: Parameters<typeof local.clearCart>) =>
   api().clearCart(...args);
 export const cartUnitCount = local.cartUnitCount;
+export const listNoteLinks = (
+  ...args: Parameters<typeof local.listNoteLinks>
+) => api().listNoteLinks(...args);
+export const linkNotes = (...args: Parameters<typeof local.linkNotes>) =>
+  api().linkNotes(...args);
+export const unlinkNotes = (...args: Parameters<typeof local.unlinkNotes>) =>
+  api().unlinkNotes(...args);
+export const restoreNoteLinks = (
+  ...args: Parameters<typeof local.restoreNoteLinks>
+) => api().restoreNoteLinks(...args);
+export const removeNoteLinks = (
+  ...args: Parameters<typeof local.removeNoteLinks>
+) => api().removeNoteLinks(...args);

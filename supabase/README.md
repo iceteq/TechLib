@@ -7,9 +7,10 @@
 5. Then run `supabase/migrations/001_workspace_roles.sql` (shared library + viewer/editor/admin)
 6. Run `supabase/migrations/002_note_type_parent.sql` (one-level subtypes)
 7. Run `supabase/migrations/003_note_ask_items.sql` (admin AI ask Q&A on notes)
-8. (Recommended) **Authentication → Providers → Email**:
+8. Run `supabase/migrations/004_note_links.sql` (related notes)
+9. (Recommended) **Authentication → Providers → Email**:
    turn **off** “Confirm email” so signup signs you in immediately
-9. Restart `npm run dev`, open the app, **Sign up once** with your email  
+10. Restart `npm run dev`, open the app, **Sign up once** with your email  
    - First account becomes **admin** of the shared library  
    - Later accounts join as **viewers** (browse only) until an admin promotes them
 
