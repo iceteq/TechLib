@@ -938,17 +938,6 @@ export default function App({ session }: { session: Session | null }) {
     await replaceUndoAction({ kind: 'note-link', pairs: created });
   }
 
-  async function handleAddRelated(otherNoteId: string) {
-    if (!canEdit || !activeNoteId) return;
-    const { links, created } = await store.linkNotes([activeNoteId, otherNoteId]);
-    setNoteLinks(links);
-    if (created.length === 0) {
-      setNotice('Already linked');
-      return;
-    }
-    await replaceUndoAction({ kind: 'note-link', pairs: created });
-  }
-
   async function handleRemoveRelated(otherNoteId: string) {
     if (!canEdit || !activeNoteId) return;
     const before = noteLinks.find(
@@ -1446,9 +1435,7 @@ export default function App({ session }: { session: Session | null }) {
           onToggleSorted={() => void handleToggleSorted(activeNote.id)}
           imageBusyCount={imageBusyCount}
           relatedNotes={activeRelatedNotes}
-          linkCandidateNotes={notes.filter((n) => !n.archived && !n.deletedAt)}
           onOpenRelated={(noteId) => openNote(noteId)}
-          onAddRelated={canEdit ? handleAddRelated : undefined}
           onRemoveRelated={canEdit ? handleRemoveRelated : undefined}
         />
       )}

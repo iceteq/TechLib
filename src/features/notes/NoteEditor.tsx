@@ -100,10 +100,7 @@ interface NoteEditorProps {
   imageBusyCount?: number;
   /** Notes linked to this one (hydrated). */
   relatedNotes?: NoteWithUrls[];
-  /** Pool for the related-note picker. */
-  linkCandidateNotes?: NoteWithUrls[];
   onOpenRelated?: (noteId: string) => void;
-  onAddRelated?: (noteId: string) => Promise<void>;
   onRemoveRelated?: (noteId: string) => Promise<void>;
 }
 
@@ -132,9 +129,7 @@ export function NoteEditor({
   onCreateLabel,
   imageBusyCount = 0,
   relatedNotes = [],
-  linkCandidateNotes = [],
   onOpenRelated,
-  onAddRelated,
   onRemoveRelated,
 }: NoteEditorProps) {
   const cartJuice = useJuiceBurst();
@@ -1167,18 +1162,13 @@ export function NoteEditor({
               </button>
             </div>
 
-            {(onAddRelated || relatedNotes.length > 0) && (
+            {relatedNotes.length > 0 && (
               <RelatedSection
-                noteId={note.id}
                 relatedNotes={relatedNotes}
-                candidateNotes={linkCandidateNotes}
                 noteTypes={noteTypes}
-                labels={labels}
-                stockLocations={stockLocations}
-                readOnly={readOnly || !onAddRelated}
+                readOnly={readOnly}
                 onOpen={(id) => onOpenRelated?.(id)}
-                onAdd={onAddRelated ?? (async () => {})}
-                onRemove={onRemoveRelated ?? (async () => {})}
+                onRemove={onRemoveRelated}
               />
             )}
 
