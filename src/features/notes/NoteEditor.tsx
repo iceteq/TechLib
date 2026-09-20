@@ -34,6 +34,7 @@ import type {
 } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
+import { RelatedSection } from './RelatedSection';
 import { DescriptionField } from '../labels/DescriptionField';
 import { LabelChip } from '../labels/LabelChip';
 import {
@@ -97,6 +98,10 @@ interface NoteEditorProps {
   onCreateLabel: (name: string) => Promise<Label>;
   /** > 0 while images are being saved. */
   imageBusyCount?: number;
+  /** Notes linked to this one (hydrated). */
+  relatedNotes?: NoteWithUrls[];
+  onOpenRelated?: (noteId: string) => void;
+  onRemoveRelated?: (noteId: string) => Promise<void>;
 }
 
 export function NoteEditor({
@@ -123,6 +128,9 @@ export function NoteEditor({
   onToggleSorted,
   onCreateLabel,
   imageBusyCount = 0,
+  relatedNotes = [],
+  onOpenRelated,
+  onRemoveRelated,
 }: NoteEditorProps) {
   const cartJuice = useJuiceBurst();
   const archiveJuice = useJuiceBurst();
@@ -1153,6 +1161,17 @@ export function NoteEditor({
                 {stock ? stock.name : 'No stock'}
               </button>
             </div>
+
+            {relatedNotes.length > 0 && (
+              <RelatedSection
+                relatedNotes={relatedNotes}
+                noteTypes={noteTypes}
+                readOnly={readOnly}
+                onOpen={(id) => onOpenRelated?.(id)}
+                onRemove={onRemoveRelated}
+              />
+            )}
+
             {specialCaseOpen ? (
               <>
                 <label className={styles.specialCaseLabel} htmlFor="special-case">

@@ -164,6 +164,12 @@ export interface CartItem {
   quantity: number;
 }
 
+/** Undirected related-note edge. Always stored with noteIdA < noteIdB. */
+export interface NoteLink {
+  noteIdA: string;
+  noteIdB: string;
+}
+
 export const REACTION_EMOJIS: ReactionEmoji[] = ['👍', '❤️', '🔥', '✅'];
 
 export const DISPOSITIONS: {

@@ -86,6 +86,16 @@ create table if not exists public.note_labels (
   primary key (note_id, label_id)
 );
 
+-- Undirected related notes (canonical order note_id_a < note_id_b)
+create table if not exists public.note_links (
+  note_id_a uuid not null references public.notes (id) on delete cascade,
+  note_id_b uuid not null references public.notes (id) on delete cascade,
+  primary key (note_id_a, note_id_b),
+  check (note_id_a < note_id_b)
+);
+
+create index if not exists note_links_b_idx on public.note_links (note_id_b);
+
 -- Image metadata (files live in Storage bucket note-images)
 create table if not exists public.note_images (
   id uuid primary key default gen_random_uuid(),
@@ -123,6 +133,7 @@ alter table public.labels enable row level security;
 alter table public.stock_locations enable row level security;
 alter table public.note_types enable row level security;
 alter table public.note_labels enable row level security;
+alter table public.note_links enable row level security;
 alter table public.note_images enable row level security;
 alter table public.cart_items enable row level security;
 alter table public.reactions enable row level security;
@@ -150,6 +161,28 @@ create policy "note_labels_owner_all" on public.note_labels
     exists (
       select 1 from public.notes n
       where n.id = note_id and n.owner_id = auth.uid()
+    )
+  );
+
+create policy "note_links_owner_all" on public.note_links
+  for all using (
+    exists (
+      select 1 from public.notes n
+      where n.id = note_id_a and n.owner_id = auth.uid()
+    )
+    and exists (
+      select 1 from public.notes n
+      where n.id = note_id_b and n.owner_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.notes n
+      where n.id = note_id_a and n.owner_id = auth.uid()
+    )
+    and exists (
+      select 1 from public.notes n
+      where n.id = note_id_b and n.owner_id = auth.uid()
     )
   );
 

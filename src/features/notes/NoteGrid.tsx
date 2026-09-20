@@ -6,6 +6,7 @@ import {
   ChevronUp,
   ClipboardPaste,
   ImagePlus,
+  Link2,
   Plus,
   Layers,
   Trash2,
@@ -111,6 +112,8 @@ interface NoteGridProps {
   onBrowseNotes?: () => void;
   onDeleteNotes: (noteIds: string[]) => Promise<void>;
   onAddToCart: (noteIds: string[]) => Promise<void>;
+  /** Link selected notes to each other (undirected full mesh). */
+  onLinkNotes?: (noteIds: string[]) => Promise<void>;
   onUpdateNotes: (
     noteIds: string[],
     patch: {
@@ -174,6 +177,7 @@ export function NoteGrid({
   onBrowseNotes,
   onDeleteNotes,
   onAddToCart,
+  onLinkNotes,
   onUpdateNotes,
   onApplyGuidelineBulk,
   onCreateLabel,
@@ -192,6 +196,7 @@ export function NoteGrid({
   onPulseEnd,
 }: NoteGridProps) {
   const cartJuice = useJuiceBurst();
+  const linkJuice = useJuiceBurst();
   const assignJuice = useJuiceBurst();
   const archiveJuice = useJuiceBurst();
   const sortedSet = sortedNoteIds ?? EMPTY_SORTED;
@@ -358,6 +363,13 @@ export function NoteGrid({
     const ids = [...selectedIds];
     if (ids.length === 0) return;
     await runBulk(() => onAddToCart(ids), { clearAfter: true });
+  }
+
+  async function handleLinkNotes() {
+    if (!onLinkNotes) return;
+    const ids = [...selectedIds];
+    if (ids.length < 2) return;
+    await runBulk(() => onLinkNotes(ids), { clearAfter: true });
   }
 
   async function handleArchiveSelected(archived: boolean) {
@@ -895,6 +907,23 @@ export function NoteGrid({
               <Layers size={14} />
               Add to collection
             </button>
+
+            {onLinkNotes && selectedIds.size >= 2 && (
+              <button
+                type="button"
+                className={`${styles.selectionAction} ${
+                  linkJuice.bursting ? styles.selectionActionJuice : ''
+                }`}
+                onClick={() => {
+                  linkJuice.trigger();
+                  void handleLinkNotes();
+                }}
+                disabled={busy}
+              >
+                <Link2 size={14} />
+                Link
+              </button>
+            )}
 
             <button
               type="button"

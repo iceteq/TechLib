@@ -15,6 +15,7 @@ import { UndoToast } from '../features/notes/UndoToast';
 import type {
   CartItem,
   Label,
+  NoteLink,
   Reaction,
   ReactionEmoji,
   StockLocation,
@@ -42,6 +43,7 @@ import {
 import { noteTypeDeleteIds, noteTypePathLabel } from '../lib/noteTypes';
 import { loadRecentOpens, touchRecentOpen } from '../lib/recentOpens';
 import { sortWallNotes } from '../lib/sortWallNotes';
+import { relatedIdsFromLinks } from '../lib/noteLinks';
 
 import type { PastedNoteDraft } from '../lib/parsePastedNotes';
 import {
@@ -90,7 +92,9 @@ type UndoAction =
       message: string;
       before: Array<{ id: string; patch: NoteFieldPatch }>;
     }
-  | { kind: 'cart-clear'; items: CartItem[] };
+  | { kind: 'cart-clear'; items: CartItem[] }
+  | { kind: 'note-link'; pairs: NoteLink[] }
+  | { kind: 'note-unlink'; pairs: NoteLink[] };
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -215,6 +219,7 @@ export default function App({ session }: { session: Session | null }) {
   const [noteTypes, setNoteTypes] = useState<NoteType[]>([]);
   const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [noteLinks, setNoteLinks] = useState<NoteLink[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const initialSession = useMemo(() => loadFilterSession(), []);
   const [view, setView] = useState<NotesView>(initialSession.view);
@@ -258,20 +263,29 @@ export default function App({ session }: { session: Session | null }) {
 
 
   const refresh = useCallback(async () => {
-    const [nextNotes, nextLabels, nextTypes, nextStock, nextCart, nextReactions] =
-      await Promise.all([
-        store.listNotes(),
-        store.listLabels(),
-        store.listNoteTypes(),
-        store.listStockLocations(),
-        store.listCartItems(),
-        store.listAllReactions(),
-      ]);
+    const [
+      nextNotes,
+      nextLabels,
+      nextTypes,
+      nextStock,
+      nextCart,
+      nextLinks,
+      nextReactions,
+    ] = await Promise.all([
+      store.listNotes(),
+      store.listLabels(),
+      store.listNoteTypes(),
+      store.listStockLocations(),
+      store.listCartItems(),
+      store.listNoteLinks(),
+      store.listAllReactions(),
+    ]);
     setNotes(nextNotes);
     setLabels(nextLabels);
     setNoteTypes(nextTypes);
     setStockLocations(nextStock);
     setCartItems(nextCart);
+    setNoteLinks(nextLinks);
     setReactions(nextReactions);
   }, []);
 
@@ -423,6 +437,19 @@ export default function App({ session }: { session: Session | null }) {
   );
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
+  const activeRelatedNotes = useMemo(() => {
+    if (!activeNoteId) return [];
+    const ids = relatedIdsFromLinks(noteLinks, activeNoteId);
+    const byId = new Map(notes.map((n) => [n.id, n]));
+    return ids
+      .map((id) => byId.get(id))
+      .filter((n): n is NoteWithUrls => Boolean(n) && !n!.deletedAt)
+      .sort((a, b) =>
+        (a.title || '').localeCompare(b.title || '', undefined, {
+          sensitivity: 'base',
+        }),
+      );
+  }, [activeNoteId, noteLinks, notes]);
   const activeNavIndex = activeNoteId
     ? visibleNotes.findIndex((n) => n.id === activeNoteId)
     : -1;
@@ -667,6 +694,14 @@ export default function App({ session }: { session: Session | null }) {
       }
       setCartItems(await store.listCartItems());
       return;
+    } else if (action.kind === 'note-link') {
+      if (action.pairs.length === 0) return;
+      setNoteLinks(await store.removeNoteLinks(action.pairs));
+      return;
+    } else if (action.kind === 'note-unlink') {
+      if (action.pairs.length === 0) return;
+      setNoteLinks(await store.restoreNoteLinks(action.pairs));
+      return;
     }
     await refresh();
   }
@@ -888,6 +923,33 @@ export default function App({ session }: { session: Session | null }) {
     await store.clearCart();
     setCartItems([]);
     await replaceUndoAction({ kind: 'cart-clear', items: snapshot });
+  }
+
+  async function handleLinkNotes(noteIds: string[]) {
+    if (!canEdit) return;
+    const ids = [...new Set(noteIds)].filter(Boolean);
+    if (ids.length < 2) return;
+    const { links, created } = await store.linkNotes(ids);
+    setNoteLinks(links);
+    if (created.length === 0) {
+      setNotice('Already linked');
+      return;
+    }
+    await replaceUndoAction({ kind: 'note-link', pairs: created });
+  }
+
+  async function handleRemoveRelated(otherNoteId: string) {
+    if (!canEdit || !activeNoteId) return;
+    const before = noteLinks.find(
+      (l) =>
+        (l.noteIdA === activeNoteId && l.noteIdB === otherNoteId) ||
+        (l.noteIdB === activeNoteId && l.noteIdA === otherNoteId),
+    );
+    const links = await store.unlinkNotes(activeNoteId, otherNoteId);
+    setNoteLinks(links);
+    if (before) {
+      await replaceUndoAction({ kind: 'note-unlink', pairs: [before] });
+    }
   }
 
   async function handleUpdateNotes(
@@ -1117,7 +1179,13 @@ export default function App({ session }: { session: Session | null }) {
             }`
           : undoAction.kind === 'cart-clear'
             ? 'Cleared collection'
-            : undoAction.message;
+            : undoAction.kind === 'note-link'
+              ? undoAction.pairs.length === 1
+                ? 'Linked notes'
+                : `Linked ${undoAction.pairs.length} connections`
+              : undoAction.kind === 'note-unlink'
+                ? 'Unlinked notes'
+                : undoAction.message;
 
   const undoToastVisible =
     undoAction != null &&
@@ -1125,7 +1193,9 @@ export default function App({ session }: { session: Session | null }) {
       ? undoAction.before.length > 0
       : undoAction.kind === 'cart-clear'
         ? undoAction.items.length > 0
-        : undoAction.ids.length > 0);
+        : undoAction.kind === 'note-link' || undoAction.kind === 'note-unlink'
+          ? undoAction.pairs.length > 0
+          : undoAction.ids.length > 0);
 
   return (
     <AppShell
@@ -1266,6 +1336,7 @@ export default function App({ session }: { session: Session | null }) {
           }}
           onDeleteNotes={handleDeleteNotes}
           onAddToCart={handleAddToCart}
+          onLinkNotes={canEdit ? handleLinkNotes : undefined}
           onUpdateNotes={handleUpdateNotes}
           onApplyGuidelineBulk={handleApplyGuidelineBulk}
           onCreateLabel={canEdit ? handleCreateLabel : undefined}
@@ -1363,6 +1434,9 @@ export default function App({ session }: { session: Session | null }) {
           sorted={sortedNoteIds.has(activeNote.id)}
           onToggleSorted={() => void handleToggleSorted(activeNote.id)}
           imageBusyCount={imageBusyCount}
+          relatedNotes={activeRelatedNotes}
+          onOpenRelated={(noteId) => openNote(noteId)}
+          onRemoveRelated={canEdit ? handleRemoveRelated : undefined}
         />
       )}
     </AppShell>
