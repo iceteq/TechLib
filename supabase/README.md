@@ -8,11 +8,13 @@
 6. Run `supabase/migrations/002_note_type_parent.sql` (one-level subtypes)
 7. Run `supabase/migrations/003_note_ask_items.sql` (admin AI ask Q&A on notes)
 8. Run `supabase/migrations/004_note_links.sql` (related notes)
-9. (Recommended) **Authentication → Providers → Email**:
+9. Run `supabase/migrations/005_signup_domain_allowlist.sql` (signup limited to `@onitio.com`)
+10. (Recommended) **Authentication → Providers → Email**:
    turn **off** “Confirm email” so signup signs you in immediately
-10. Restart `npm run dev`, open the app, **Sign up once** with your email  
+11. Restart `npm run dev`, open the app, **Sign up once** with your email  
    - First account becomes **admin** of the shared library  
-   - Later accounts join as **viewers** (browse only) until an admin promotes them
+   - Later accounts join as **viewers** (browse only) until an admin promotes them  
+   - New signups must use an **`@onitio.com`** address (existing admin `anton.liampa@outlook.com` remains allowed)
 
 ### Optional: AI Ask (admin only)
 
