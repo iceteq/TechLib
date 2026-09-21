@@ -371,6 +371,41 @@
   color: var(--accent);
 }
 
+.pinBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin-right: 0.15rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, background var(--transition), color var(--transition);
+}
+
+.row:hover .pinBtn,
+.row:focus-within .pinBtn,
+.typeGroup:hover > .row .pinBtn,
+.pinBtnPinned {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pinBtnPinned {
+  color: var(--accent);
+}
+
+.pinBtn:hover,
+.pinBtn:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .createSubtype {
   padding-left: 1.35rem;
 }

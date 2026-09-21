@@ -74,6 +74,38 @@
   gap: 0.4rem;
 }
 
+.createDefaults {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.45rem;
+  margin: -0.35rem 0 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.createDefaultsLabel {
+  font-weight: 560;
+}
+
+.createDefaultChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 550;
+}
+
+.createDefaultChip:hover {
+  color: var(--text);
+  background: rgba(31, 35, 40, 0.04);
+}
+
 .chip {
   display: inline-flex;
   align-items: center;
