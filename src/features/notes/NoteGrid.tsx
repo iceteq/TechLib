@@ -7,6 +7,7 @@ import {
   ClipboardPaste,
   ImagePlus,
   Link2,
+  Pin,
   Plus,
   Layers,
   Trash2,
@@ -94,6 +95,10 @@ interface NoteGridProps {
   stockLocations: StockLocation[];
   /** noteId → quantity in collection */
   cartQuantities: Record<string, number>;
+  /** Quiet strip for pinned create defaults. */
+  createDefaultsSummary?: { type: string | null; stock: string | null };
+  onUnpinCreateType?: () => void;
+  onUnpinCreateStock?: () => void;
   /** Note ids marked ✅ sorted. */
   sortedNoteIds?: Set<string>;
   showBarcodes: boolean;
@@ -162,6 +167,9 @@ export function NoteGrid({
   search,
   stockLocations,
   cartQuantities,
+  createDefaultsSummary,
+  onUnpinCreateType,
+  onUnpinCreateStock,
   sortedNoteIds,
   showBarcodes,
   showPhotos,
@@ -565,6 +573,36 @@ export function NoteGrid({
           </p>
         </div>
       </div>
+
+      {createDefaultsSummary &&
+        (createDefaultsSummary.type || createDefaultsSummary.stock) && (
+          <div className={styles.createDefaults} aria-label="Create defaults">
+            <Pin size={13} strokeWidth={2.25} aria-hidden />
+            <span className={styles.createDefaultsLabel}>New notes</span>
+            {createDefaultsSummary.type && (
+              <button
+                type="button"
+                className={styles.createDefaultChip}
+                onClick={onUnpinCreateType}
+                title="Unpin type create default"
+              >
+                {createDefaultsSummary.type}
+                <X size={12} />
+              </button>
+            )}
+            {createDefaultsSummary.stock && (
+              <button
+                type="button"
+                className={styles.createDefaultChip}
+                onClick={onUnpinCreateStock}
+                title="Unpin stock create default"
+              >
+                {createDefaultsSummary.stock}
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        )}
 
       {view === 'notes' && hasFilters && (
         <div className={styles.chips} aria-label="Active filters">

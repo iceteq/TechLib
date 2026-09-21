@@ -7,6 +7,7 @@ import {
   Lightbulb,
   LogOut,
   Users,
+  Pin,
   Package,
   Minus,
   Plus,
@@ -65,6 +66,11 @@ interface SidebarProps {
   activeCategoryId: string | null;
   activeStockId: string | null;
   collectionCount: number;
+  /** Create-default pins (independent of browse selection). */
+  defaultCategoryId?: string | null;
+  defaultStockId?: string | null;
+  onPinCategory?: (categoryId: string | null) => void;
+  onPinStock?: (stockId: string | null) => void;
   onSelectNotes: () => void;
   onSelectArchive: () => void;
   onSelectCollection: () => void;
@@ -88,7 +94,7 @@ function noteWord(count: number): string {
   return count === 1 ? 'note' : 'notes';
 }
 
-function confirmDelete(
+  function confirmDelete(
   kind: 'label' | 'type' | 'stock location',
   name: string,
   noteCount: number,
@@ -100,6 +106,40 @@ function confirmDelete(
         ? `It will be removed from ${noteCount} ${noteWord(noteCount)}.`
         : `It will be cleared from ${noteCount} ${noteWord(noteCount)}.`;
   return window.confirm(`Delete ${kind} "${name}"?\n\n${effect}`);
+}
+
+function CreateDefaultPin({
+  pinned,
+  label,
+  onToggle,
+}: {
+  pinned: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`${styles.pinBtn} ${pinned ? styles.pinBtnPinned : ''}`}
+      aria-label={
+        pinned
+          ? `Unpin ${label} as create default`
+          : `Pin ${label} as create default for new notes`
+      }
+      aria-pressed={pinned}
+      title={
+        pinned
+          ? `Create default · ${label} (click to unpin)`
+          : `Use as create default for new notes`
+      }
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+    >
+      <Pin size={13} strokeWidth={2.25} fill={pinned ? 'currentColor' : 'none'} />
+    </button>
+  );
 }
 
 export function Sidebar({
@@ -120,6 +160,10 @@ export function Sidebar({
   activeCategoryId,
   activeStockId,
   collectionCount,
+  defaultCategoryId = null,
+  defaultStockId = null,
+  onPinCategory,
+  onPinStock,
   onSelectNotes,
   onSelectArchive,
   onSelectCollection,
@@ -621,6 +665,7 @@ export function Sidebar({
             const colors = typeColorVars(type.color);
             const active =
               view === 'notes' && activeCategoryId === type.id;
+            const pinned = defaultCategoryId === type.id;
             const subtypes = childNoteTypes(noteTypes, type.id);
             const count = rolledTypeCount(type.id, typeCounts, noteTypes);
             return (
@@ -648,6 +693,15 @@ export function Sidebar({
                       <span className={styles.itemCount}>{count}</span>
                     )}
                   </button>
+                  {onPinCategory && (
+                    <CreateDefaultPin
+                      pinned={pinned}
+                      label={type.name}
+                      onToggle={() =>
+                        onPinCategory(pinned ? null : type.id)
+                      }
+                    />
+                  )}
                   {canEdit && !editingSection && (
                     <button
                       type="button"
@@ -726,6 +780,7 @@ export function Sidebar({
                     {subtypes.map((subtype) => {
                       const subActive =
                         view === 'notes' && activeCategoryId === subtype.id;
+                      const subPinned = defaultCategoryId === subtype.id;
                       return (
                         <li
                           key={subtype.id}
@@ -752,6 +807,15 @@ export function Sidebar({
                               </span>
                             )}
                           </button>
+                          {onPinCategory && (
+                            <CreateDefaultPin
+                              pinned={subPinned}
+                              label={subtype.name}
+                              onToggle={() =>
+                                onPinCategory(subPinned ? null : subtype.id)
+                              }
+                            />
+                          )}
                           {editingSection === 'type' && (
                             <button
                               type="button"
@@ -851,6 +915,7 @@ export function Sidebar({
           </li>
           {stockLocations.map((stock) => {
             const active = view === 'notes' && activeStockId === stock.id;
+            const pinned = defaultStockId === stock.id;
             return (
               <li
                 key={stock.id}
@@ -875,6 +940,13 @@ export function Sidebar({
                     </span>
                   )}
                 </button>
+                {onPinStock && (
+                  <CreateDefaultPin
+                    pinned={pinned}
+                    label={stock.name}
+                    onToggle={() => onPinStock(pinned ? null : stock.id)}
+                  />
+                )}
               </li>
             );
           })}

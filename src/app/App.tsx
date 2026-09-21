@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadViewPrefs, saveViewPrefs } from '../lib/viewPrefs';
 import {
+  loadCreateDefaults,
+  saveCreateDefaults,
+  type CreateDefaults,
+} from '../lib/createDefaults';
+import {
   loadFilterSession,
   saveFilterSession,
 } from '../lib/filterSession';
@@ -27,8 +32,6 @@ import type {
 } from '../lib/types';
 import {
   DISPOSITIONS,
-  UNSET_STOCK_FILTER,
-  UNSET_TYPE_FILTER,
 } from '../lib/types';
 import {
   categoryLabel,
@@ -104,9 +107,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return Boolean(target.closest('[contenteditable="true"]'));
 }
 
-/** Inherit active sidebar filters; otherwise preset No type / No guideline / No stock. */
-function createMetaFromFilters(options: {
-  disposition: NoteDisposition | null;
+/** Create meta from sticky pins only — browse filters do not inherit. */
+function createMetaFromDefaults(defaults: {
   categoryId: string | null;
   stockId: string | null;
 }): {
@@ -115,15 +117,9 @@ function createMetaFromFilters(options: {
   stockId: string | null;
 } {
   return {
-    disposition: options.disposition ?? 'none',
-    categoryId:
-      !options.categoryId || options.categoryId === UNSET_TYPE_FILTER
-        ? null
-        : options.categoryId,
-    stockId:
-      !options.stockId || options.stockId === UNSET_STOCK_FILTER
-        ? null
-        : options.stockId,
+    disposition: 'none',
+    categoryId: defaults.categoryId,
+    stockId: defaults.stockId,
   };
 }
 
@@ -248,12 +244,18 @@ export default function App({ session }: { session: Session | null }) {
   const [imageBusyCount, setImageBusyCount] = useState(0);
   const [ready, setReady] = useState(false);
   const [viewPrefs, setViewPrefs] = useState(loadViewPrefs);
+  const [createDefaults, setCreateDefaults] = useState(loadCreateDefaults);
   const [openedAtById, setOpenedAtById] = useState(loadRecentOpens);
   const [notice, setNotice] = useState<string | null>(null);
 
   function updateViewPrefs(next: typeof viewPrefs) {
     setViewPrefs(next);
     saveViewPrefs(next);
+  }
+
+  function updateCreateDefaults(next: CreateDefaults) {
+    setCreateDefaults(next);
+    saveCreateDefaults(next);
   }
 
   function openNote(noteId: string) {
@@ -479,29 +481,54 @@ export default function App({ session }: { session: Session | null }) {
 
   const pasteFilterSummary = useMemo(() => {
     const parts: string[] = [];
-    const status = dispositionLabel(filterDisposition);
-    const type = categoryLabel(filterCategoryId, noteTypes);
-    const stock = stockLabel(filterStockId, stockLocations);
-    const labelNames = labels
-      .filter((l) => filterLabelIds.includes(l.id))
-      .sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-      )
-      .map((l) => `#${l.name}`);
-    if (status) parts.push(status);
+    const type = categoryLabel(createDefaults.categoryId, noteTypes);
+    const stock = stockLabel(createDefaults.stockId, stockLocations);
     if (type) parts.push(type);
     if (stock) parts.push(stock);
-    parts.push(...labelNames);
-    return parts.length > 0 ? parts.join(' · ') : 'No filters';
+    return parts.length > 0
+      ? `New notes → ${parts.join(' · ')}`
+      : 'No create defaults';
   }, [
-    filterDisposition,
-    filterCategoryId,
-    filterStockId,
-    filterLabelIds,
-    labels,
+    createDefaults.categoryId,
+    createDefaults.stockId,
     noteTypes,
     stockLocations,
   ]);
+
+  const createDefaultsSummary = useMemo(() => {
+    const type = categoryLabel(createDefaults.categoryId, noteTypes);
+    const stock = stockLabel(createDefaults.stockId, stockLocations);
+    return { type, stock };
+  }, [
+    createDefaults.categoryId,
+    createDefaults.stockId,
+    noteTypes,
+    stockLocations,
+  ]);
+
+  useEffect(() => {
+    let next = createDefaults;
+    let changed = false;
+    if (
+      next.categoryId &&
+      noteTypes.length > 0 &&
+      !noteTypes.some((t) => t.id === next.categoryId)
+    ) {
+      next = { ...next, categoryId: null };
+      changed = true;
+    }
+    if (
+      next.stockId &&
+      stockLocations.length > 0 &&
+      !stockLocations.some((s) => s.id === next.stockId)
+    ) {
+      next = { ...next, stockId: null };
+      changed = true;
+    }
+    if (changed) updateCreateDefaults(next);
+    // Only re-validate when catalogs change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteTypes, stockLocations]);
 
   useEffect(() => {
     const type = categoryLabel(filterCategoryId, noteTypes);
@@ -596,12 +623,8 @@ export default function App({ session }: { session: Session | null }) {
   async function handleCreateNote() {
     if (!canEdit) return;
     const note = await store.createNote({
-      ...createMetaFromFilters({
-        disposition: filterDisposition,
-        categoryId: filterCategoryId,
-        stockId: filterStockId,
-      }),
-      labelIds: filterLabelIds,
+      ...createMetaFromDefaults(createDefaults),
+      labelIds: [],
     });
     await refresh();
     setView('notes');
@@ -613,11 +636,7 @@ export default function App({ session }: { session: Session | null }) {
     if (!canEdit) return;
     if (drafts.length === 0) return;
     const createdIds: string[] = [];
-    const meta = createMetaFromFilters({
-      disposition: filterDisposition,
-      categoryId: filterCategoryId,
-      stockId: filterStockId,
-    });
+    const meta = createMetaFromDefaults(createDefaults);
     try {
       for (const draft of drafts) {
         const note = await store.createNote({
@@ -625,7 +644,7 @@ export default function App({ session }: { session: Session | null }) {
           description: draft.description,
           specialCase: draft.specialCase,
           ...meta,
-          labelIds: filterLabelIds,
+          labelIds: [],
         });
         createdIds.push(note.id);
       }
@@ -826,12 +845,8 @@ export default function App({ session }: { session: Session | null }) {
     try {
       // Create + open first (no wall "Adding…" wait). Upload afterward.
       const note = await store.createNote({
-        ...createMetaFromFilters({
-          disposition: filterDisposition,
-          categoryId: filterCategoryId,
-          stockId: filterStockId,
-        }),
-        labelIds: filterLabelIds,
+        ...createMetaFromDefaults(createDefaults),
+        labelIds: [],
       });
       setNotes((prev) =>
         prev.some((n) => n.id === note.id) ? prev : [note, ...prev],
@@ -1131,6 +1146,12 @@ export default function App({ session }: { session: Session | null }) {
     setFilterCategoryId((current) =>
       current && removeIds.has(current) ? null : current,
     );
+    if (
+      createDefaults.categoryId &&
+      removeIds.has(createDefaults.categoryId)
+    ) {
+      updateCreateDefaults({ ...createDefaults, categoryId: null });
+    }
     await refresh();
   }
 
@@ -1224,6 +1245,20 @@ export default function App({ session }: { session: Session | null }) {
           activeCategoryId={filterCategoryId}
           activeStockId={filterStockId}
           collectionCount={cartUnitCount}
+          defaultCategoryId={createDefaults.categoryId}
+          defaultStockId={createDefaults.stockId}
+          onPinCategory={
+            canEdit
+              ? (categoryId) =>
+                  updateCreateDefaults({ ...createDefaults, categoryId })
+              : undefined
+          }
+          onPinStock={
+            canEdit
+              ? (stockId) =>
+                  updateCreateDefaults({ ...createDefaults, stockId })
+              : undefined
+          }
           onSelectNotes={() => {
             setView('notes');
             clearAllFilters();
@@ -1318,6 +1353,24 @@ export default function App({ session }: { session: Session | null }) {
           search={search}
           stockLocations={stockLocations}
           cartQuantities={cartQuantities}
+          createDefaultsSummary={
+            canEdit && view === 'notes' ? createDefaultsSummary : undefined
+          }
+          onUnpinCreateType={
+            canEdit
+              ? () =>
+                  updateCreateDefaults({
+                    ...createDefaults,
+                    categoryId: null,
+                  })
+              : undefined
+          }
+          onUnpinCreateStock={
+            canEdit
+              ? () =>
+                  updateCreateDefaults({ ...createDefaults, stockId: null })
+              : undefined
+          }
           sortedNoteIds={sortedNoteIds}
           showBarcodes={viewPrefs.barcodes}
           showPhotos={viewPrefs.photos}
