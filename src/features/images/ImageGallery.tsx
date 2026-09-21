@@ -106,11 +106,13 @@ export function ImageGallery({ images, onRemove, onReorder }: ImageGalleryProps)
         setLightboxIndex(null);
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
+        e.stopImmediatePropagation();
         setLightboxIndex((i) =>
           i === null ? i : (i + 1) % images.length,
         );
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
+        e.stopImmediatePropagation();
         setLightboxIndex((i) =>
           i === null ? i : (i - 1 + images.length) % images.length,
         );
