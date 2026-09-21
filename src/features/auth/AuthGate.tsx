@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import {
+  isSignupEmailAllowed,
+  SIGNUP_EMAIL_DENIED_MESSAGE,
+} from '../../lib/allowedSignupEmail';
 import { getSupabase, isCloudConfigured } from '../../lib/supabaseClient';
 import styles from './AuthGate.module.css';
 
@@ -41,16 +45,20 @@ export function AuthGate({ children }: AuthGateProps) {
     setError(null);
     setSignupHint(false);
     const supabase = getSupabase();
+    const trimmedEmail = email.trim();
     try {
       if (mode === 'signin') {
         const { error: signError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: trimmedEmail,
           password,
         });
         if (signError) throw signError;
       } else {
+        if (!isSignupEmailAllowed(trimmedEmail)) {
+          throw new Error(SIGNUP_EMAIL_DENIED_MESSAGE);
+        }
         const { data, error: signError } = await supabase.auth.signUp({
-          email: email.trim(),
+          email: trimmedEmail,
           password,
         });
         if (signError) throw signError;
@@ -59,7 +67,11 @@ export function AuthGate({ children }: AuthGateProps) {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication failed');
+      const message =
+        err instanceof Error ? err.message : 'Authentication failed';
+      setError(
+        /onitio\.com/i.test(message) ? SIGNUP_EMAIL_DENIED_MESSAGE : message,
+      );
     } finally {
       setBusy(false);
     }
@@ -82,8 +94,8 @@ export function AuthGate({ children }: AuthGateProps) {
             <h1 className={styles.title}>TechLib</h1>
           </div>
           <p className={styles.muted}>
-            Sign in to browse the shared TechLib library. New accounts can view;
-            an admin can grant edit access.
+            Sign in to browse the shared TechLib library. New accounts need an{' '}
+            <strong>@onitio.com</strong> email; an admin can grant edit access.
           </p>
           <label className={styles.field}>
             <span>Email</span>
