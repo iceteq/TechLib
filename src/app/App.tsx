@@ -1187,6 +1187,26 @@ export default function App({ session }: { session: Session | null }) {
     canEdit,
   ]);
 
+  // B toggles barcode visibility on cards / editor / collection (View options).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key.toLowerCase() !== 'b') return;
+      if (isEditableTarget(e.target)) return;
+
+      e.preventDefault();
+      setViewPrefs((prev) => {
+        const next = { ...prev, barcodes: !prev.barcodes };
+        saveViewPrefs(next);
+        return next;
+      });
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const undoMessage =
     undoAction == null
       ? ''

@@ -3,8 +3,12 @@ import { SlidersHorizontal } from 'lucide-react';
 import type { ViewPrefs, WallSort } from '../../lib/viewPrefs';
 import styles from './ViewOptionsMenu.module.css';
 
-const SHOW_OPTIONS: { key: Exclude<keyof ViewPrefs, 'sort'>; label: string }[] = [
-  { key: 'barcodes', label: 'Barcodes' },
+const SHOW_OPTIONS: {
+  key: Exclude<keyof ViewPrefs, 'sort'>;
+  label: string;
+  shortcut?: string;
+}[] = [
+  { key: 'barcodes', label: 'Barcodes', shortcut: 'B' },
   { key: 'photos', label: 'Photos' },
   { key: 'description', label: 'Description' },
   { key: 'specialCase', label: 'Special note' },
@@ -101,7 +105,14 @@ export function ViewOptionsMenu({ prefs, onChange }: ViewOptionsMenuProps) {
                 checked={Boolean(prefs[option.key])}
                 onChange={() => toggle(option.key)}
               />
-              <span>{option.label}</span>
+              <span className={styles.itemLabel}>
+                <span>{option.label}</span>
+                {option.shortcut && (
+                  <kbd className={styles.shortcut} aria-label={`Shortcut ${option.shortcut}`}>
+                    {option.shortcut}
+                  </kbd>
+                )}
+              </span>
             </label>
           ))}
         </div>
