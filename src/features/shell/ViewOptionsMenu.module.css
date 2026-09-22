@@ -27,7 +27,7 @@
   top: calc(100% + 0.4rem);
   right: 0;
   z-index: 40;
-  min-width: 11.5rem;
+  min-width: 12.5rem;
   padding: 0.55rem 0.35rem;
   border: 1px solid var(--border);
   border-radius: 12px;
