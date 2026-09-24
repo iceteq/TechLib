@@ -1649,6 +1649,7 @@ export default function App({ session }: { session: Session | null }) {
           showLabels={viewPrefs.labels}
           showAge={viewPrefs.age}
           showTypeChip={viewPrefs.typeChip}
+          groupBy={viewPrefs.groupBy}
           onOpenNote={openNote}
           onCreateNote={canEdit ? () => void handleCreateNote() : undefined}
           onPasteNotes={canEdit ? () => setPasteOpen(true) : undefined}

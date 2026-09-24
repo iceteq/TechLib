@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
-import type { ViewPrefs, WallSort } from '../../lib/viewPrefs';
+import type { ViewPrefs, WallGroupBy, WallSort } from '../../lib/viewPrefs';
 import styles from './ViewOptionsMenu.module.css';
 
 const SHOW_OPTIONS: {
-  key: Exclude<keyof ViewPrefs, 'sort'>;
+  key: Exclude<keyof ViewPrefs, 'sort' | 'groupBy'>;
   label: string;
   shortcut?: string;
 }[] = [
@@ -24,6 +24,12 @@ const SORT_OPTIONS: { value: WallSort; label: string; hint: string }[] = [
     label: 'Recently useful',
     hint: 'Opened or edited',
   },
+];
+
+const GROUP_OPTIONS: { value: WallGroupBy; label: string; hint: string }[] = [
+  { value: 'none', label: 'None', hint: 'Flat wall' },
+  { value: 'type', label: 'Type', hint: 'Cluster by product type' },
+  { value: 'stock', label: 'Stock', hint: 'Cluster by location' },
 ];
 
 interface ViewOptionsMenuProps {
@@ -62,6 +68,11 @@ export function ViewOptionsMenu({ prefs, onChange }: ViewOptionsMenuProps) {
     onChange({ ...prefs, sort });
   }
 
+  function setGroupBy(groupBy: WallGroupBy) {
+    if (prefs.groupBy === groupBy) return;
+    onChange({ ...prefs, groupBy });
+  }
+
   return (
     <div className={styles.wrap} ref={wrapRef}>
       <button
@@ -89,6 +100,26 @@ export function ViewOptionsMenu({ prefs, onChange }: ViewOptionsMenuProps) {
                   aria-checked={selected}
                   className={`${styles.sortItem} ${selected ? styles.sortItemActive : ''}`}
                   onClick={() => setSort(option.value)}
+                >
+                  <span className={styles.sortLabel}>{option.label}</span>
+                  <span className={styles.sortHint}>{option.hint}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className={styles.menuTitle}>Group by</p>
+          <div className={styles.sortGroup} role="group" aria-label="Wall group by">
+            {GROUP_OPTIONS.map((option) => {
+              const selected = prefs.groupBy === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={selected}
+                  className={`${styles.sortItem} ${selected ? styles.sortItemActive : ''}`}
+                  onClick={() => setGroupBy(option.value)}
                 >
                   <span className={styles.sortLabel}>{option.label}</span>
                   <span className={styles.sortHint}>{option.hint}</span>

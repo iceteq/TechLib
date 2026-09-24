@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   ArchiveRestore,
@@ -24,6 +24,8 @@ import type {
 import { categoryLabel, dispositionLabel, stockLabel } from '../../lib/searchNotes';
 import { childNoteTypes, rootNoteTypes } from '../../lib/noteTypes';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
+import { groupWallNotes } from '../../lib/groupWallNotes';
+import type { WallGroupBy } from '../../lib/viewPrefs';
 import { NoteCard } from './NoteCard';
 import {
   BulkGuidelineDialog,
@@ -108,6 +110,8 @@ interface NoteGridProps {
   showLabels: boolean;
   showAge: boolean;
   showTypeChip: boolean;
+  /** Wall clustering; forced flat while search is active. */
+  groupBy?: WallGroupBy;
   onOpenNote: (noteId: string) => void;
   /** When false, hide create/select/assign flows (viewers). */
   canEdit?: boolean;
@@ -185,6 +189,7 @@ export function NoteGrid({
   showLabels,
   showAge,
   showTypeChip,
+  groupBy = 'none',
   onOpenNote,
   canEdit = true,
   onCreateNote,
@@ -555,6 +560,16 @@ export function NoteGrid({
     emptyText = 'Clear filters to see more notes, or adjust search.';
   }
 
+  // Search stays flat; grouping is for browse structure only.
+  const effectiveGroupBy: WallGroupBy =
+    search.trim() || view === 'archive' ? 'none' : groupBy;
+  const wallGroups = useMemo(
+    () =>
+      groupWallNotes(notes, effectiveGroupBy, noteTypes, stockLocations),
+    [notes, effectiveGroupBy, noteTypes, stockLocations],
+  );
+  const showGroupHeaders = effectiveGroupBy !== 'none';
+
   return (
     <section
       className={`${styles.section} ${
@@ -738,6 +753,98 @@ export function NoteGrid({
               Browse notes
             </button>
           )}
+        </div>
+      ) : showGroupHeaders ? (
+        <div className={styles.groups}>
+          {wallGroups.map((group) => (
+            <section
+              key={group.id}
+              className={styles.group}
+              aria-labelledby={`wall-group-${group.id}`}
+            >
+              <header className={styles.groupHeader}>
+                <h3
+                  id={`wall-group-${group.id}`}
+                  className={styles.groupTitle}
+                >
+                  {group.label}
+                </h3>
+                <span className={styles.groupCount}>{group.notes.length}</span>
+              </header>
+              <div className={styles.grid}>
+                {group.notes.map((note) => (
+                  <NoteCard
+                    key={note.id}
+                    note={note}
+                    labels={labels}
+                    noteTypes={noteTypes}
+                    stockLocations={stockLocations}
+                    selecting={canEdit && selecting}
+                    selected={canEdit && selectedIds.has(note.id)}
+                    cartQuantity={cartQuantities[note.id] ?? 0}
+                    sorted={sortedSet.has(note.id)}
+                    showBarcodes={showBarcodes}
+                    showPhotos={showPhotos}
+                    showDescription={showDescription}
+                    showSpecialCase={showSpecialCase}
+                    showLabels={showLabels}
+                    showAge={showAge}
+                    showTypeChip={showTypeChip}
+                    onOpen={onOpenNote}
+                    onToggleSelect={canEdit ? toggleSelect : () => {}}
+                    onEnterSelect={canEdit ? enterSelect : () => {}}
+                    onRangeSelect={canEdit ? rangeSelect : () => {}}
+                    onAssignDisposition={
+                      canEdit
+                        ? (noteId, value) =>
+                            void onUpdateNotes([noteId], {
+                              disposition: value,
+                            })
+                        : undefined
+                    }
+                    onAssignGuidelineLines={
+                      canEdit
+                        ? (noteId, lines) =>
+                            void onUpdateNotes([noteId], {
+                              guidelineLines: lines,
+                            })
+                        : undefined
+                    }
+                    onAssignCategory={
+                      canEdit
+                        ? (noteId, value) =>
+                            void onUpdateNotes([noteId], {
+                              categoryId: value,
+                            })
+                        : undefined
+                    }
+                    onAssignStock={
+                      canEdit
+                        ? (noteId, value) =>
+                            void onUpdateNotes([noteId], { stockId: value })
+                        : undefined
+                    }
+                    onAssignLabels={
+                      canEdit
+                        ? (noteId, labelIds) =>
+                            void onUpdateNotes([noteId], { labelIds })
+                        : undefined
+                    }
+                    onCreateLabel={canEdit ? onCreateLabel : undefined}
+                    dragNoteIds={
+                      selectedIds.has(note.id) ? [...selectedIds] : undefined
+                    }
+                    onNotesDragStart={onNotesDragStart}
+                    pulse={pulseNoteIds.includes(note.id)}
+                    onPulseEnd={onPulseEnd}
+                    searchQuery={search}
+                    relatedCount={relatedCountByNoteId[note.id] ?? 0}
+                    onShowRelated={onShowRelated}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       ) : (
         <div className={styles.grid}>
