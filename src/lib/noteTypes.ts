@@ -209,49 +209,6 @@ export function guessIconFromName(name: string): NoteTypeIcon {
   return 'package';
 }
 
-/**
- * Suggest a type from title/description text.
- * Prefers matching an existing type by keywords or name; never invents one.
- */
-export function suggestNoteType(
-  types: NoteType[],
-  title: string,
-  description = '',
-): NoteType | null {
-  if (types.length === 0) return null;
-  const haystack = `${title}\n${description}`.toLowerCase();
-  if (!haystack.trim()) return null;
-
-  // Score default keyword packs against current types (by id or name).
-  let best: { type: NoteType; score: number } | null = null;
-
-  for (const type of types) {
-    let score = 0;
-    const name = type.name.toLowerCase();
-    if (name.length >= 3 && haystack.includes(name)) score += 3;
-
-    const keywords =
-      TYPE_KEYWORDS[type.id] ??
-      TYPE_KEYWORDS[type.icon] ??
-      (name ? [name] : []);
-
-    for (const keyword of keywords) {
-      if (keyword.length >= 2 && haystack.includes(keyword)) {
-        score += keyword.length >= 5 ? 2 : 1;
-      }
-    }
-
-    // Prefer a matching subtype over its parent when scores are close.
-    if (type.parentId) score += 0.5;
-
-    if (score > 0 && (!best || score > best.score)) {
-      best = { type, score };
-    }
-  }
-
-  return best?.type ?? null;
-}
-
 export function typeColorVars(color: NoteTypeColor): {
   bg: string;
   fg: string;

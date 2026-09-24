@@ -6,7 +6,6 @@ interface TypeChipProps {
   type: NoteType;
   className?: string;
   showLabel?: boolean;
-  suggested?: boolean;
   /** Override visible label (e.g. “Cables · Adapter”). */
   label?: string;
   /** Neutral gray chip — for browse cards so Guideline color wins. */
@@ -18,7 +17,6 @@ export function TypeChip({
   type,
   className = '',
   showLabel = true,
-  suggested = false,
   label,
   muted = false,
   onClick,
@@ -26,9 +24,7 @@ export function TypeChip({
   const Icon = noteTypeIcon(type.icon);
   const colors = typeColorVars(type.color);
   const displayName = label ?? type.name;
-  const classNames = `${styles.chip} ${suggested ? styles.suggested : ''} ${
-    muted ? styles.muted : ''
-  } ${className}`;
+  const classNames = `${styles.chip} ${muted ? styles.muted : ''} ${className}`;
   const style = muted
     ? undefined
     : {
@@ -49,7 +45,7 @@ export function TypeChip({
         type="button"
         className={classNames}
         style={style}
-        title={suggested ? `Set type to ${displayName}` : displayName}
+        title={displayName}
         onClick={(e) => {
           e.stopPropagation();
           onClick();

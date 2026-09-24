@@ -856,26 +856,72 @@ export default function App({ session }: { session: Session | null }) {
         ? [{ id: current.id, patch: snapshotNotePatch(current, undoPatch) }]
         : [];
 
-    const updated = await store.updateNote(activeNoteId, patch);
-    if (!updated) return;
-    setNotes((prev) => {
-      const next = prev.map((n) => (n.id === updated.id ? updated : n));
-      return [...next].sort((a, b) => {
-        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-        return b.updatedAt - a.updatedAt;
+    const optimisticMeta =
+      current && ('categoryId' in patch || 'stockId' in patch);
+    if (optimisticMeta) {
+      setNotes((prev) => {
+        const next = prev.map((n) =>
+          n.id === activeNoteId
+            ? {
+                ...n,
+                ...('categoryId' in patch
+                  ? { categoryId: patch.categoryId ?? null }
+                  : {}),
+                ...('stockId' in patch
+                  ? { stockId: patch.stockId ?? null }
+                  : {}),
+                updatedAt: Date.now(),
+              }
+            : n,
+        );
+        return [...next].sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return b.updatedAt - a.updatedAt;
+        });
       });
-    });
-    if (patch.labelIds) {
-      setLabels(await store.listLabels());
     }
-    if (before.length > 0) {
-      let message = 'Updated note';
-      if (patch.archived !== undefined) {
-        message = patch.archived ? 'Archived note' : 'Unarchived note';
-      } else if (patch.labelIds !== undefined) {
-        message = 'Updated labels';
+
+    try {
+      const updated = await store.updateNote(activeNoteId, patch);
+      if (!updated) {
+        if (optimisticMeta && current) {
+          setNotes((prev) =>
+            prev.map((n) => (n.id === current.id ? current : n)),
+          );
+          setNotice('Could not update type');
+        }
+        return;
       }
-      await replaceUndoAction({ kind: 'patch', message, before });
+      setNotes((prev) => {
+        const next = prev.map((n) => (n.id === updated.id ? updated : n));
+        return [...next].sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return b.updatedAt - a.updatedAt;
+        });
+      });
+      if (patch.labelIds) {
+        setLabels(await store.listLabels());
+      }
+      if (before.length > 0) {
+        let message = 'Updated note';
+        if (patch.archived !== undefined) {
+          message = patch.archived ? 'Archived note' : 'Unarchived note';
+        } else if (patch.labelIds !== undefined) {
+          message = 'Updated labels';
+        }
+        await replaceUndoAction({ kind: 'patch', message, before });
+      }
+    } catch {
+      if (optimisticMeta && current) {
+        setNotes((prev) =>
+          prev.map((n) => (n.id === current.id ? current : n)),
+        );
+        setNotice(
+          'categoryId' in patch
+            ? 'Could not update type'
+            : 'Could not save changes',
+        );
+      }
     }
   }
 
@@ -1038,24 +1084,79 @@ export default function App({ session }: { session: Session | null }) {
     if (ids.length === 0) return;
 
     const before: Array<{ id: string; patch: NoteFieldPatch }> = [];
+    const previousById = new Map<string, NoteWithUrls>();
     for (const id of ids) {
       const note = notes.find((n) => n.id === id);
       if (!note) continue;
       before.push({ id, patch: snapshotNotePatch(note, patch) });
+      previousById.set(id, note);
     }
     if (before.length === 0) return;
 
-    for (const id of ids) {
-      await store.updateNote(id, patch);
+    const optimisticTypeOrStock =
+      'categoryId' in patch || 'stockId' in patch;
+    if (optimisticTypeOrStock) {
+      setNotes((prev) => {
+        const next = prev.map((n) => {
+          if (!previousById.has(n.id)) return n;
+          return {
+            ...n,
+            ...('categoryId' in patch
+              ? { categoryId: patch.categoryId ?? null }
+              : {}),
+            ...('stockId' in patch ? { stockId: patch.stockId ?? null } : {}),
+            updatedAt: Date.now(),
+          };
+        });
+        return [...next].sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return b.updatedAt - a.updatedAt;
+        });
+      });
     }
-    await refresh();
-    await replaceUndoAction({
-      kind: 'patch',
-      message:
-        options?.message ??
-        describeBulkPatch(before.length, patch, noteTypes, stockLocations),
-      before,
-    });
+
+    try {
+      for (const id of ids) {
+        const updated = await store.updateNote(id, patch);
+        if (updated && optimisticTypeOrStock) {
+          setNotes((prev) => {
+            const next = prev.map((n) => (n.id === updated.id ? updated : n));
+            return [...next].sort((a, b) => {
+              if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+              return b.updatedAt - a.updatedAt;
+            });
+          });
+        }
+      }
+      if (!optimisticTypeOrStock) {
+        await refresh();
+      }
+      await replaceUndoAction({
+        kind: 'patch',
+        message:
+          options?.message ??
+          describeBulkPatch(before.length, patch, noteTypes, stockLocations),
+        before,
+      });
+    } catch {
+      if (optimisticTypeOrStock) {
+        setNotes((prev) => {
+          const next = prev.map((n) => previousById.get(n.id) ?? n);
+          return [...next].sort((a, b) => {
+            if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+            return b.updatedAt - a.updatedAt;
+          });
+        });
+        setNotice(
+          'categoryId' in patch
+            ? 'Could not update type'
+            : 'Could not save changes',
+        );
+        return;
+      }
+      await refresh();
+      setNotice('Could not save changes');
+    }
   }
 
   async function handleApplyGuidelineBulk(
