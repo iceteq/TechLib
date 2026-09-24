@@ -662,7 +662,43 @@ export default function App({ session }: { session: Session | null }) {
     setWallPulseNoteIds((prev) => prev.filter((id) => id !== noteId));
   }
 
-  async function handleCloseEditor() {
+  async function handleCloseEditor(draft?: {
+    title: string;
+    description: string;
+    specialCase: string;
+  }) {
+    // Merge editor draft into the active note for blank detection + wall UI
+    // before background persist finishes (Done no longer awaits save).
+    if (canEdit && activeNote && draft) {
+      const merged: NoteWithUrls = {
+        ...activeNote,
+        title: draft.title,
+        description: draft.description,
+        specialCase: draft.specialCase,
+        updatedAt: Date.now(),
+      };
+      setNotes((prev) => {
+        const next = prev.map((n) => (n.id === merged.id ? merged : n));
+        return [...next].sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return b.updatedAt - a.updatedAt;
+        });
+      });
+
+      if (isBlankNote(merged) && imageBusyCount === 0) {
+        pendingWallPulseIds.current.delete(activeNote.id);
+        await store.deleteNote(activeNote.id);
+        setActiveNoteId(null);
+        setNotes((prev) => prev.filter((n) => n.id !== activeNote.id));
+        setNotice('Empty note removed');
+        return;
+      }
+
+      setActiveNoteId(null);
+      flushWallPulses();
+      return;
+    }
+
     // Don't junk a brand-new photo note while images are still uploading.
     if (
       canEdit &&
@@ -1649,6 +1685,7 @@ export default function App({ session }: { session: Session | null }) {
           showLabels={viewPrefs.labels}
           showAge={viewPrefs.age}
           showTypeChip={viewPrefs.typeChip}
+          groupBy={viewPrefs.groupBy}
           onOpenNote={openNote}
           onCreateNote={canEdit ? () => void handleCreateNote() : undefined}
           onPasteNotes={canEdit ? () => setPasteOpen(true) : undefined}
@@ -1753,7 +1790,7 @@ export default function App({ session }: { session: Session | null }) {
           navTotal={visibleNotes.length}
           onNavigatePrev={handleNavigatePrev}
           onNavigateNext={handleNavigateNext}
-          onClose={() => void handleCloseEditor()}
+          onClose={(draft) => void handleCloseEditor(draft)}
           onSaveMeta={handleSaveMeta}
           onAddImages={handleAddImages}
           onRemoveImage={handleRemoveImage}

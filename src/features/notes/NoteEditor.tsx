@@ -71,7 +71,11 @@ interface NoteEditorProps {
   navTotal?: number;
   onNavigatePrev?: () => void;
   onNavigateNext?: () => void;
-  onClose: () => void;
+  onClose: (draft?: {
+    title: string;
+    description: string;
+    specialCase: string;
+  }) => void;
   onSaveMeta: (patch: {
     title?: string;
     description?: string;
@@ -565,12 +569,13 @@ export function NoteEditor({
   }
 
   function finish(options?: { fromBack?: boolean }) {
-    // Persist in the background so Done / Back feels instant.
+    // Persist in the background so Done / Back feels instant. Pass local draft
+    // so close does not treat a typed-but-unsaved title as an empty note.
     void persistAll();
     if (!options?.fromBack) {
       releaseHistoryTrap();
     }
-    onClose();
+    onClose({ title, description, specialCase });
   }
 
   function goPrev() {

@@ -1,6 +1,9 @@
 /** Wall card ordering in browse (search still ranks by relevance). */
 export type WallSort = 'default' | 'recent';
 
+/** How to cluster the wall when not searching. */
+export type WallGroupBy = 'none' | 'type' | 'stock';
+
 export type ViewPrefs = {
   barcodes: boolean;
   photos: boolean;
@@ -15,6 +18,8 @@ export type ViewPrefs = {
    * recent = recently useful (opened or edited).
    */
   sort: WallSort;
+  /** Cluster wall cards; ignored while search is active. */
+  groupBy: WallGroupBy;
 };
 
 export const DEFAULT_VIEW_PREFS: ViewPrefs = {
@@ -26,12 +31,18 @@ export const DEFAULT_VIEW_PREFS: ViewPrefs = {
   age: false,
   typeChip: true,
   sort: 'default',
+  groupBy: 'none',
 };
 
 export const VIEW_PREFS_STORAGE_KEY = 'techlib.viewPrefs';
 
 /** Legacy key from the earlier barcode-only toggle. */
 const LEGACY_BARCODES_KEY = 'techlib.showBarcodes';
+
+function parseGroupBy(value: unknown): WallGroupBy {
+  if (value === 'type' || value === 'stock' || value === 'none') return value;
+  return DEFAULT_VIEW_PREFS.groupBy;
+}
 
 export function loadViewPrefs(): ViewPrefs {
   try {
@@ -40,7 +51,8 @@ export function loadViewPrefs(): ViewPrefs {
       const parsed = JSON.parse(raw) as Partial<ViewPrefs>;
       const sort: WallSort =
         parsed.sort === 'recent' ? 'recent' : DEFAULT_VIEW_PREFS.sort;
-      return { ...DEFAULT_VIEW_PREFS, ...parsed, sort };
+      const groupBy = parseGroupBy(parsed.groupBy);
+      return { ...DEFAULT_VIEW_PREFS, ...parsed, sort, groupBy };
     }
 
     const legacy = localStorage.getItem(LEGACY_BARCODES_KEY);
