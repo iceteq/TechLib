@@ -20,7 +20,7 @@ import {
 import { autosizeTextarea } from '../../lib/autosizeTextarea';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
-import { noteTypeById, noteTypePathLabel, suggestNoteType } from '../../lib/noteTypes';
+import { noteTypeById, noteTypePathLabel } from '../../lib/noteTypes';
 import { useJuiceBurst } from '../../lib/useJuiceBurst';
 import type {
   GuidelineLine,
@@ -176,10 +176,6 @@ export function NoteEditor({
   assignFieldRef.current = assignField;
   const bg = getBackground(note.background);
   const selectedType = noteTypeById(noteTypes, note.categoryId);
-  const suggestedType =
-    !note.categoryId
-      ? suggestNoteType(noteTypes, title || note.title, description || note.description)
-      : null;
   const stock = stockLocations.find((s) => s.id === note.stockId);
   const canNavigate = navIndex >= 0 && navTotal > 1;
   const canNavigatePrev = canNavigate && navIndex > 0 && Boolean(onNavigatePrev);
@@ -1121,15 +1117,6 @@ export function NoteEditor({
                   }
                   onClick={() => { if (!readOnly) setAssignField('categoryId'); }}
                 />
-              ) : suggestedType ? (
-                <TypeChip
-                  type={suggestedType}
-                  label={
-                    noteTypePathLabel(noteTypes, suggestedType.id) ?? undefined
-                  }
-                  suggested
-                  onClick={() => void saveMeta({ categoryId: suggestedType.id })}
-                />
               ) : (
                 <button
                   type="button"
@@ -1139,18 +1126,6 @@ export function NoteEditor({
                   aria-expanded={assignField === 'categoryId'}
                 >
                   No type
-                </button>
-              )}
-
-              {!selectedType && suggestedType && (
-                <button
-                  type="button"
-                  className={styles.metaMissing}
-                  onClick={() => { if (!readOnly) setAssignField('categoryId'); }}
-                  aria-haspopup="dialog"
-                  aria-expanded={assignField === 'categoryId'}
-                >
-                  Choose type
                 </button>
               )}
 

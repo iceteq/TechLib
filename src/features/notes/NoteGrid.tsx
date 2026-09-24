@@ -763,12 +763,6 @@ export function NoteGrid({
               onToggleSelect={canEdit ? toggleSelect : () => {}}
               onEnterSelect={canEdit ? enterSelect : () => {}}
               onRangeSelect={canEdit ? rangeSelect : () => {}}
-              onApplyType={
-                canEdit
-                  ? (noteId, categoryId) =>
-                      void onUpdateNotes([noteId], { categoryId })
-                  : undefined
-              }
               onAssignDisposition={
                 canEdit
                   ? (noteId, value) =>

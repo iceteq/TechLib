@@ -6,7 +6,7 @@ import {
 import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
 import { formatNoteAge } from '../../lib/formatNoteAge';
-import { noteTypeById, noteTypePathLabel, suggestNoteType } from '../../lib/noteTypes';
+import { noteTypeById, noteTypePathLabel } from '../../lib/noteTypes';
 import type {
   GuidelineLine,
   Label,
@@ -54,7 +54,6 @@ interface NoteCardProps {
   onToggleSelect: (noteId: string) => void;
   onEnterSelect: (noteId: string) => void;
   onRangeSelect: (noteId: string) => void;
-  onApplyType?: (noteId: string, categoryId: string) => void;
   onAssignDisposition?: (noteId: string, value: NoteDisposition) => void;
   onAssignGuidelineLines?: (noteId: string, lines: GuidelineLine[]) => void;
   onAssignCategory?: (noteId: string, value: string | null) => void;
@@ -94,7 +93,6 @@ export function NoteCard({
   onToggleSelect,
   onEnterSelect,
   onRangeSelect,
-  onApplyType,
   onAssignDisposition,
   onAssignGuidelineLines,
   onAssignCategory,
@@ -116,10 +114,6 @@ export function NoteCard({
   const stock = stockLocations.find((s) => s.id === note.stockId);
   const title = note.title.trim() || 'No part number';
   const noteType = noteTypeById(noteTypes, note.categoryId);
-  const suggestedType =
-    !note.categoryId
-      ? suggestNoteType(noteTypes, note.title, note.description)
-      : null;
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
 
   function openAssign(field: MetaAssignField) {
@@ -420,16 +414,6 @@ export function NoteCard({
                     ? undefined
                     : () => openAssign('categoryId')
                 }
-              />
-            ) : !noteType && suggestedType && showTypeChip && onApplyType ? (
-              <TypeChip
-                type={suggestedType}
-                label={
-                  noteTypePathLabel(noteTypes, suggestedType.id) ?? undefined
-                }
-                suggested
-                muted
-                onClick={() => onApplyType(note.id, suggestedType.id)}
               />
             ) : !noteType ? (
               <button
