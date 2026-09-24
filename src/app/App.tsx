@@ -687,7 +687,9 @@ export default function App({ session }: { session: Session | null }) {
       ...createMetaFromDefaults(createDefaults),
       labelIds: [],
     });
-    await refresh();
+    setNotes((prev) =>
+      prev.some((n) => n.id === note.id) ? prev : [note, ...prev],
+    );
     setView('notes');
     openNote(note.id);
     setSidebarOpen(false);
@@ -846,8 +848,10 @@ export default function App({ session }: { session: Session | null }) {
     } else if (!canEdit) {
       return;
     }
-    if (!activeNoteId) return;
-    const current = notes.find((n) => n.id === activeNoteId);
+    // Capture id so in-flight saves stay on the right note if the user navigates away.
+    const noteId = activeNoteId;
+    if (!noteId) return;
+    const current = notes.find((n) => n.id === noteId);
     const undoPatch: NoteFieldPatch = {};
     if (patch.archived !== undefined) undoPatch.archived = patch.archived;
     if (patch.labelIds !== undefined) undoPatch.labelIds = patch.labelIds;
@@ -856,24 +860,49 @@ export default function App({ session }: { session: Session | null }) {
         ? [{ id: current.id, patch: snapshotNotePatch(current, undoPatch) }]
         : [];
 
-    const optimisticMeta =
-      current && ('categoryId' in patch || 'stockId' in patch);
-    if (optimisticMeta) {
+    if (current) {
       setNotes((prev) => {
-        const next = prev.map((n) =>
-          n.id === activeNoteId
-            ? {
-                ...n,
-                ...('categoryId' in patch
-                  ? { categoryId: patch.categoryId ?? null }
-                  : {}),
-                ...('stockId' in patch
-                  ? { stockId: patch.stockId ?? null }
-                  : {}),
-                updatedAt: Date.now(),
-              }
-            : n,
-        );
+        const next = prev.map((n) => {
+          if (n.id !== noteId) return n;
+          const guidelineLines =
+            patch.guidelineLines !== undefined
+              ? patch.guidelineLines
+              : patch.disposition !== undefined
+                ? undefined
+                : n.guidelineLines;
+          return {
+            ...n,
+            ...(patch.title !== undefined ? { title: patch.title } : {}),
+            ...(patch.description !== undefined
+              ? { description: patch.description }
+              : {}),
+            ...(patch.background !== undefined
+              ? { background: patch.background }
+              : {}),
+            ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
+            ...(patch.archived !== undefined
+              ? { archived: patch.archived }
+              : {}),
+            ...(patch.specialCase !== undefined
+              ? { specialCase: patch.specialCase }
+              : {}),
+            ...(patch.askItems !== undefined
+              ? { askItems: patch.askItems }
+              : {}),
+            ...('categoryId' in patch
+              ? { categoryId: patch.categoryId ?? null }
+              : {}),
+            ...('stockId' in patch ? { stockId: patch.stockId ?? null } : {}),
+            ...(patch.labelIds !== undefined
+              ? { labelIds: [...patch.labelIds] }
+              : {}),
+            ...(patch.disposition !== undefined
+              ? { disposition: patch.disposition }
+              : {}),
+            ...(guidelineLines !== undefined ? { guidelineLines } : {}),
+            updatedAt: Date.now(),
+          };
+        });
         return [...next].sort((a, b) => {
           if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
           return b.updatedAt - a.updatedAt;
@@ -882,13 +911,13 @@ export default function App({ session }: { session: Session | null }) {
     }
 
     try {
-      const updated = await store.updateNote(activeNoteId, patch);
+      const updated = await store.updateNote(noteId, patch);
       if (!updated) {
-        if (optimisticMeta && current) {
+        if (current) {
           setNotes((prev) =>
             prev.map((n) => (n.id === current.id ? current : n)),
           );
-          setNotice('Could not update type');
+          setNotice('Could not save changes');
         }
         return;
       }
@@ -912,7 +941,7 @@ export default function App({ session }: { session: Session | null }) {
         await replaceUndoAction({ kind: 'patch', message, before });
       }
     } catch {
-      if (optimisticMeta && current) {
+      if (current) {
         setNotes((prev) =>
           prev.map((n) => (n.id === current.id ? current : n)),
         );
@@ -972,7 +1001,6 @@ export default function App({ session }: { session: Session | null }) {
         }
         setImageBusyCount((count) => Math.max(0, count - 1));
       }
-      await refresh();
     } finally {
       setImageBusyCount(0);
     }
@@ -1093,32 +1121,40 @@ export default function App({ session }: { session: Session | null }) {
     }
     if (before.length === 0) return;
 
-    const optimisticTypeOrStock =
-      'categoryId' in patch || 'stockId' in patch;
-    if (optimisticTypeOrStock) {
-      setNotes((prev) => {
-        const next = prev.map((n) => {
-          if (!previousById.has(n.id)) return n;
-          return {
-            ...n,
-            ...('categoryId' in patch
-              ? { categoryId: patch.categoryId ?? null }
-              : {}),
-            ...('stockId' in patch ? { stockId: patch.stockId ?? null } : {}),
-            updatedAt: Date.now(),
-          };
-        });
-        return [...next].sort((a, b) => {
-          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-          return b.updatedAt - a.updatedAt;
-        });
+    setNotes((prev) => {
+      const next = prev.map((n) => {
+        if (!previousById.has(n.id)) return n;
+        return {
+          ...n,
+          ...(patch.disposition !== undefined
+            ? { disposition: patch.disposition }
+            : {}),
+          ...(patch.guidelineLines !== undefined
+            ? { guidelineLines: patch.guidelineLines }
+            : {}),
+          ...('categoryId' in patch
+            ? { categoryId: patch.categoryId ?? null }
+            : {}),
+          ...('stockId' in patch ? { stockId: patch.stockId ?? null } : {}),
+          ...(patch.labelIds !== undefined
+            ? { labelIds: [...patch.labelIds] }
+            : {}),
+          ...(patch.archived !== undefined
+            ? { archived: patch.archived }
+            : {}),
+          updatedAt: Date.now(),
+        };
       });
-    }
+      return [...next].sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt - a.updatedAt;
+      });
+    });
 
     try {
       for (const id of ids) {
         const updated = await store.updateNote(id, patch);
-        if (updated && optimisticTypeOrStock) {
+        if (updated) {
           setNotes((prev) => {
             const next = prev.map((n) => (n.id === updated.id ? updated : n));
             return [...next].sort((a, b) => {
@@ -1128,8 +1164,8 @@ export default function App({ session }: { session: Session | null }) {
           });
         }
       }
-      if (!optimisticTypeOrStock) {
-        await refresh();
+      if (patch.labelIds) {
+        setLabels(await store.listLabels());
       }
       await replaceUndoAction({
         kind: 'patch',
@@ -1139,23 +1175,18 @@ export default function App({ session }: { session: Session | null }) {
         before,
       });
     } catch {
-      if (optimisticTypeOrStock) {
-        setNotes((prev) => {
-          const next = prev.map((n) => previousById.get(n.id) ?? n);
-          return [...next].sort((a, b) => {
-            if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-            return b.updatedAt - a.updatedAt;
-          });
+      setNotes((prev) => {
+        const next = prev.map((n) => previousById.get(n.id) ?? n);
+        return [...next].sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return b.updatedAt - a.updatedAt;
         });
-        setNotice(
-          'categoryId' in patch
-            ? 'Could not update type'
-            : 'Could not save changes',
-        );
-        return;
-      }
-      await refresh();
-      setNotice('Could not save changes');
+      });
+      setNotice(
+        'categoryId' in patch
+          ? 'Could not update type'
+          : 'Could not save changes',
+      );
     }
   }
 
@@ -1187,10 +1218,35 @@ export default function App({ session }: { session: Session | null }) {
     }
     if (updates.length === 0) return;
 
-    for (const entry of updates) {
-      await store.updateNote(entry.id, { guidelineLines: entry.guidelineLines });
+    setNotes((prev) =>
+      prev.map((n) => {
+        const update = updates.find((u) => u.id === n.id);
+        if (!update) return n;
+        return {
+          ...n,
+          guidelineLines: update.guidelineLines,
+          disposition: primaryDispositionFromLines(update.guidelineLines),
+          updatedAt: Date.now(),
+        };
+      }),
+    );
+
+    try {
+      for (const entry of updates) {
+        const updated = await store.updateNote(entry.id, {
+          guidelineLines: entry.guidelineLines,
+        });
+        if (updated) {
+          setNotes((prev) =>
+            prev.map((n) => (n.id === updated.id ? updated : n)),
+          );
+        }
+      }
+    } catch {
+      await refresh();
+      setNotice('Could not save changes');
+      return;
     }
-    await refresh();
 
     const noteWord = updates.length === 1 ? 'note' : 'notes';
     const message =
@@ -1224,10 +1280,35 @@ export default function App({ session }: { session: Session | null }) {
     }
     if (updates.length === 0) return;
 
-    for (const entry of updates) {
-      await store.updateNote(entry.id, { labelIds: entry.labelIds });
+    setNotes((prev) =>
+      prev.map((n) => {
+        const update = updates.find((u) => u.id === n.id);
+        if (!update) return n;
+        return {
+          ...n,
+          labelIds: update.labelIds,
+          updatedAt: Date.now(),
+        };
+      }),
+    );
+
+    try {
+      for (const entry of updates) {
+        const updated = await store.updateNote(entry.id, {
+          labelIds: entry.labelIds,
+        });
+        if (updated) {
+          setNotes((prev) =>
+            prev.map((n) => (n.id === updated.id ? updated : n)),
+          );
+        }
+      }
+    } catch {
+      await refresh();
+      setNotice('Could not save changes');
+      return;
     }
-    await refresh();
+
     const labelName = labels.find((l) => l.id === labelId)?.name ?? 'label';
     const noteWord = updates.length === 1 ? 'note' : 'notes';
     await replaceUndoAction({

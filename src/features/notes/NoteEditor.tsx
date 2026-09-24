@@ -150,7 +150,6 @@ export function NoteEditor({
   const [isNarrow, setIsNarrow] = useState(false);
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
   const [dropActive, setDropActive] = useState(false);
-  const [navBusy, setNavBusy] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -209,7 +208,6 @@ export function NoteEditor({
     setAssignField(null);
     setColorOpen(false);
     setMoreOpen(false);
-    setNavBusy(false);
   }, [note.id, note.title, note.description, note.specialCase, note.guidelineLines]);
 
   // Reset save chrome only when switching notes — content sync after a write
@@ -566,34 +564,25 @@ export function NoteEditor({
     }
   }
 
-  async function finish(options?: { fromBack?: boolean }) {
-    await persistAll();
+  function finish(options?: { fromBack?: boolean }) {
+    // Persist in the background so Done / Back feels instant.
+    void persistAll();
     if (!options?.fromBack) {
       releaseHistoryTrap();
     }
     onClose();
   }
 
-  async function goPrev() {
-    if (!canNavigatePrev || imageBusy || navBusy || assignField) return;
-    setNavBusy(true);
-    try {
-      await persistAll();
-      onNavigatePrev?.();
-    } finally {
-      setNavBusy(false);
-    }
+  function goPrev() {
+    if (!canNavigatePrev || imageBusy || assignField) return;
+    void persistAll();
+    onNavigatePrev?.();
   }
 
-  async function goNext() {
-    if (!canNavigateNext || imageBusy || navBusy || assignField) return;
-    setNavBusy(true);
-    try {
-      await persistAll();
-      onNavigateNext?.();
-    } finally {
-      setNavBusy(false);
-    }
+  function goNext() {
+    if (!canNavigateNext || imageBusy || assignField) return;
+    void persistAll();
+    onNavigateNext?.();
   }
 
   // Trap browser/Android Back while the editor is open so it peels dismiss
@@ -649,7 +638,7 @@ export function NoteEditor({
         return;
       }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        if (imageBusy || navBusy || assignField || colorOpen || moreOpen) return;
+        if (imageBusy || assignField || colorOpen || moreOpen) return;
         if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
         if (isTextEntryTarget(e.target)) return;
         if (e.key === 'ArrowLeft') {
@@ -718,7 +707,7 @@ export function NoteEditor({
                   type="button"
                   className={styles.iconBtn}
                   onClick={() => void goPrev()}
-                  disabled={!canNavigatePrev || imageBusy || navBusy}
+                  disabled={!canNavigatePrev || imageBusy}
                   aria-label="Previous note"
                   title="Previous note (←)"
                 >
@@ -733,7 +722,7 @@ export function NoteEditor({
                   type="button"
                   className={styles.iconBtn}
                   onClick={() => void goNext()}
-                  disabled={!canNavigateNext || imageBusy || navBusy}
+                  disabled={!canNavigateNext || imageBusy}
                   aria-label="Next note"
                   title="Next note (→)"
                 >
