@@ -28,6 +28,21 @@ export function relatedIdsFromLinks(
   return ids;
 }
 
+/** Merge manual link ids with auto same-part-number ids (deduped). */
+export function mergeRelatedIds(
+  linkIds: string[],
+  partIds: string[],
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of [...linkIds, ...partIds]) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
 /** Every unique undirected pair among `noteIds` (full mesh). */
 export function meshLinkPairs(noteIds: string[]): NoteLink[] {
   const unique = [...new Set(noteIds)];

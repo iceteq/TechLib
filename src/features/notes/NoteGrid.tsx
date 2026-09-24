@@ -143,6 +143,13 @@ interface NoteGridProps {
   onClearStock: () => void;
   onClearSearch: () => void;
   onClearAllFilters: () => void;
+  /** Normalized part-number key when wall is filtered to a family. */
+  relatedPartKey?: string | null;
+  relatedPartLabel?: string | null;
+  onClearRelatedPart?: () => void;
+  /** Family size by note id (same part number). */
+  relatedCountByNoteId?: Record<string, number>;
+  onShowRelated?: (noteId: string) => void;
   /** Bump to clear selection after sidebar drop-assign. */
   selectionClearNonce?: number;
   onNotesDragStart?: () => void;
@@ -196,6 +203,11 @@ export function NoteGrid({
   onClearStock,
   onClearSearch,
   onClearAllFilters,
+  relatedPartKey = null,
+  relatedPartLabel = null,
+  onClearRelatedPart,
+  relatedCountByNoteId = {},
+  onShowRelated,
   selectionClearNonce = 0,
   onNotesDragStart,
   onDropImages,
@@ -517,7 +529,8 @@ export function NoteGrid({
       filterDisposition ||
       filterCategoryId ||
       filterStockId ||
-      hasSearch,
+      hasSearch ||
+      relatedPartKey,
   );
   const sortedLabels = [...labels].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
@@ -525,7 +538,11 @@ export function NoteGrid({
 
   let heading = 'All notes';
   if (view === 'archive') heading = 'Archive';
-  else if (hasFilters) heading = 'Filtered notes';
+  else if (relatedPartKey) {
+    heading = relatedPartLabel
+      ? `Related · ${relatedPartLabel}`
+      : 'Related notes';
+  } else if (hasFilters) heading = 'Filtered notes';
 
   let emptyTitle = 'Nothing here yet';
   let emptyText = 'Capture parts with photos to build your wall.';
@@ -614,6 +631,17 @@ export function NoteGrid({
               title="Clear search"
             >
               Search: {search.trim()}
+              <X size={14} />
+            </button>
+          )}
+          {relatedPartKey && onClearRelatedPart && (
+            <button
+              type="button"
+              className={`${styles.chip} ${styles.chipMeta}`}
+              onClick={onClearRelatedPart}
+              title="Clear related filter"
+            >
+              Same part #: {relatedPartLabel || relatedPartKey}
               <X size={14} />
             </button>
           )}
@@ -779,6 +807,8 @@ export function NoteGrid({
               pulse={pulseNoteIds.includes(note.id)}
               onPulseEnd={onPulseEnd}
               searchQuery={search}
+              relatedCount={relatedCountByNoteId[note.id] ?? 0}
+              onShowRelated={onShowRelated}
             />
           ))}
         </div>

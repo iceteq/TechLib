@@ -3,12 +3,19 @@ import type { NoteType, NoteWithUrls } from '../../lib/types';
 import { noteTypePathLabel } from '../../lib/noteTypes';
 import styles from './RelatedSection.module.css';
 
+export type RelatedNoteEntry = {
+  note: NoteWithUrls;
+  /** Same part number — not an explicit link; cannot unlink. */
+  auto: boolean;
+};
+
 interface RelatedSectionProps {
-  relatedNotes: NoteWithUrls[];
+  relatedNotes: RelatedNoteEntry[];
   noteTypes: NoteType[];
   readOnly?: boolean;
   onOpen: (noteId: string) => void;
   onRemove?: (noteId: string) => Promise<void>;
+  onShowAllRelated?: () => void;
 }
 
 export function RelatedSection({
@@ -17,14 +24,34 @@ export function RelatedSection({
   readOnly = false,
   onOpen,
   onRemove,
+  onShowAllRelated,
 }: RelatedSectionProps) {
   if (relatedNotes.length === 0) return null;
 
+  const autoCount = relatedNotes.filter((r) => r.auto).length;
+
   return (
     <div className={styles.section}>
-      <p className={styles.label}>Related</p>
+      <div className={styles.header}>
+        <p className={styles.label}>Related</p>
+        {onShowAllRelated && (
+          <button
+            type="button"
+            className={styles.showAll}
+            onClick={onShowAllRelated}
+          >
+            Show all on wall
+          </button>
+        )}
+      </div>
+      {autoCount > 0 && (
+        <p className={styles.hint}>
+          Same part number
+          {autoCount < relatedNotes.length ? ' · plus linked notes' : ''}
+        </p>
+      )}
       <ul className={styles.list}>
-        {relatedNotes.map((note) => {
+        {relatedNotes.map(({ note, auto }) => {
           const typeLabel = noteTypePathLabel(noteTypes, note.categoryId);
           const thumb = note.images[0];
           const title = note.title.trim() || 'No part number';
@@ -48,11 +75,16 @@ export function RelatedSection({
                 <span className={styles.meta}>
                   <span className={styles.title}>{title}</span>
                   {typeLabel ? (
-                    <span className={styles.type}>{typeLabel}</span>
+                    <span className={styles.type}>
+                      {typeLabel}
+                      {auto ? ' · same part #' : ''}
+                    </span>
+                  ) : auto ? (
+                    <span className={styles.type}>Same part #</span>
                   ) : null}
                 </span>
               </button>
-              {!readOnly && onRemove && (
+              {!readOnly && onRemove && !auto && (
                 <button
                   type="button"
                   className={styles.unlink}
