@@ -84,6 +84,37 @@ function iso(msValue: number | null | undefined): string | null {
   return new Date(msValue).toISOString();
 }
 
+/** Build a NoteWithUrls from an insert/select row without a second fetch. */
+function noteFromRow(
+  row: NoteRow,
+  labelIds: string[] = [],
+  images: NoteWithUrls['images'] = [],
+): NoteWithUrls {
+  const guidelineLines = resolveGuidelineLines({
+    guidelineLines: row.guideline_lines,
+    disposition: (row.disposition as NoteDisposition) ?? 'none',
+  });
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    background: row.background as NoteBackground,
+    disposition: primaryDispositionFromLines(guidelineLines),
+    guidelineLines,
+    categoryId: row.category_id ?? legacyCategoryToTypeId(row.category),
+    stockId: row.stock_id ?? null,
+    specialCase: row.special_case ?? '',
+    askItems: normalizeAskItems(row.ask_items),
+    pinned: row.pinned,
+    archived: row.archived,
+    deletedAt: row.deleted_at ? ms(row.deleted_at) : null,
+    createdAt: ms(row.created_at),
+    updatedAt: ms(row.updated_at),
+    labelIds,
+    images,
+  };
+}
+
 async function requireUserId(): Promise<string> {
   const { data, error } = await getSupabase().auth.getUser();
   if (error || !data.user) throw new Error('Not signed in');
@@ -336,12 +367,12 @@ export async function createNote(input?: {
     .single();
   throwIf(error);
   const row = data as NoteRow;
-  if (input?.labelIds?.length) {
-    await replaceNoteLabels(row.id, input.labelIds);
+  const labelIds = input?.labelIds?.length ? [...input.labelIds] : [];
+  if (labelIds.length) {
+    await replaceNoteLabels(row.id, labelIds);
   }
-  const note = await getNote(row.id);
-  if (!note) throw new Error('Failed to create note');
-  return note;
+  // Skip getNote round-trip — new notes have no images yet.
+  return noteFromRow(row, labelIds);
 }
 
 export async function updateNote(
