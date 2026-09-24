@@ -46,7 +46,15 @@ import {
 import { noteTypeDeleteIds, noteTypePathLabel } from '../lib/noteTypes';
 import { loadRecentOpens, touchRecentOpen } from '../lib/recentOpens';
 import { sortWallNotes } from '../lib/sortWallNotes';
-import { relatedIdsFromLinks } from '../lib/noteLinks';
+import { relatedIdsFromLinks, mergeRelatedIds } from '../lib/noteLinks';
+import {
+  normalizePartNumber,
+  noteMatchesPartNumberKey,
+  partNumberFamilyCount,
+  partNumberLabel,
+  relatedIdsByPartNumber,
+} from '../lib/partNumber';
+import type { RelatedNoteEntry } from '../features/notes/RelatedSection';
 
 import type { PastedNoteDraft } from '../lib/parsePastedNotes';
 import {
@@ -231,6 +239,9 @@ export default function App({ session }: { session: Session | null }) {
     initialSession.stockId,
   );
   const [search, setSearch] = useState(initialSession.search);
+  /** Wall filter: show only notes with this normalized part number. */
+  const [relatedPartKey, setRelatedPartKey] = useState<string | null>(null);
+  const [relatedPartLabel, setRelatedPartLabel] = useState<string | null>(null);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   /** Note ids waiting to pulse on the wall after a capture create. */
   const pendingWallPulseIds = useRef<Set<string>>(new Set());
@@ -313,7 +324,7 @@ export default function App({ session }: { session: Session | null }) {
   }, [refresh, session?.user?.id]);
 
   const visibleNotes = useMemo(() => {
-    const filtered = filterNotes(notes, labels, stockLocations, noteTypes, {
+    let filtered = filterNotes(notes, labels, stockLocations, noteTypes, {
       labelIds: view === 'notes' ? filterLabelIds : [],
       search,
       view: view === 'collection' ? 'notes' : view,
@@ -321,6 +332,11 @@ export default function App({ session }: { session: Session | null }) {
       categoryId: view === 'notes' ? filterCategoryId : null,
       stockId: view === 'notes' ? filterStockId : null,
     });
+    if (relatedPartKey && view === 'notes') {
+      filtered = filtered.filter((n) =>
+        noteMatchesPartNumberKey(n, relatedPartKey),
+      );
+    }
     // Keep search relevance ordering; apply wall sort only when browsing.
     if (search.trim()) return filtered;
     return sortWallNotes(filtered, viewPrefs.sort, openedAtById);
@@ -337,6 +353,7 @@ export default function App({ session }: { session: Session | null }) {
     view,
     viewPrefs.sort,
     openedAtById,
+    relatedPartKey,
   ]);
 
   useEffect(() => {
@@ -438,20 +455,45 @@ export default function App({ session }: { session: Session | null }) {
     [stockCountNotes],
   );
 
+  const relatedCountByNoteId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const note of notes) {
+      if (note.deletedAt != null) continue;
+      const count = partNumberFamilyCount(notes, note.title);
+      if (count > 1) map[note.id] = count;
+    }
+    return map;
+  }, [notes]);
+
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
-  const activeRelatedNotes = useMemo(() => {
-    if (!activeNoteId) return [];
-    const ids = relatedIdsFromLinks(noteLinks, activeNoteId);
+  const activeRelatedNotes = useMemo((): RelatedNoteEntry[] => {
+    if (!activeNoteId || !activeNote) return [];
+    const linkIds = relatedIdsFromLinks(noteLinks, activeNoteId);
+    const partIds = relatedIdsByPartNumber(
+      notes,
+      activeNoteId,
+      activeNote.title,
+    );
+    const linkSet = new Set(linkIds);
+    const merged = mergeRelatedIds(linkIds, partIds);
     const byId = new Map(notes.map((n) => [n.id, n]));
-    return ids
-      .map((id) => byId.get(id))
-      .filter((n): n is NoteWithUrls => Boolean(n) && !n!.deletedAt)
-      .sort((a, b) =>
-        (a.title || '').localeCompare(b.title || '', undefined, {
+    return merged
+      .map((id) => {
+        const note = byId.get(id);
+        if (!note || note.deletedAt) return null;
+        return {
+          note,
+          auto: !linkSet.has(id),
+        } satisfies RelatedNoteEntry;
+      })
+      .filter((entry): entry is RelatedNoteEntry => entry != null)
+      .sort((a, b) => {
+        if (a.auto !== b.auto) return a.auto ? -1 : 1;
+        return (a.note.title || '').localeCompare(b.note.title || '', undefined, {
           sensitivity: 'base',
-        }),
-      );
-  }, [activeNoteId, noteLinks, notes]);
+        });
+      });
+  }, [activeNoteId, activeNote, noteLinks, notes]);
   const activeNavIndex = activeNoteId
     ? visibleNotes.findIndex((n) => n.id === activeNoteId)
     : -1;
@@ -543,6 +585,25 @@ export default function App({ session }: { session: Session | null }) {
     setFilterCategoryId(null);
     setFilterStockId(null);
     setSearch('');
+    setRelatedPartKey(null);
+    setRelatedPartLabel(null);
+  }
+
+  function showRelatedForNote(noteId: string) {
+    const note = notes.find((n) => n.id === noteId);
+    if (!note) return;
+    const key = normalizePartNumber(note.title);
+    if (!key) return;
+    setView('notes');
+    setFilterLabelIds([]);
+    setFilterDisposition(null);
+    setFilterCategoryId(null);
+    setFilterStockId(null);
+    setSearch('');
+    setRelatedPartKey(key);
+    setRelatedPartLabel(partNumberLabel(note.title) || key);
+    setActiveNoteId(null);
+    setSidebarOpen(false);
   }
 
   function toggleFilterLabel(labelId: string) {
@@ -1296,6 +1357,8 @@ export default function App({ session }: { session: Session | null }) {
           }}
           onSelectDisposition={(disposition) => {
             setView('notes');
+            setRelatedPartKey(null);
+            setRelatedPartLabel(null);
             setFilterDisposition((current) =>
               current === disposition ? null : disposition,
             );
@@ -1303,6 +1366,8 @@ export default function App({ session }: { session: Session | null }) {
           }}
           onSelectCategoryId={(categoryId) => {
             setView('notes');
+            setRelatedPartKey(null);
+            setRelatedPartLabel(null);
             setFilterCategoryId((current) =>
               current === categoryId ? null : categoryId,
             );
@@ -1310,6 +1375,8 @@ export default function App({ session }: { session: Session | null }) {
           }}
           onSelectStock={(stockId) => {
             setView('notes');
+            setRelatedPartKey(null);
+            setRelatedPartLabel(null);
             setFilterStockId((current) =>
               current === stockId ? null : stockId,
             );
@@ -1422,6 +1489,14 @@ export default function App({ session }: { session: Session | null }) {
           onClearStock={() => setFilterStockId(null)}
           onClearAllFilters={clearAllFilters}
           onClearSearch={() => setSearch('')}
+          relatedPartKey={relatedPartKey}
+          relatedPartLabel={relatedPartLabel}
+          onClearRelatedPart={() => {
+            setRelatedPartKey(null);
+            setRelatedPartLabel(null);
+          }}
+          relatedCountByNoteId={relatedCountByNoteId}
+          onShowRelated={showRelatedForNote}
           selectionClearNonce={selectionClearNonce}
           onNotesDragStart={() => {
             // Drawer sidebar on small screens covers the grid; only auto-open
@@ -1510,6 +1585,12 @@ export default function App({ session }: { session: Session | null }) {
           relatedNotes={activeRelatedNotes}
           onOpenRelated={(noteId) => openNote(noteId)}
           onRemoveRelated={canEdit ? handleRemoveRelated : undefined}
+          onShowAllRelated={
+            activeNote &&
+            partNumberFamilyCount(notes, activeNote.title) > 1
+              ? () => showRelatedForNote(activeNote.id)
+              : undefined
+          }
         />
       )}
     </AppShell>

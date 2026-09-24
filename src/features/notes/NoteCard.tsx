@@ -69,6 +69,9 @@ interface NoteCardProps {
   onPulseEnd?: (noteId: string) => void;
   /** Active wall search — highlight matches on title/labels. */
   searchQuery?: string;
+  /** Notes sharing this part number (incl. self). Show when > 1. */
+  relatedCount?: number;
+  onShowRelated?: (noteId: string) => void;
 }
 
 export function NoteCard({
@@ -103,6 +106,8 @@ export function NoteCard({
   pulse = false,
   onPulseEnd,
   searchQuery = '',
+  relatedCount = 0,
+  onShowRelated,
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
@@ -380,6 +385,20 @@ export function NoteCard({
             <h3 className={styles.title}>
               {highlightMatches(title, searchQuery)}
             </h3>
+            {relatedCount > 1 && onShowRelated && (
+              <button
+                type="button"
+                className={styles.relatedBtn}
+                title={`Show all ${relatedCount} notes with this part number`}
+                aria-label={`${relatedCount} related notes with same part number`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShowRelated(note.id);
+                }}
+              >
+                {relatedCount} related
+              </button>
+            )}
             {showAge && (
               <time
                 className={styles.age}

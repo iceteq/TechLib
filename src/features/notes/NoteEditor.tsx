@@ -34,7 +34,7 @@ import type {
 } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
-import { RelatedSection } from './RelatedSection';
+import { RelatedSection, type RelatedNoteEntry } from './RelatedSection';
 import { DescriptionField } from '../labels/DescriptionField';
 import { LabelChip } from '../labels/LabelChip';
 import {
@@ -98,10 +98,12 @@ interface NoteEditorProps {
   onCreateLabel: (name: string) => Promise<Label>;
   /** > 0 while images are being saved. */
   imageBusyCount?: number;
-  /** Notes linked to this one (hydrated). */
-  relatedNotes?: NoteWithUrls[];
+  /** Linked notes + same part-number siblings. */
+  relatedNotes?: RelatedNoteEntry[];
   onOpenRelated?: (noteId: string) => void;
   onRemoveRelated?: (noteId: string) => Promise<void>;
+  /** Jump to wall filtered to this part-number family. */
+  onShowAllRelated?: () => void;
 }
 
 export function NoteEditor({
@@ -131,6 +133,7 @@ export function NoteEditor({
   relatedNotes = [],
   onOpenRelated,
   onRemoveRelated,
+  onShowAllRelated,
 }: NoteEditorProps) {
   const cartJuice = useJuiceBurst();
   const archiveJuice = useJuiceBurst();
@@ -1169,6 +1172,7 @@ export function NoteEditor({
                 readOnly={readOnly}
                 onOpen={(id) => onOpenRelated?.(id)}
                 onRemove={onRemoveRelated}
+                onShowAllRelated={onShowAllRelated}
               />
             )}
 
