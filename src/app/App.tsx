@@ -64,6 +64,7 @@ import {
 } from '../lib/noteDrag';
 import {
   normalizeGuidelineLines,
+  primaryDispositionFromLines,
   resolveGuidelineLines,
   upsertGuidelineLineByWhen,
 } from '../lib/guidelineLines';
