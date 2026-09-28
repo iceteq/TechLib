@@ -996,15 +996,25 @@ export default function App({ session }: { session: Session | null }) {
     if (!activeNoteId) return;
     const list = Array.from(files);
     if (list.length === 0) return;
+    const noteId = activeNoteId;
     setImageBusyCount(list.length);
     try {
       let updated: NoteWithUrls | undefined;
       for (const file of list) {
-        updated = await store.addImage(activeNoteId, file);
+        updated = await store.addImage(noteId, file);
       }
       if (updated) {
+        // Merge images only — keep any optimistic title/description already in state.
         setNotes((prev) =>
-          prev.map((n) => (n.id === updated!.id ? updated! : n)),
+          prev.map((n) =>
+            n.id === updated!.id
+              ? {
+                  ...n,
+                  images: updated!.images,
+                  updatedAt: updated!.updatedAt,
+                }
+              : n,
+          ),
         );
       }
     } finally {
@@ -1033,7 +1043,15 @@ export default function App({ session }: { session: Session | null }) {
         const updated = await store.addImage(note.id, file);
         if (updated) {
           setNotes((prev) =>
-            prev.map((n) => (n.id === updated.id ? updated : n)),
+            prev.map((n) =>
+              n.id === updated.id
+                ? {
+                    ...n,
+                    images: updated.images,
+                    updatedAt: updated.updatedAt,
+                  }
+                : n,
+            ),
           );
         }
         setImageBusyCount((count) => Math.max(0, count - 1));
@@ -1048,7 +1066,13 @@ export default function App({ session }: { session: Session | null }) {
     if (!activeNoteId) return;
     const updated = await store.removeImage(activeNoteId, imageId);
     if (updated) {
-      setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === updated.id
+            ? { ...n, images: updated.images, updatedAt: updated.updatedAt }
+            : n,
+        ),
+      );
     }
   }
 
@@ -1057,7 +1081,13 @@ export default function App({ session }: { session: Session | null }) {
     if (!activeNoteId) return;
     const updated = await store.reorderImages(activeNoteId, orderedImageIds);
     if (updated) {
-      setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === updated.id
+            ? { ...n, images: updated.images, updatedAt: updated.updatedAt }
+            : n,
+        ),
+      );
     }
   }
 

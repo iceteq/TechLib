@@ -203,6 +203,13 @@ export function NoteEditor({
   const imageBusy = imageBusyCount > 0;
   imageBusyRef.current = imageBusy;
 
+  // Last props we adopted into local draft state. Used so image/meta refreshes
+  // do not wipe in-progress typing when only unrelated note fields change.
+  const syncedTitleRef = useRef(note.title);
+  const syncedDescriptionRef = useRef(note.description);
+  const syncedSpecialCaseRef = useRef(note.specialCase ?? '');
+
+  // Full draft reset only when switching notes.
   useEffect(() => {
     setTitle(note.title);
     setDescription(note.description);
@@ -212,7 +219,37 @@ export function NoteEditor({
     setAssignField(null);
     setColorOpen(false);
     setMoreOpen(false);
-  }, [note.id, note.title, note.description, note.specialCase, note.guidelineLines]);
+    syncedTitleRef.current = note.title;
+    syncedDescriptionRef.current = note.description;
+    syncedSpecialCaseRef.current = note.specialCase ?? '';
+  }, [note.id]);
+
+  // Adopt remote text when it changes and the field is not dirty.
+  useEffect(() => {
+    if (note.title === syncedTitleRef.current) return;
+    setTitle((current) =>
+      current === syncedTitleRef.current ? note.title : current,
+    );
+    syncedTitleRef.current = note.title;
+  }, [note.title]);
+
+  useEffect(() => {
+    if (note.description === syncedDescriptionRef.current) return;
+    setDescription((current) =>
+      current === syncedDescriptionRef.current ? note.description : current,
+    );
+    syncedDescriptionRef.current = note.description;
+  }, [note.description]);
+
+  useEffect(() => {
+    const next = note.specialCase ?? '';
+    if (next === syncedSpecialCaseRef.current) return;
+    setSpecialCase((current) =>
+      current === syncedSpecialCaseRef.current ? next : current,
+    );
+    if (next.trim()) setSpecialCaseOpen(true);
+    syncedSpecialCaseRef.current = next;
+  }, [note.specialCase]);
 
   // Reset save chrome only when switching notes — content sync after a write
   // must not clear the quiet "Saved" pulse.
