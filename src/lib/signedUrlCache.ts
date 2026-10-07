@@ -81,7 +81,10 @@ export function putCachedSignedUrls(
 ): void {
   hydrateFromSession();
   const prev = memory.get(path);
-  const expiresAt = Date.now() + Math.max(60, ttlSec) * 1000 - EXPIRY_SKEW_MS;
+  const ttlMs = Math.max(60, ttlSec) * 1000;
+  // Never skew more than half the TTL (short TTLs would expire immediately).
+  const skew = Math.min(EXPIRY_SKEW_MS, Math.floor(ttlMs / 2));
+  const expiresAt = Date.now() + ttlMs - skew;
   memory.set(path, {
     full: patch.full ?? prev?.full,
     thumb: patch.thumb ?? prev?.thumb,
