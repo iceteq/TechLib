@@ -569,6 +569,15 @@ export function NoteGrid({
     [notes, effectiveGroupBy, noteTypes, stockLocations],
   );
   const showGroupHeaders = effectiveGroupBy !== 'none';
+  /** First screen of cards — eager thumb load (lazy still for the rest). */
+  const priorityImageIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const note of notes) {
+      if (ids.size >= 12) break;
+      ids.add(note.id);
+    }
+    return ids;
+  }, [notes]);
 
   return (
     <section
@@ -840,6 +849,7 @@ export function NoteGrid({
                     searchQuery={search}
                     relatedCount={relatedCountByNoteId[note.id] ?? 0}
                     onShowRelated={onShowRelated}
+                    priorityImage={priorityImageIds.has(note.id)}
                   />
                 ))}
               </div>
@@ -910,6 +920,7 @@ export function NoteGrid({
               searchQuery={search}
               relatedCount={relatedCountByNoteId[note.id] ?? 0}
               onShowRelated={onShowRelated}
+              priorityImage={priorityImageIds.has(note.id)}
             />
           ))}
         </div>

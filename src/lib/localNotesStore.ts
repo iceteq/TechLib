@@ -220,6 +220,13 @@ export async function listNotes(): Promise<NoteWithUrls[]> {
   return sortNotes(hydrated);
 }
 
+/** Local blob URLs are already full-resolution — nothing to upgrade. */
+export async function ensureFullImageUrls(
+  _note: NoteWithUrls,
+): Promise<NoteWithUrls | null> {
+  return null;
+}
+
 export async function getNote(id: string): Promise<NoteWithUrls | undefined> {
   const db = await getDb();
   const note = await db.get('notes', id);

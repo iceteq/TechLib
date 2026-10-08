@@ -71,6 +71,8 @@ interface NoteCardProps {
   /** Notes sharing this part number (incl. self). Show when > 1. */
   relatedCount?: number;
   onShowRelated?: (noteId: string) => void;
+  /** Eager-load wall thumbs for above-the-fold cards. */
+  priorityImage?: boolean;
 }
 
 export function NoteCard({
@@ -106,6 +108,7 @@ export function NoteCard({
   searchQuery = '',
   relatedCount = 0,
   onShowRelated,
+  priorityImage = false,
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
@@ -352,7 +355,8 @@ export function NoteCard({
                 alt=""
                 className={styles.image}
                 draggable={false}
-                loading="lazy"
+                loading={priorityImage ? 'eager' : 'lazy'}
+                fetchPriority={priorityImage ? 'high' : 'auto'}
                 decoding="async"
                 onError={(event) => {
                   const el = event.currentTarget;

@@ -10,6 +10,9 @@ export const listNotes = (...args: Parameters<typeof local.listNotes>) =>
   api().listNotes(...args);
 export const getNote = (...args: Parameters<typeof local.getNote>) =>
   api().getNote(...args);
+export const ensureFullImageUrls = (
+  ...args: Parameters<typeof local.ensureFullImageUrls>
+) => api().ensureFullImageUrls(...args);
 export const createNote = (...args: Parameters<typeof local.createNote>) =>
   api().createNote(...args);
 export const updateNote = (...args: Parameters<typeof local.updateNote>) =>

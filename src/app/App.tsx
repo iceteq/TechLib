@@ -220,6 +220,8 @@ export default function App({ session }: { session: Session | null }) {
   const isAdmin = isLibraryAdmin(membership?.role);
 
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
   const [labels, setLabels] = useState<Label[]>([]);
   const [noteTypes, setNoteTypes] = useState<NoteType[]>([]);
   const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
@@ -273,6 +275,16 @@ export default function App({ session }: { session: Session | null }) {
   function openNote(noteId: string) {
     setOpenedAtById((prev) => touchRecentOpen(noteId, prev));
     setActiveNoteId(noteId);
+    // Wall hydrate may only have thumb URLs — upgrade for editor / lightbox.
+    void (async () => {
+      const current = notesRef.current.find((n) => n.id === noteId);
+      if (!current) return;
+      const upgraded = await store.ensureFullImageUrls(current);
+      if (!upgraded) return;
+      setNotes((prev) =>
+        prev.map((n) => (n.id === noteId ? { ...n, images: upgraded.images } : n)),
+      );
+    })();
   }
 
 
