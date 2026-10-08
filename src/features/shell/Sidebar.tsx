@@ -46,6 +46,7 @@ import {
   isNoteDrag,
   type NoteAssignTarget,
 } from '../../lib/noteDrag';
+import { SHOW_GUIDELINES } from '../../lib/config';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -514,93 +515,101 @@ export function Sidebar({
         </button>
       )}
 
-      <CollapsibleSection
-        id="guideline"
-        title={guidelineSectionTitle()}
-        open={sections.guideline}
-        hasActive={sectionHasActive('guideline')}
-        onToggle={() => toggleSection('guideline')}
-      >
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeDisposition === 'none' ? styles.active : ''
-          }${dropClass('disposition:none')}`}
-          onClick={() => onSelectDisposition('none')}
-          {...noteDropHandlers('disposition:none', {
-            field: 'disposition',
-            value: 'none',
-            label: 'No guideline',
-          })}
+      {SHOW_GUIDELINES && (
+        <CollapsibleSection
+          id="guideline"
+          title={guidelineSectionTitle()}
+          open={sections.guideline}
+          hasActive={sectionHasActive('guideline')}
+          onToggle={() => toggleSection('guideline')}
         >
-          <CircleOff size={18} />
-          <span>No guideline</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeDisposition === 'stock' ? styles.active : ''
-          }${dropClass('disposition:stock')}`}
-          onClick={() => onSelectDisposition('stock')}
-          {...noteDropHandlers('disposition:stock', {
-            field: 'disposition',
-            value: 'stock',
-            label: 'To stock',
-          })}
-        >
-          <Package size={18} />
-          <span>To stock</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeDisposition === 'repair'
-              ? styles.active
-              : ''
-          }${dropClass('disposition:repair')}`}
-          onClick={() => onSelectDisposition('repair')}
-          {...noteDropHandlers('disposition:repair', {
-            field: 'disposition',
-            value: 'repair',
-            label: 'Repair',
-          })}
-        >
-          <Wrench size={18} />
-          <span>Repair</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeDisposition === 'config'
-              ? styles.active
-              : ''
-          }${dropClass('disposition:config')}`}
-          onClick={() => onSelectDisposition('config')}
-          {...noteDropHandlers('disposition:config', {
-            field: 'disposition',
-            value: 'config',
-            label: 'Config center',
-          })}
-        >
-          <Settings2 size={18} />
-          <span>Config center</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.item} ${
-            view === 'notes' && activeDisposition === 'scrap' ? styles.active : ''
-          }${dropClass('disposition:scrap')}`}
-          onClick={() => onSelectDisposition('scrap')}
-          {...noteDropHandlers('disposition:scrap', {
-            field: 'disposition',
-            value: 'scrap',
-            label: 'Throw away',
-          })}
-        >
-          <Trash2 size={18} />
-          <span>Throw away</span>
-        </button>
-      </CollapsibleSection>
+          <button
+            type="button"
+            className={`${styles.item} ${
+              view === 'notes' && activeDisposition === 'none'
+                ? styles.active
+                : ''
+            }${dropClass('disposition:none')}`}
+            onClick={() => onSelectDisposition('none')}
+            {...noteDropHandlers('disposition:none', {
+              field: 'disposition',
+              value: 'none',
+              label: 'No guideline',
+            })}
+          >
+            <CircleOff size={18} />
+            <span>No guideline</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.item} ${
+              view === 'notes' && activeDisposition === 'stock'
+                ? styles.active
+                : ''
+            }${dropClass('disposition:stock')}`}
+            onClick={() => onSelectDisposition('stock')}
+            {...noteDropHandlers('disposition:stock', {
+              field: 'disposition',
+              value: 'stock',
+              label: 'To stock',
+            })}
+          >
+            <Package size={18} />
+            <span>To stock</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.item} ${
+              view === 'notes' && activeDisposition === 'repair'
+                ? styles.active
+                : ''
+            }${dropClass('disposition:repair')}`}
+            onClick={() => onSelectDisposition('repair')}
+            {...noteDropHandlers('disposition:repair', {
+              field: 'disposition',
+              value: 'repair',
+              label: 'Repair',
+            })}
+          >
+            <Wrench size={18} />
+            <span>Repair</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.item} ${
+              view === 'notes' && activeDisposition === 'config'
+                ? styles.active
+                : ''
+            }${dropClass('disposition:config')}`}
+            onClick={() => onSelectDisposition('config')}
+            {...noteDropHandlers('disposition:config', {
+              field: 'disposition',
+              value: 'config',
+              label: 'Config center',
+            })}
+          >
+            <Settings2 size={18} />
+            <span>Config center</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.item} ${
+              view === 'notes' && activeDisposition === 'scrap'
+                ? styles.active
+                : ''
+            }${dropClass('disposition:scrap')}`}
+            onClick={() => onSelectDisposition('scrap')}
+            {...noteDropHandlers('disposition:scrap', {
+              field: 'disposition',
+              value: 'scrap',
+              label: 'Throw away',
+            })}
+          >
+            <Trash2 size={18} />
+            <span>Throw away</span>
+          </button>
+        </CollapsibleSection>
+      )}
 
       <CollapsibleSection
         id="type"

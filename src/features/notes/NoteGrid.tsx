@@ -26,6 +26,7 @@ import { childNoteTypes, rootNoteTypes } from '../../lib/noteTypes';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { groupWallNotes } from '../../lib/groupWallNotes';
 import { resolveWallGroupBy, type WallGroupBy } from '../../lib/viewPrefs';
+import { SHOW_GUIDELINES } from '../../lib/config';
 import { NoteCard } from './NoteCard';
 import {
   BulkGuidelineDialog,
@@ -678,7 +679,7 @@ export function NoteGrid({
               <X size={14} />
             </button>
           )}
-          {statusText && (
+          {SHOW_GUIDELINES && statusText && (
             <button
               type="button"
               className={`${styles.chip} ${styles.chipMeta}`}
@@ -813,7 +814,7 @@ export function NoteGrid({
                     onEnterSelect={canEdit ? enterSelect : () => {}}
                     onRangeSelect={canEdit ? rangeSelect : () => {}}
                     onAssignDisposition={
-                      canEdit
+                      SHOW_GUIDELINES && canEdit
                         ? (noteId, value) =>
                             void onUpdateNotes([noteId], {
                               disposition: value,
@@ -821,7 +822,7 @@ export function NoteGrid({
                         : undefined
                     }
                     onAssignGuidelineLines={
-                      canEdit
+                      SHOW_GUIDELINES && canEdit
                         ? (noteId, lines) =>
                             void onUpdateNotes([noteId], {
                               guidelineLines: lines,
@@ -891,13 +892,13 @@ export function NoteGrid({
               onEnterSelect={canEdit ? enterSelect : () => {}}
               onRangeSelect={canEdit ? rangeSelect : () => {}}
               onAssignDisposition={
-                canEdit
+                SHOW_GUIDELINES && canEdit
                   ? (noteId, value) =>
                       void onUpdateNotes([noteId], { disposition: value })
                   : undefined
               }
               onAssignGuidelineLines={
-                canEdit
+                SHOW_GUIDELINES && canEdit
                   ? (noteId, lines) =>
                       void onUpdateNotes([noteId], { guidelineLines: lines })
                   : undefined
@@ -949,7 +950,9 @@ export function NoteGrid({
               {selectedIds.size} selected
             </p>
             <p className={styles.selectionHint}>
-              Assign below, or drag onto Type, Stock, or Guideline
+              {SHOW_GUIDELINES
+                ? 'Assign below, or drag onto Type, Stock, or Guideline'
+                : 'Assign below, or drag onto Type or Stock'}
             </p>
           </div>
 
@@ -968,28 +971,32 @@ export function NoteGrid({
               </button>
               {menu === 'assign' && (
                 <div className={styles.assignSheet} role="menu">
-                  <p className={styles.assignSection}>Guideline</p>
-                  <button
-                    type="button"
-                    className={styles.menuItem}
-                    role="menuitem"
-                    disabled={busy}
-                    onClick={() => {
-                      setMenu(null);
-                      setBulkGuidelineOpen(true);
-                    }}
-                  >
-                    Edit rules…
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.menuItem}
-                    role="menuitem"
-                    disabled={busy}
-                    onClick={() => void applyDisposition('none')}
-                  >
-                    Clear all guidelines
-                  </button>
+                  {SHOW_GUIDELINES && (
+                    <>
+                      <p className={styles.assignSection}>Guideline</p>
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        role="menuitem"
+                        disabled={busy}
+                        onClick={() => {
+                          setMenu(null);
+                          setBulkGuidelineOpen(true);
+                        }}
+                      >
+                        Edit rules…
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        role="menuitem"
+                        disabled={busy}
+                        onClick={() => void applyDisposition('none')}
+                      >
+                        Clear all guidelines
+                      </button>
+                    </>
+                  )}
                   <p className={styles.assignSection}>Type</p>
                   <button
                     type="button"
@@ -1231,7 +1238,7 @@ export function NoteGrid({
         </div>
       )}
 
-      {bulkGuidelineOpen && selectedIds.size > 0 && (
+      {SHOW_GUIDELINES && bulkGuidelineOpen && selectedIds.size > 0 && (
         <BulkGuidelineDialog
           notes={notes.filter((note) => selectedIds.has(note.id))}
           onApply={(edit) => void applyGuidelineBulk(edit)}

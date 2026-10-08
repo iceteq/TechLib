@@ -11,6 +11,7 @@ import { noteTypeById, noteTypeIcon } from '../../lib/noteTypes';
 import { categoryLabel } from '../../lib/searchNotes';
 import { resolveGuidelineLines } from '../../lib/guidelineLines';
 import { DISPOSITIONS } from '../../lib/types';
+import { SHOW_GUIDELINES } from '../../lib/config';
 import { NoteCard } from './NoteCard';
 import styles from './CollectionView.module.css';
 
@@ -219,9 +220,11 @@ export function CollectionView({
                     <th className={styles.colBarcode} scope="col">
                       {showBarcodes ? 'Barcode' : 'Part number'}
                     </th>
-                    <th className={styles.colStatus} scope="col">
-                      Guideline
-                    </th>
+                    {SHOW_GUIDELINES && (
+                      <th className={styles.colStatus} scope="col">
+                        Guideline
+                      </th>
+                    )}
                     <th className={styles.colType} scope="col">
                       Type
                     </th>
@@ -279,7 +282,9 @@ export function CollectionView({
                             <span className={styles.missing}>Missing note</span>
                           )}
                         </td>
-                        <td className={styles.colStatus}>{status || '—'}</td>
+                        {SHOW_GUIDELINES && (
+                          <td className={styles.colStatus}>{status || '—'}</td>
+                        )}
                         <td className={styles.colType}>{typeName || '—'}</td>
                         <td className={styles.colLabels}>
                           {noteLabels.length > 0
