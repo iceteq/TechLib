@@ -53,22 +53,25 @@ export type ViewPrefs = {
 };
 
 export const DEFAULT_VIEW_PREFS: ViewPrefs = {
-  barcodes: false,
+  barcodes: true,
   photos: true,
-  description: false,
+  description: true,
   specialCase: true,
-  labels: true,
+  labels: false,
   age: false,
-  typeChip: true,
-  stock: true,
+  typeChip: false,
+  stock: false,
   sort: 'default',
   groupBy: 'none',
 };
 
-export const VIEW_PREFS_STORAGE_KEY = 'techlib.viewPrefs';
+/** Bump when default show-on-card prefs change so sessions adopt them. */
+export const VIEW_PREFS_STORAGE_KEY = 'techlib.viewPrefs.v2';
 
-/** Legacy key from the earlier barcode-only toggle. */
-const LEGACY_BARCODES_KEY = 'techlib.showBarcodes';
+const LEGACY_VIEW_PREFS_KEYS = [
+  'techlib.viewPrefs',
+  'techlib.showBarcodes',
+];
 
 function parseGroupBy(value: unknown): WallGroupBy {
   if (value === 'type' || value === 'stock' || value === 'none') return value;
@@ -77,6 +80,11 @@ function parseGroupBy(value: unknown): WallGroupBy {
 
 export function loadViewPrefs(): ViewPrefs {
   try {
+    // Drop older preference blobs so new show-on-card defaults apply once.
+    for (const key of LEGACY_VIEW_PREFS_KEYS) {
+      localStorage.removeItem(key);
+    }
+
     const raw = localStorage.getItem(VIEW_PREFS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<ViewPrefs>;
@@ -84,11 +92,6 @@ export function loadViewPrefs(): ViewPrefs {
         parsed.sort === 'recent' ? 'recent' : DEFAULT_VIEW_PREFS.sort;
       const groupBy = parseGroupBy(parsed.groupBy);
       return { ...DEFAULT_VIEW_PREFS, ...parsed, sort, groupBy };
-    }
-
-    const legacy = localStorage.getItem(LEGACY_BARCODES_KEY);
-    if (legacy !== null) {
-      return { ...DEFAULT_VIEW_PREFS, barcodes: legacy === 'true' };
     }
   } catch {
     // ignore quota / private mode / bad JSON
