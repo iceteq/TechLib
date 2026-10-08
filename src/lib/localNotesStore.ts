@@ -235,6 +235,9 @@ export async function resolveWallThumbs(
   return notes;
 }
 
+/** Local blob URLs are already present — nothing to prioritize. */
+export function prioritizeWallImages(_imageIds: string[]): void {}
+
 export async function getNote(id: string): Promise<NoteWithUrls | undefined> {
   const db = await getDb();
   const note = await db.get('notes', id);

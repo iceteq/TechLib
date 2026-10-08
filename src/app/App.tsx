@@ -1804,6 +1804,9 @@ export default function App({ session }: { session: Session | null }) {
           }}
           relatedCountByNoteId={relatedCountByNoteId}
           onShowRelated={showRelatedForNote}
+          onRequestWallImageUrl={(imageId) => {
+            store.prioritizeWallImages([imageId]);
+          }}
           selectionClearNonce={selectionClearNonce}
           onNotesDragStart={() => {
             // Drawer sidebar on small screens covers the grid; only auto-open

@@ -414,15 +414,108 @@ async function hydrateRows(
 
 /**
  * Wall preview signing uses batch `createSignedUrls` (one round-trip).
- * Per-file image transforms were taking ~10s before anything appeared.
- * Cards still `object-fit: cover` + lazy-load below the fold.
+ * Viewport / near-viewport paths are signed before the rest of the wall.
  */
-const WALL_URL_SIGN_BATCH = 40;
+const WALL_URL_SIGN_BATCH = 24;
+/** First paint: roughly one screen of card previews (1–2 images each). */
+const WALL_VIEWPORT_FIRST_PATHS = 24;
+
+type WallSignState = {
+  notes: NoteWithUrls[];
+  onBatch?: (notes: NoteWithUrls[]) => void;
+  /** Paths that should be signed before the backlog (viewport). */
+  priority: string[];
+  backlog: string[];
+  running: boolean;
+  generation: number;
+};
+
+let wallSign: WallSignState | null = null;
+let wallSignGeneration = 0;
+
+function collectMissingWallPaths(notes: NoteWithUrls[]): string[] {
+  const missingPaths: string[] = [];
+  const seen = new Set<string>();
+  for (const note of notes) {
+    for (const img of note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT)) {
+      const path = storagePathByImageId.get(img.id);
+      if (!path || seen.has(path)) continue;
+      seen.add(path);
+      if (getCachedSignedUrls(path)?.full) continue;
+      missingPaths.push(path);
+    }
+  }
+  return missingPaths;
+}
+
+function takePaths(from: string[], limit: number): string[] {
+  const batch: string[] = [];
+  while (from.length > 0 && batch.length < limit) {
+    const path = from.shift()!;
+    if (getCachedSignedUrls(path)?.full) continue;
+    if (batch.includes(path)) continue;
+    batch.push(path);
+  }
+  return batch;
+}
+
+async function pumpWallSignQueue(): Promise<void> {
+  const state = wallSign;
+  if (!state || state.running) return;
+  state.running = true;
+  const gen = state.generation;
+  try {
+    while (wallSign === state && state.generation === gen) {
+      // Always finish viewport priority before backlog.
+      const batch =
+        state.priority.length > 0
+          ? takePaths(state.priority, WALL_URL_SIGN_BATCH)
+          : takePaths(state.backlog, WALL_URL_SIGN_BATCH);
+      if (batch.length === 0) {
+        if (state.priority.length === 0 && state.backlog.length === 0) break;
+        continue;
+      }
+      await signedUrlsForPaths({ fullPaths: batch, thumbPaths: [] });
+      if (wallSign !== state || state.generation !== gen) return;
+      state.notes = applyCachedImageUrls(state.notes);
+      state.onBatch?.(state.notes);
+    }
+  } finally {
+    if (wallSign === state) state.running = false;
+  }
+  // Work may have been prioritized while a batch was in flight.
+  if (
+    wallSign === state &&
+    state.generation === gen &&
+    (state.priority.length > 0 || state.backlog.length > 0)
+  ) {
+    void pumpWallSignQueue();
+  }
+}
 
 /**
- * Sign missing wall preview URLs in batches (wall order first).
- * Uses fast batch full-URL signing (not per-object transforms).
- * Calls `onBatch` after each batch so the UI can paint progressively.
+ * Prefer signing these note images next (cards entering the viewport).
+ * No-op when URLs are already cached.
+ */
+export function prioritizeWallImages(imageIds: string[]): void {
+  const state = wallSign;
+  if (!state) return;
+  let added = false;
+  for (const id of imageIds) {
+    const path = storagePathByImageId.get(id);
+    if (!path || getCachedSignedUrls(path)?.full) continue;
+    // Move to front of priority (dedupe).
+    state.priority = state.priority.filter((p) => p !== path);
+    state.backlog = state.backlog.filter((p) => p !== path);
+    state.priority.unshift(path);
+    added = true;
+  }
+  if (added) void pumpWallSignQueue();
+}
+
+/**
+ * Sign missing wall preview URLs. Viewport-sized batch first, then the rest.
+ * Cards can call `prioritizeWallImages` to jump the queue when they appear.
  */
 export async function resolveWallThumbs(
   notes: NoteWithUrls[],
@@ -431,30 +524,28 @@ export async function resolveWallThumbs(
   let current = applyCachedImageUrls(notes);
   if (current !== notes) onBatch?.(current);
 
-  const missingPaths: string[] = [];
-  const seen = new Set<string>();
-  for (const note of current) {
-    for (const img of note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT)) {
-      const path = storagePathByImageId.get(img.id);
-      if (!path || seen.has(path)) continue;
-      seen.add(path);
-      // Only a cached/batch **full** URL counts — stale transform thumbs do not.
-      if (getCachedSignedUrls(path)?.full) continue;
-      missingPaths.push(path);
-    }
-  }
-
+  const missingPaths = collectMissingWallPaths(current);
   if (missingPaths.length === 0) return current;
 
-  for (let i = 0; i < missingPaths.length; i += WALL_URL_SIGN_BATCH) {
-    const batch = missingPaths.slice(i, i + WALL_URL_SIGN_BATCH);
-    // One batch RPC — much faster than N transform createSignedUrl calls.
-    await signedUrlsForPaths({ fullPaths: batch, thumbPaths: [] });
-    current = applyCachedImageUrls(current);
-    onBatch?.(current);
-  }
+  const generation = ++wallSignGeneration;
+  const priority = missingPaths.slice(0, WALL_VIEWPORT_FIRST_PATHS);
+  const backlog = missingPaths.slice(WALL_VIEWPORT_FIRST_PATHS);
+  wallSign = {
+    notes: current,
+    onBatch,
+    priority: [...priority],
+    backlog: [...backlog],
+    running: false,
+    generation,
+  };
 
-  return current;
+  await pumpWallSignQueue();
+
+  if (wallSign?.generation === generation) {
+    current = wallSign.notes;
+    wallSign = null;
+  }
+  return applyCachedImageUrls(current);
 }
 
 /**

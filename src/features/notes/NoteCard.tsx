@@ -37,26 +37,62 @@ const LONG_PRESS_MS = 500;
 const MOVE_CANCEL_PX = 12;
 /** Ignore click/contextmenu after long-press (mobile fires several of these). */
 const SUPPRESS_MS = 1200;
+/** Prefer signing when the card is near/in the viewport. */
+const WALL_URL_ROOT_MARGIN = '300px 0px';
+
 function WallThumb({
+  imageId,
   thumbUrl,
   fullUrl,
   priority,
   badge,
+  onVisibleWithoutUrl,
 }: {
+  imageId: string;
   thumbUrl: string;
   fullUrl: string;
   priority: boolean;
   badge?: ReactNode;
+  onVisibleWithoutUrl?: (imageId: string) => void;
 }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
   const src = thumbUrl || fullUrl;
+  const askedRef = useRef(false);
 
   useEffect(() => {
     setLoaded(false);
   }, [src]);
 
+  useEffect(() => {
+    askedRef.current = false;
+  }, [imageId]);
+
+  useEffect(() => {
+    if (src || !onVisibleWithoutUrl) return;
+    const el = wrapRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      if (!askedRef.current) {
+        askedRef.current = true;
+        onVisibleWithoutUrl(imageId);
+      }
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting || askedRef.current) return;
+        askedRef.current = true;
+        onVisibleWithoutUrl(imageId);
+        io.disconnect();
+      },
+      { rootMargin: WALL_URL_ROOT_MARGIN },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [src, imageId, onVisibleWithoutUrl]);
+
   return (
-    <div className={styles.imageWrap}>
+    <div ref={wrapRef} className={styles.imageWrap}>
       {src ? (
         <img
           src={src}
@@ -123,6 +159,8 @@ interface NoteCardProps {
   onShowRelated?: (noteId: string) => void;
   /** Eager-load wall thumbs for above-the-fold cards. */
   priorityImage?: boolean;
+  /** Ask the store to sign this image next (viewport-visible, still waiting). */
+  onRequestWallImageUrl?: (imageId: string) => void;
 }
 
 export const NoteCard = memo(function NoteCard({
@@ -159,6 +197,7 @@ export const NoteCard = memo(function NoteCard({
   relatedCount = 0,
   onShowRelated,
   priorityImage = false,
+  onRequestWallImageUrl,
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
@@ -401,9 +440,11 @@ export const NoteCard = memo(function NoteCard({
           {preview.map((img, index) => (
             <WallThumb
               key={img.id}
+              imageId={img.id}
               thumbUrl={img.thumbUrl || img.url}
               fullUrl={img.url}
               priority={priorityImage}
+              onVisibleWithoutUrl={onRequestWallImageUrl}
               badge={
                 overflow > 0 && index === preview.length - 1 ? (
                   <span className={styles.overflow}>+{overflow}</span>

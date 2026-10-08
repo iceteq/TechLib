@@ -16,6 +16,9 @@ export const ensureFullImageUrls = (
 export const resolveWallThumbs = (
   ...args: Parameters<typeof local.resolveWallThumbs>
 ) => api().resolveWallThumbs(...args);
+export const prioritizeWallImages = (
+  ...args: Parameters<typeof local.prioritizeWallImages>
+) => api().prioritizeWallImages(...args);
 export const createNote = (...args: Parameters<typeof local.createNote>) =>
   api().createNote(...args);
 export const updateNote = (...args: Parameters<typeof local.updateNote>) =>
