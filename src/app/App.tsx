@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadViewPrefs, saveViewPrefs } from '../lib/viewPrefs';
 import { prefetchImages } from '../lib/prefetchImages';
-import { NOTE_PREVIEW_IMAGE_LIMIT } from '../lib/config';
+import { NOTE_PREVIEW_IMAGE_LIMIT, SHOW_GUIDELINES } from '../lib/config';
 import {
   loadCreateDefaults,
   saveCreateDefaults,
@@ -281,7 +281,11 @@ export default function App({ session }: { session: Session | null }) {
     initialSession.labelIds,
   );
   const [filterDisposition, setFilterDisposition] =
-    useState<NoteDisposition | null>(initialSession.disposition);
+    useState<NoteDisposition | null>(
+      SHOW_GUIDELINES ? initialSession.disposition : null,
+    );
+  /** Disposition filter is inert while guidelines UI is hidden. */
+  const activeDispositionFilter = SHOW_GUIDELINES ? filterDisposition : null;
   const [filterCategoryId, setFilterCategoryId] = useState<string | null>(
     initialSession.categoryId,
   );
@@ -427,7 +431,7 @@ export default function App({ session }: { session: Session | null }) {
       labelIds: view === 'notes' ? filterLabelIds : [],
       search,
       view: view === 'collection' ? 'notes' : view,
-      disposition: view === 'notes' ? filterDisposition : null,
+      disposition: view === 'notes' ? activeDispositionFilter : null,
       categoryId: view === 'notes' ? filterCategoryId : null,
       stockId: view === 'notes' ? filterStockId : null,
     });
@@ -445,7 +449,7 @@ export default function App({ session }: { session: Session | null }) {
     stockLocations,
     noteTypes,
     filterLabelIds,
-    filterDisposition,
+    activeDispositionFilter,
     filterCategoryId,
     filterStockId,
     search,
@@ -460,7 +464,7 @@ export default function App({ session }: { session: Session | null }) {
       view,
       search,
       labelIds: filterLabelIds,
-      disposition: filterDisposition,
+      disposition: activeDispositionFilter,
       categoryId: filterCategoryId,
       stockId: filterStockId,
     });
@@ -468,7 +472,7 @@ export default function App({ session }: { session: Session | null }) {
     view,
     search,
     filterLabelIds,
-    filterDisposition,
+    activeDispositionFilter,
     filterCategoryId,
     filterStockId,
   ]);
@@ -480,7 +484,7 @@ export default function App({ session }: { session: Session | null }) {
         labelIds: view === 'notes' ? filterLabelIds : [],
         search: view === 'notes' ? search : '',
         view: 'notes',
-        disposition: view === 'notes' ? filterDisposition : null,
+        disposition: view === 'notes' ? activeDispositionFilter : null,
         categoryId: null,
         stockId: view === 'notes' ? filterStockId : null,
       }),
@@ -490,7 +494,7 @@ export default function App({ session }: { session: Session | null }) {
       stockLocations,
       noteTypes,
       filterLabelIds,
-      filterDisposition,
+      activeDispositionFilter,
       filterStockId,
       search,
       view,
@@ -502,7 +506,7 @@ export default function App({ session }: { session: Session | null }) {
         labelIds: view === 'notes' ? filterLabelIds : [],
         search: view === 'notes' ? search : '',
         view: 'notes',
-        disposition: view === 'notes' ? filterDisposition : null,
+        disposition: view === 'notes' ? activeDispositionFilter : null,
         categoryId: view === 'notes' ? filterCategoryId : null,
         stockId: null,
       }),
@@ -512,7 +516,7 @@ export default function App({ session }: { session: Session | null }) {
       stockLocations,
       noteTypes,
       filterLabelIds,
-      filterDisposition,
+      activeDispositionFilter,
       filterCategoryId,
       search,
       view,
@@ -524,7 +528,7 @@ export default function App({ session }: { session: Session | null }) {
         labelIds: [],
         search: view === 'notes' ? search : '',
         view: 'notes',
-        disposition: view === 'notes' ? filterDisposition : null,
+        disposition: view === 'notes' ? activeDispositionFilter : null,
         categoryId: view === 'notes' ? filterCategoryId : null,
         stockId: view === 'notes' ? filterStockId : null,
       }),
@@ -533,7 +537,7 @@ export default function App({ session }: { session: Session | null }) {
       labels,
       stockLocations,
       noteTypes,
-      filterDisposition,
+      activeDispositionFilter,
       filterCategoryId,
       filterStockId,
       search,
@@ -673,10 +677,10 @@ export default function App({ session }: { session: Session | null }) {
 
   useEffect(() => {
     const type = categoryLabel(filterCategoryId, noteTypes);
-    const status = dispositionLabel(filterDisposition);
+    const status = dispositionLabel(activeDispositionFilter);
     const parts = [type, status].filter(Boolean);
     document.title = parts.length > 0 ? `TechLib · ${parts.join(' · ')}` : 'TechLib';
-  }, [filterCategoryId, filterDisposition, noteTypes]);
+  }, [filterCategoryId, activeDispositionFilter, noteTypes]);
 
   function clearAllFilters() {
     setFilterLabelIds([]);
@@ -1673,7 +1677,7 @@ export default function App({ session }: { session: Session | null }) {
           unsetStockCount={stockCounts.unset}
           view={view}
           activeLabelIds={filterLabelIds}
-          activeDisposition={filterDisposition}
+          activeDisposition={activeDispositionFilter}
           activeCategoryId={filterCategoryId}
           activeStockId={filterStockId}
           collectionCount={cartUnitCount}
@@ -1785,7 +1789,7 @@ export default function App({ session }: { session: Session | null }) {
           noteTypes={noteTypes}
           view={view}
           filterLabelIds={filterLabelIds}
-          filterDisposition={filterDisposition}
+          filterDisposition={activeDispositionFilter}
           filterCategoryId={filterCategoryId}
           filterStockId={filterStockId}
           search={search}

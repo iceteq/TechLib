@@ -9,7 +9,7 @@ import {
   Check,
   Layers,
 } from 'lucide-react';
-import { NOTE_PREVIEW_IMAGE_LIMIT } from '../../lib/config';
+import { NOTE_PREVIEW_IMAGE_LIMIT, SHOW_GUIDELINES } from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
 import { formatNoteAge } from '../../lib/formatNoteAge';
 import { noteTypeById, noteTypePathLabel } from '../../lib/noteTypes';
@@ -597,20 +597,22 @@ export const NoteCard = memo(function NoteCard({
           </p>
         )}
         <div className={styles.context}>
-          <div className={styles.guidelineBlock}>
-            <GuidelineLinesList
-              lines={note.guidelineLines}
-              disposition={note.disposition}
-              disabled={selecting || !onAssignDisposition}
-              expanded={assignField === 'disposition'}
-              quiet={showPhotos && preview.length > 0}
-              onClick={
-                selecting || !onAssignDisposition
-                  ? undefined
-                  : () => openAssign('disposition')
-              }
-            />
-          </div>
+          {SHOW_GUIDELINES && (
+            <div className={styles.guidelineBlock}>
+              <GuidelineLinesList
+                lines={note.guidelineLines}
+                disposition={note.disposition}
+                disabled={selecting || !onAssignDisposition}
+                expanded={assignField === 'disposition'}
+                quiet={showPhotos && preview.length > 0}
+                onClick={
+                  selecting || !onAssignDisposition
+                    ? undefined
+                    : () => openAssign('disposition')
+                }
+              />
+            </div>
+          )}
           {showLabels &&
             noteLabels.map((label) => (
               <button

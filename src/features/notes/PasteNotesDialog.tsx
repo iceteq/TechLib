@@ -131,8 +131,7 @@ export function PasteNotesDialog({
             </h2>
             <p className={styles.subtitle}>
               One note per line from Excel. Columns: part number, description
-              (optional), guidelines (optional). Remove any row from the preview
-              before importing.
+              (optional). Remove any row from the preview before importing.
             </p>
           </div>
           <button
