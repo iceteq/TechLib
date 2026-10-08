@@ -11,8 +11,15 @@ export type CachedSignedUrls = {
   expiresAt: number;
 };
 
-/** Bump when thumb transform params change so stale sizes are not reused. */
-const STORAGE_KEY = 'techlib.signedUrlCache.v2';
+/**
+ * Bump when wall URL strategy changes so stale transform thumbs are dropped.
+ * v2 stored slow/broken per-file transform URLs that blocked re-signing.
+ */
+const STORAGE_KEY = 'techlib.signedUrlCache.v3';
+const LEGACY_STORAGE_KEYS = [
+  'techlib.signedUrlCache.v1',
+  'techlib.signedUrlCache.v2',
+];
 /** Drop cache entries this long before the signed TTL ends. */
 const EXPIRY_SKEW_MS = 60 * 60 * 1000; // 1h
 
@@ -32,6 +39,9 @@ function hydrateFromSession() {
   hydrated = true;
   if (!canUseSessionStorage()) return;
   try {
+    for (const key of LEGACY_STORAGE_KEYS) {
+      sessionStorage.removeItem(key);
+    }
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw) as Record<string, CachedSignedUrls>;
@@ -39,6 +49,8 @@ function hydrateFromSession() {
     for (const [path, entry] of Object.entries(parsed)) {
       if (!entry || typeof entry.expiresAt !== 'number') continue;
       if (entry.expiresAt <= now) continue;
+      // Wall needs batch-signed full URLs; ignore thumb-only legacy rows.
+      if (!entry.full) continue;
       memory.set(path, entry);
     }
   } catch {
