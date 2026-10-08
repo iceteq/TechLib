@@ -31,6 +31,7 @@ import {
   getCachedSignedUrls,
   putCachedSignedUrls,
 } from './signedUrlCache';
+import { prefetchImages } from './prefetchImages';
 import { encodeWallThumb, wallDerivativePath } from './wallThumb';
 
 const BUCKET = 'note-images';
@@ -596,13 +597,13 @@ function queueLazyWallBackfill(originalPaths: string[]): void {
  *
  * Always batch-signs **originals** first so the wall never depends on
  * ghost signed URLs for missing `.wall.jpg` keys. Calls `onPainted` as
- * soon as originals are cached so cards can render before wall probes.
- * Then upgrades to a verified wall derivative when one exists; otherwise
- * queues lazy backfill.
+ * soon as originals are cached, then returns so the next sign batch can
+ * start. `.wall.jpg` probes / upgrades run in the background.
  */
 async function signWallPreviewUrls(
   originalPaths: string[],
   onPainted?: () => void,
+  onUpgraded?: () => void,
 ): Promise<void> {
   const unique = [...new Set(originalPaths.filter(Boolean))];
   if (unique.length === 0) return;
@@ -615,6 +616,7 @@ async function signWallPreviewUrls(
     SIGNED_URL_TTL_SEC,
   );
   throwIf(fullError);
+  const paintedUrls: string[] = [];
   for (let i = 0; i < (fullData ?? []).length; i++) {
     const item = fullData![i];
     const path = item.path ?? unique[i];
@@ -624,31 +626,36 @@ async function signWallPreviewUrls(
         { full: item.signedUrl, thumb: item.signedUrl },
         SIGNED_URL_TTL_SEC,
       );
+      paintedUrls.push(item.signedUrl);
     }
   }
 
-  // Paint immediately — do not wait for .wall.jpg existence probes.
+  // Paint + warm browser cache immediately — do not wait for probes.
   onPainted?.();
+  prefetchImages(paintedUrls);
 
-  // 2) Upgrade to real `.wall.jpg` when the object actually exists.
-  const needBackfill: string[] = [];
-  await Promise.all(
-    unique.map(async (original) => {
-      const wallUrl = await fetchWallDerivativeSignedUrl(original);
-      if (wallUrl) {
-        putCachedSignedUrls(original, { thumb: wallUrl }, SIGNED_URL_TTL_SEC);
-        lazyBackfillDone.add(original);
-      } else if (
-        !lazyBackfillDone.has(original) &&
-        !lazyBackfillFailed.has(original)
-      ) {
-        needBackfill.push(original);
-      }
-    }),
-  );
-
-  // 3) Create missing derivatives in the background (editors).
-  queueLazyWallBackfill(needBackfill);
+  // 2) Upgrade to real `.wall.jpg` in the background (non-blocking).
+  void (async () => {
+    const needBackfill: string[] = [];
+    let upgraded = false;
+    await Promise.all(
+      unique.map(async (original) => {
+        const wallUrl = await fetchWallDerivativeSignedUrl(original);
+        if (wallUrl) {
+          putCachedSignedUrls(original, { thumb: wallUrl }, SIGNED_URL_TTL_SEC);
+          lazyBackfillDone.add(original);
+          upgraded = true;
+        } else if (
+          !lazyBackfillDone.has(original) &&
+          !lazyBackfillFailed.has(original)
+        ) {
+          needBackfill.push(original);
+        }
+      }),
+    );
+    queueLazyWallBackfill(needBackfill);
+    if (upgraded) onUpgraded?.();
+  })();
 }
 
 function takePaths(from: string[], limit: number): string[] {
@@ -680,15 +687,26 @@ async function pumpWallSignQueue(): Promise<void> {
         if (state.priority.length === 0 && state.backlog.length === 0) break;
         continue;
       }
-      await signWallPreviewUrls(batch, () => {
-        if (wallSign !== state || state.generation !== gen) return;
-        state.notes = applyCachedImageUrls(state.notes);
-        state.onBatch?.(state.notes);
-      });
+      await signWallPreviewUrls(
+        batch,
+        () => {
+          if (wallSign !== state || state.generation !== gen) return;
+          state.notes = applyCachedImageUrls(state.notes);
+          wallNotesSnapshot = state.notes;
+          state.onBatch?.(state.notes);
+        },
+        () => {
+          // Background .wall.jpg upgrades — queue may already be done.
+          if (wallSign === state && state.generation === gen) {
+            state.notes = applyCachedImageUrls(state.notes);
+            wallNotesSnapshot = state.notes;
+            state.onBatch?.(state.notes);
+          } else {
+            publishWallUrlUpdate();
+          }
+        },
+      );
       if (wallSign !== state || state.generation !== gen) return;
-      // Re-publish after any .wall.jpg upgrades landed in cache.
-      state.notes = applyCachedImageUrls(state.notes);
-      state.onBatch?.(state.notes);
     }
   } finally {
     if (wallSign === state) state.running = false;
