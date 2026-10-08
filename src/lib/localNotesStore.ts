@@ -238,6 +238,29 @@ export async function resolveWallThumbs(
 /** Local blob URLs are already present — nothing to prioritize. */
 export function prioritizeWallImages(_imageIds: string[]): void {}
 
+export type WallBackfillProgress = {
+  done: number;
+  total: number;
+  created: number;
+  skipped: number;
+  failed: number;
+};
+
+/** Local mode has no separate wall derivatives. */
+export async function backfillWallThumbs(
+  onProgress?: (progress: WallBackfillProgress) => void,
+): Promise<WallBackfillProgress> {
+  const progress: WallBackfillProgress = {
+    done: 0,
+    total: 0,
+    created: 0,
+    skipped: 0,
+    failed: 0,
+  };
+  onProgress?.(progress);
+  return progress;
+}
+
 export async function getNote(id: string): Promise<NoteWithUrls | undefined> {
   const db = await getDb();
   const note = await db.get('notes', id);

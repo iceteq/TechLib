@@ -123,6 +123,10 @@ Photos wins because **grid bytes are small by design**, not because signing is m
 
 Wall signing/loading prefers `.wall.jpg`; falls back to original if missing (legacy photos).
 
+**Backfill**
+- **Lazy:** when the wall falls back to an original, editors quietly create `.wall.jpg` in the background (concurrency 2) and swap the card URL when ready.
+- **Admin:** Sidebar → **Optimize photos** runs a full-library pass (skip existing derivatives).
+
 **Why first:** Fixes cold viewport time and mobile data without needing transforms RPC.
 
 **Success metric:** First-screen photos typically **&lt; 1.5s cold**, **&lt; 500ms warm**.

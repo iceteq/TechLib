@@ -453,9 +453,127 @@ function collectMissingWallPaths(notes: NoteWithUrls[]): string[] {
   return missingPaths;
 }
 
+/** Last notes + patch callback so lazy backfill can refresh the wall. */
+let wallUrlListener: ((notes: NoteWithUrls[]) => void) | null = null;
+let wallNotesSnapshot: NoteWithUrls[] | null = null;
+
+const lazyBackfillPending = new Set<string>();
+const lazyBackfillDone = new Set<string>();
+const lazyBackfillFailed = new Set<string>();
+let lazyBackfillActive = 0;
+const LAZY_BACKFILL_CONCURRENCY = 2;
+
+/**
+ * Download original → encode small JPEG → upload `{path}.wall.jpg`.
+ * Returns true when the derivative exists afterward.
+ */
+async function createWallDerivativeForPath(
+  storagePath: string,
+): Promise<boolean> {
+  if (!(await canEditLibraryRpc())) return false;
+  const storage = getSupabase().storage.from(BUCKET);
+  const wallPath = wallDerivativePath(storagePath);
+
+  // Already present?
+  const { data: existing } = await storage.createSignedUrl(
+    wallPath,
+    60,
+  );
+  if (existing?.signedUrl) {
+    putCachedSignedUrls(
+      storagePath,
+      { thumb: existing.signedUrl },
+      SIGNED_URL_TTL_SEC,
+    );
+    return true;
+  }
+
+  const { data: file, error: downloadError } = await storage.download(
+    storagePath,
+  );
+  if (downloadError || !file) return false;
+
+  const wallBlob = await encodeWallThumb(file);
+  if (!wallBlob) return false;
+
+  const { error: uploadError } = await storage.upload(wallPath, wallBlob, {
+    contentType: 'image/jpeg',
+    upsert: true,
+  });
+  if (uploadError) return false;
+
+  const { data: signed } = await storage.createSignedUrl(
+    wallPath,
+    SIGNED_URL_TTL_SEC,
+  );
+  if (signed?.signedUrl) {
+    putCachedSignedUrls(
+      storagePath,
+      { thumb: signed.signedUrl },
+      SIGNED_URL_TTL_SEC,
+    );
+  }
+  return true;
+}
+
+function publishWallUrlUpdate() {
+  if (!wallNotesSnapshot || !wallUrlListener) return;
+  wallNotesSnapshot = applyCachedImageUrls(wallNotesSnapshot);
+  if (wallSign) wallSign.notes = wallNotesSnapshot;
+  wallUrlListener(wallNotesSnapshot);
+}
+
+async function pumpLazyWallBackfill(): Promise<void> {
+  while (
+    lazyBackfillActive < LAZY_BACKFILL_CONCURRENCY &&
+    lazyBackfillPending.size > 0
+  ) {
+    const path = lazyBackfillPending.values().next().value as string | undefined;
+    if (!path) break;
+    lazyBackfillPending.delete(path);
+    lazyBackfillActive += 1;
+    void (async () => {
+      try {
+        const ok = await createWallDerivativeForPath(path);
+        if (ok) {
+          lazyBackfillDone.add(path);
+          publishWallUrlUpdate();
+        } else {
+          lazyBackfillFailed.add(path);
+        }
+      } catch (err) {
+        console.warn('lazy wall backfill failed', path, err);
+        lazyBackfillFailed.add(path);
+      } finally {
+        lazyBackfillActive -= 1;
+        void pumpLazyWallBackfill();
+      }
+    })();
+  }
+}
+
+/** Queue background creation of missing `.wall.jpg` files (editors only). */
+function queueLazyWallBackfill(originalPaths: string[]): void {
+  let added = false;
+  for (const path of originalPaths) {
+    if (
+      !path ||
+      lazyBackfillDone.has(path) ||
+      lazyBackfillFailed.has(path) ||
+      lazyBackfillPending.has(path)
+    ) {
+      continue;
+    }
+    lazyBackfillPending.add(path);
+    added = true;
+  }
+  if (added) void pumpLazyWallBackfill();
+}
+
 /**
  * Sign wall preview URLs for original storage paths.
  * Prefers `{path}.wall.jpg` derivatives; falls back to the original object.
+ * Missing derivatives are queued for lazy backfill (editors).
  */
 async function signWallPreviewUrls(
   originalPaths: string[],
@@ -486,6 +604,7 @@ async function signWallPreviewUrls(
     if (item.signedUrl) {
       putCachedSignedUrls(original, { thumb: item.signedUrl }, SIGNED_URL_TTL_SEC);
       seenOrig.add(original);
+      lazyBackfillDone.add(original);
     }
   }
   for (const original of unique) {
@@ -508,6 +627,8 @@ async function signWallPreviewUrls(
       );
     }
   }
+  // Show original now; quietly create `.wall.jpg` for next time / live swap.
+  queueLazyWallBackfill(needOriginal);
 }
 
 function takePaths(from: string[], limit: number): string[] {
@@ -584,6 +705,8 @@ export async function resolveWallThumbs(
   onBatch?: (notes: NoteWithUrls[]) => void,
 ): Promise<NoteWithUrls[]> {
   let current = applyCachedImageUrls(notes);
+  wallNotesSnapshot = current;
+  wallUrlListener = onBatch ?? null;
   if (current !== notes) onBatch?.(current);
 
   const missingPaths = collectMissingWallPaths(current);
@@ -605,9 +728,114 @@ export async function resolveWallThumbs(
 
   if (wallSign?.generation === generation) {
     current = wallSign.notes;
+    wallNotesSnapshot = current;
     wallSign = null;
   }
   return applyCachedImageUrls(current);
+}
+
+export type WallBackfillProgress = {
+  done: number;
+  total: number;
+  created: number;
+  skipped: number;
+  failed: number;
+};
+
+/**
+ * One-shot: create missing `.wall.jpg` files for every note image (editors).
+ * Safe to re-run — existing derivatives are skipped.
+ */
+export async function backfillWallThumbs(
+  onProgress?: (progress: WallBackfillProgress) => void,
+): Promise<WallBackfillProgress> {
+  if (!(await canEditLibraryRpc())) {
+    throw new Error('Edit access required to backfill wall thumbs');
+  }
+
+  const supabase = getSupabase();
+  const paths: string[] = [];
+  const PAGE = 500;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('note_images')
+      .select('storage_path')
+      .range(from, from + PAGE - 1);
+    throwIf(error);
+    const rows = (data ?? []) as { storage_path: string }[];
+    for (const row of rows) {
+      if (row.storage_path) paths.push(row.storage_path);
+    }
+    if (rows.length < PAGE) break;
+  }
+
+  const unique = [...new Set(paths)];
+  const progress: WallBackfillProgress = {
+    done: 0,
+    total: unique.length,
+    created: 0,
+    skipped: 0,
+    failed: 0,
+  };
+  onProgress?.(progress);
+
+  const CHECK_BATCH = 40;
+  const missing: string[] = [];
+  const storage = supabase.storage.from(BUCKET);
+
+  for (let i = 0; i < unique.length; i += CHECK_BATCH) {
+    const batch = unique.slice(i, i + CHECK_BATCH);
+    const wallPaths = batch.map(wallDerivativePath);
+    const wallToOriginal = new Map(
+      wallPaths.map((wallPath, idx) => [wallPath, batch[idx]]),
+    );
+    const { data: signed } = await storage.createSignedUrls(wallPaths, 60);
+    const have = new Set<string>();
+    for (const item of signed ?? []) {
+      if (item.path && item.signedUrl) {
+        const original = wallToOriginal.get(item.path);
+        if (original) {
+          have.add(original);
+          putCachedSignedUrls(
+            original,
+            { thumb: item.signedUrl },
+            SIGNED_URL_TTL_SEC,
+          );
+          lazyBackfillDone.add(original);
+        }
+      }
+    }
+    for (const original of batch) {
+      if (have.has(original)) progress.skipped += 1;
+      else missing.push(original);
+    }
+    progress.done = Math.min(unique.length, i + batch.length);
+    onProgress?.({ ...progress });
+  }
+
+  progress.done = progress.skipped;
+  onProgress?.({ ...progress });
+
+  for (const path of missing) {
+    try {
+      const ok = await createWallDerivativeForPath(path);
+      if (ok) {
+        progress.created += 1;
+        lazyBackfillDone.add(path);
+      } else {
+        progress.failed += 1;
+        lazyBackfillFailed.add(path);
+      }
+    } catch {
+      progress.failed += 1;
+      lazyBackfillFailed.add(path);
+    }
+    progress.done += 1;
+    onProgress?.({ ...progress });
+    publishWallUrlUpdate();
+  }
+
+  return progress;
 }
 
 /**
