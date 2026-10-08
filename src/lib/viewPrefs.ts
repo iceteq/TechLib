@@ -4,6 +4,31 @@ export type WallSort = 'default' | 'recent';
 /** How to cluster the wall when not searching. */
 export type WallGroupBy = 'none' | 'type' | 'stock';
 
+/**
+ * Resolve the wall group mode.
+ *
+ * Explicit Type / Stock always win. `none` means Auto: when exactly one of
+ * type or stock filter is active, group by the complementary axis. Search,
+ * archive, both filters, or no filters → flat.
+ */
+export function resolveWallGroupBy(input: {
+  groupBy: WallGroupBy;
+  filterCategoryId: string | null;
+  filterStockId: string | null;
+  searchActive?: boolean;
+  archive?: boolean;
+}): WallGroupBy {
+  if (input.searchActive || input.archive) return 'none';
+  if (input.groupBy !== 'none') return input.groupBy;
+
+  const hasType = Boolean(input.filterCategoryId);
+  const hasStock = Boolean(input.filterStockId);
+  if (hasType && hasStock) return 'none';
+  if (hasStock) return 'type';
+  if (hasType) return 'stock';
+  return 'none';
+}
+
 export type ViewPrefs = {
   barcodes: boolean;
   photos: boolean;
@@ -18,7 +43,10 @@ export type ViewPrefs = {
    * recent = recently useful (opened or edited).
    */
   sort: WallSort;
-  /** Cluster wall cards; ignored while search is active. */
+  /**
+   * Cluster wall cards. `none` = Auto (complementary type↔stock when
+   * exactly one of those filters is active). Ignored while searching.
+   */
   groupBy: WallGroupBy;
 };
 

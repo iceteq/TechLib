@@ -25,7 +25,7 @@ import { categoryLabel, dispositionLabel, stockLabel } from '../../lib/searchNot
 import { childNoteTypes, rootNoteTypes } from '../../lib/noteTypes';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
 import { groupWallNotes } from '../../lib/groupWallNotes';
-import type { WallGroupBy } from '../../lib/viewPrefs';
+import { resolveWallGroupBy, type WallGroupBy } from '../../lib/viewPrefs';
 import { NoteCard } from './NoteCard';
 import {
   BulkGuidelineDialog,
@@ -563,9 +563,15 @@ export function NoteGrid({
     emptyText = 'Clear filters to see more notes, or adjust search.';
   }
 
-  // Search stays flat; grouping is for browse structure only.
-  const effectiveGroupBy: WallGroupBy =
-    search.trim() || view === 'archive' ? 'none' : groupBy;
+  // Search/archive stay flat. Auto (`none`) uses the complementary axis
+  // when exactly one of type/stock filter is active.
+  const effectiveGroupBy: WallGroupBy = resolveWallGroupBy({
+    groupBy,
+    filterCategoryId,
+    filterStockId,
+    searchActive: Boolean(search.trim()),
+    archive: view === 'archive',
+  });
   const wallGroups = useMemo(
     () =>
       groupWallNotes(notes, effectiveGroupBy, noteTypes, stockLocations),
