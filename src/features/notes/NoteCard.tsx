@@ -37,9 +37,6 @@ const LONG_PRESS_MS = 500;
 const MOVE_CANCEL_PX = 12;
 /** Ignore click/contextmenu after long-press (mobile fires several of these). */
 const SUPPRESS_MS = 1200;
-/** Start fetching thumbs well before they enter the viewport. */
-const THUMB_ROOT_MARGIN = '1200px 0px';
-
 function WallThumb({
   thumbUrl,
   fullUrl,
@@ -51,40 +48,16 @@ function WallThumb({
   priority: boolean;
   badge?: ReactNode;
 }) {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(priority);
   const [loaded, setLoaded] = useState(false);
   const src = thumbUrl || fullUrl;
-
-  useEffect(() => {
-    if (priority) {
-      setActive(true);
-      return;
-    }
-    const el = wrapRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') {
-      setActive(true);
-      return;
-    }
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        setActive(true);
-        io.disconnect();
-      },
-      { rootMargin: THUMB_ROOT_MARGIN },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [priority]);
 
   useEffect(() => {
     setLoaded(false);
   }, [src]);
 
   return (
-    <div ref={wrapRef} className={styles.imageWrap}>
-      {active && src ? (
+    <div className={styles.imageWrap}>
+      {src ? (
         <img
           src={src}
           alt=""

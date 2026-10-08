@@ -224,6 +224,8 @@ export default function App({ session }: { session: Session | null }) {
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const notesRef = useRef(notes);
   notesRef.current = notes;
+  /** Ignore stale progressive thumb batches after a newer refresh. */
+  const thumbResolveGen = useRef(0);
   const [labels, setLabels] = useState<Label[]>([]);
   const [noteTypes, setNoteTypes] = useState<NoteType[]>([]);
   const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
@@ -315,14 +317,31 @@ export default function App({ session }: { session: Session | null }) {
     setCartItems(nextCart);
     setNoteLinks(nextLinks);
     setReactions(nextReactions);
-    // Warm thumb HTTP cache while idle so scroll-in is less blank→pop.
-    prefetchImages(
-      nextNotes.flatMap((note) =>
-        note.images
-          .slice(0, NOTE_PREVIEW_IMAGE_LIMIT)
-          .map((img) => img.thumbUrl || img.url),
-      ),
-    );
+    // Sign thumbs in batches after the wall is already visible.
+    const gen = ++thumbResolveGen.current;
+    void store
+      .resolveWallThumbs(nextNotes, (partial) => {
+        if (gen !== thumbResolveGen.current) return;
+        setNotes((prev) => {
+          const imagesById = new Map(
+            partial.map((note) => [note.id, note.images]),
+          );
+          return prev.map((note) => {
+            const images = imagesById.get(note.id);
+            return images ? { ...note, images } : note;
+          });
+        });
+      })
+      .then((finalNotes) => {
+        if (gen !== thumbResolveGen.current) return;
+        prefetchImages(
+          finalNotes.flatMap((note) =>
+            note.images
+              .slice(0, NOTE_PREVIEW_IMAGE_LIMIT)
+              .map((img) => img.thumbUrl || img.url),
+          ),
+        );
+      });
   }, []);
 
   useEffect(() => {
