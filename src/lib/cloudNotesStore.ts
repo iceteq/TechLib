@@ -406,10 +406,16 @@ async function hydrateRows(
   });
 }
 
-const WALL_THUMB_SIGN_BATCH = 16;
+/**
+ * Wall preview signing uses batch `createSignedUrls` (one round-trip).
+ * Per-file image transforms were taking ~10s before anything appeared.
+ * Cards still `object-fit: cover` + lazy-load below the fold.
+ */
+const WALL_URL_SIGN_BATCH = 40;
 
 /**
- * Sign missing wall preview thumbs in small batches (wall order first).
+ * Sign missing wall preview URLs in batches (wall order first).
+ * Uses fast batch full-URL signing (not per-object transforms).
  * Calls `onBatch` after each batch so the UI can paint progressively.
  */
 export async function resolveWallThumbs(
@@ -426,16 +432,24 @@ export async function resolveWallThumbs(
       const path = storagePathByImageId.get(img.id);
       if (!path || seen.has(path)) continue;
       seen.add(path);
-      if (img.thumbUrl || getCachedSignedUrls(path)?.thumb) continue;
+      const cached = getCachedSignedUrls(path);
+      // Full or thumb cache is enough to show a wall preview.
+      if (img.thumbUrl || img.url || cached?.thumb || cached?.full) continue;
       missingPaths.push(path);
     }
   }
 
   if (missingPaths.length === 0) return current;
 
-  for (let i = 0; i < missingPaths.length; i += WALL_THUMB_SIGN_BATCH) {
-    const batch = missingPaths.slice(i, i + WALL_THUMB_SIGN_BATCH);
-    await signedUrlsForPaths({ fullPaths: [], thumbPaths: batch });
+  for (let i = 0; i < missingPaths.length; i += WALL_URL_SIGN_BATCH) {
+    const batch = missingPaths.slice(i, i + WALL_URL_SIGN_BATCH);
+    // One batch RPC — much faster than N transform createSignedUrl calls.
+    await signedUrlsForPaths({ fullPaths: batch, thumbPaths: [] });
+    // Reuse full signed URL as the wall preview URL.
+    for (const path of batch) {
+      const full = getCachedSignedUrls(path)?.full;
+      if (full) putCachedSignedUrls(path, { thumb: full }, SIGNED_URL_TTL_SEC);
+    }
     current = applyCachedImageUrls(current);
     onBatch?.(current);
   }
@@ -468,7 +482,7 @@ export async function ensureFullImageUrls(
   if (missingFull.length > 0) {
     await signedUrlsForPaths({
       fullPaths: missingFull,
-      thumbPaths: paths.filter((path) => !getCachedSignedUrls(path)?.thumb),
+      thumbPaths: [],
     });
   }
 
