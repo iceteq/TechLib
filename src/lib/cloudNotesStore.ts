@@ -31,6 +31,7 @@ import {
   getCachedSignedUrls,
   putCachedSignedUrls,
 } from './signedUrlCache';
+import { encodeWallThumb, wallDerivativePath } from './wallThumb';
 
 const BUCKET = 'note-images';
 
@@ -293,7 +294,7 @@ async function imagesByNote(
 
 type HydrateMode = 'wall' | 'full';
 
-/** Apply session-cached **full** signed URLs onto note images (no network). */
+/** Apply session-cached signed URLs onto note images (no network). */
 function applyCachedImageUrls(notes: NoteWithUrls[]): NoteWithUrls[] {
   let any = false;
   const next = notes.map((note) => {
@@ -301,12 +302,14 @@ function applyCachedImageUrls(notes: NoteWithUrls[]): NoteWithUrls[] {
     const images = note.images.map((img) => {
       const path = storagePathByImageId.get(img.id);
       if (!path) return img;
-      const full = getCachedSignedUrls(path)?.full;
-      if (!full) return img;
-      // Wall preview = full signed URL (batch-signed). Ignore stale transform thumbs.
-      if (full === img.url && full === img.thumbUrl) return img;
+      const cached = getCachedSignedUrls(path);
+      if (!cached?.full && !cached?.thumb) return img;
+      // Prefer small wall derivative (thumb) for cards; full for editor.
+      const url = cached.full || cached.thumb || img.url;
+      const thumbUrl = cached.thumb || cached.full || img.thumbUrl;
+      if (url === img.url && thumbUrl === img.thumbUrl) return img;
       noteChanged = true;
-      return { ...img, url: full, thumbUrl: full };
+      return { ...img, url, thumbUrl };
     });
     if (!noteChanged) return note;
     any = true;
@@ -352,16 +355,16 @@ async function hydrateRows(
       const full =
         fullByPath.get(path) ?? cached?.full ?? '';
       const thumb =
-        mode === 'wall'
-          ? full // wall never uses transform thumbs (slow + were poisoning the cache)
-          : (thumbByPath.get(path) ?? cached?.thumb ?? full);
+        thumbByPath.get(path) ?? cached?.thumb ?? full;
       if (mode === 'wall') {
         // Keep slots even without URLs so cards reserve photo space + overflow.
+        // Prefer cached wall derivative (thumb); fall back to full if present.
+        const preview = thumb || full;
         return {
           id: img.id,
           position: img.position,
-          url: index < NOTE_PREVIEW_IMAGE_LIMIT ? full : full || '',
-          thumbUrl: index < NOTE_PREVIEW_IMAGE_LIMIT ? full : '',
+          url: index < NOTE_PREVIEW_IMAGE_LIMIT ? full || preview : full || '',
+          thumbUrl: index < NOTE_PREVIEW_IMAGE_LIMIT ? preview : '',
         };
       }
       if (!full && !thumb) {
@@ -441,11 +444,70 @@ function collectMissingWallPaths(notes: NoteWithUrls[]): string[] {
       const path = storagePathByImageId.get(img.id);
       if (!path || seen.has(path)) continue;
       seen.add(path);
-      if (getCachedSignedUrls(path)?.full) continue;
+      const cached = getCachedSignedUrls(path);
+      // Wall can show either a .wall.jpg thumb or a full fallback.
+      if (cached?.thumb || cached?.full) continue;
       missingPaths.push(path);
     }
   }
   return missingPaths;
+}
+
+/**
+ * Sign wall preview URLs for original storage paths.
+ * Prefers `{path}.wall.jpg` derivatives; falls back to the original object.
+ */
+async function signWallPreviewUrls(
+  originalPaths: string[],
+): Promise<void> {
+  const unique = [...new Set(originalPaths.filter(Boolean))];
+  if (unique.length === 0) return;
+
+  const storage = getSupabase().storage.from(BUCKET);
+  const wallPaths = unique.map(wallDerivativePath);
+  const wallToOriginal = new Map(
+    wallPaths.map((wallPath, i) => [wallPath, unique[i]]),
+  );
+
+  const { data: wallData, error: wallError } = await storage.createSignedUrls(
+    wallPaths,
+    SIGNED_URL_TTL_SEC,
+  );
+  // Don't throwIf — missing derivatives are expected for legacy uploads.
+  if (wallError) {
+    console.warn('wall derivative sign batch failed', wallError.message);
+  }
+
+  const needOriginal: string[] = [];
+  const seenOrig = new Set<string>();
+  for (const item of wallData ?? []) {
+    const original = item.path ? wallToOriginal.get(item.path) : undefined;
+    if (!original) continue;
+    if (item.signedUrl) {
+      putCachedSignedUrls(original, { thumb: item.signedUrl }, SIGNED_URL_TTL_SEC);
+      seenOrig.add(original);
+    }
+  }
+  for (const original of unique) {
+    if (!seenOrig.has(original)) needOriginal.push(original);
+  }
+
+  if (needOriginal.length === 0) return;
+
+  const { data: fullData, error: fullError } = await storage.createSignedUrls(
+    needOriginal,
+    SIGNED_URL_TTL_SEC,
+  );
+  throwIf(fullError);
+  for (const item of fullData ?? []) {
+    if (item.path && item.signedUrl) {
+      putCachedSignedUrls(
+        item.path,
+        { full: item.signedUrl, thumb: item.signedUrl },
+        SIGNED_URL_TTL_SEC,
+      );
+    }
+  }
 }
 
 function takePaths(from: string[], limit: number): string[] {
@@ -475,7 +537,7 @@ async function pumpWallSignQueue(): Promise<void> {
         if (state.priority.length === 0 && state.backlog.length === 0) break;
         continue;
       }
-      await signedUrlsForPaths({ fullPaths: batch, thumbPaths: [] });
+      await signWallPreviewUrls(batch);
       if (wallSign !== state || state.generation !== gen) return;
       state.notes = applyCachedImageUrls(state.notes);
       state.onBatch?.(state.notes);
@@ -780,7 +842,8 @@ export async function purgeNotes(ids: string[]): Promise<void> {
     (i) => i.storage_path,
   );
   if (paths.length > 0) {
-    await supabase.storage.from(BUCKET).remove(paths);
+    const withWall = paths.flatMap((p) => [p, wallDerivativePath(p)]);
+    await supabase.storage.from(BUCKET).remove(withWall);
   }
 
   const { error } = await supabase
@@ -837,6 +900,22 @@ export async function addImage(
     .upload(path, file, { contentType });
   throwIf(uploadError);
 
+  // Photos-style small grid tile — wall loads this instead of the original.
+  try {
+    const wallBlob = await encodeWallThumb(file);
+    if (wallBlob) {
+      const wallPath = wallDerivativePath(path);
+      const { error: wallUploadError } = await supabase.storage
+        .from(BUCKET)
+        .upload(wallPath, wallBlob, { contentType: 'image/jpeg', upsert: true });
+      if (wallUploadError) {
+        console.warn('wall thumb upload failed', wallUploadError.message);
+      }
+    }
+  } catch (err) {
+    console.warn('wall thumb encode failed', err);
+  }
+
   const { error } = await supabase.from('note_images').insert({
     id: imageId,
     note_id: noteId,
@@ -868,9 +947,10 @@ export async function removeImage(
     .maybeSingle();
   throwIf(error);
   if (data) {
+    const storagePath = (data as { storage_path: string }).storage_path;
     await supabase.storage
       .from(BUCKET)
-      .remove([(data as { storage_path: string }).storage_path]);
+      .remove([storagePath, wallDerivativePath(storagePath)]);
   }
   const { error: delError } = await supabase
     .from('note_images')

@@ -49,8 +49,8 @@ function hydrateFromSession() {
     for (const [path, entry] of Object.entries(parsed)) {
       if (!entry || typeof entry.expiresAt !== 'number') continue;
       if (entry.expiresAt <= now) continue;
-      // Wall needs batch-signed full URLs; ignore thumb-only legacy rows.
-      if (!entry.full) continue;
+      // Keep rows that have at least a wall thumb or full URL.
+      if (!entry.full && !entry.thumb) continue;
       memory.set(path, entry);
     }
   } catch {
