@@ -30,6 +30,24 @@
   transform: scale(0.98);
 }
 
+/** Zero matches under current filters — not clickable as a filter; still droppable. */
+.itemEmpty {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.itemEmpty:hover {
+  background: transparent;
+}
+
+.itemEmpty:active {
+  transform: none;
+}
+
+.row:has(.itemEmpty):hover {
+  background: transparent;
+}
+
 .active {
   background: var(--accent-soft);
   color: var(--accent);

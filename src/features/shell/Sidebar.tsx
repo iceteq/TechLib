@@ -99,6 +99,13 @@ function noteWord(count: number): string {
   return count === 1 ? 'note' : 'notes';
 }
 
+/** Grey out type/stock filters that would show an empty wall (active stays clearable). */
+function filterEmpty(count: number, active: boolean): boolean {
+  return count === 0 && !active;
+}
+
+const FILTER_EMPTY_TITLE = 'No matching notes with current filters';
+
   function confirmDelete(
   kind: 'label' | 'type' | 'stock location',
   name: string,
@@ -202,6 +209,13 @@ export function Sidebar({
   const [creatingBusy, setCreatingBusy] = useState(false);
 
   const [dropKey, setDropKey] = useState<string | null>(null);
+
+  const unsetTypeActive =
+    view === 'notes' && activeCategoryId === UNSET_TYPE_FILTER;
+  const unsetTypeEmpty = filterEmpty(unsetCount, unsetTypeActive);
+  const unsetStockActive =
+    view === 'notes' && activeStockId === UNSET_STOCK_FILTER;
+  const unsetStockEmpty = filterEmpty(unsetStockCount, unsetStockActive);
 
   function dropClass(key: string): string {
     return dropKey === key ? ` ${styles.dropOver}` : '';
@@ -654,14 +668,15 @@ export function Sidebar({
             <button
               type="button"
               className={`${styles.item} ${
-                view === 'notes' && activeCategoryId === UNSET_TYPE_FILTER
-                  ? styles.active
-                  : ''
-              }${dropClass('category:unset')}`}
-              onClick={() => onSelectCategoryId(UNSET_TYPE_FILTER)}
-              aria-pressed={
-                view === 'notes' && activeCategoryId === UNSET_TYPE_FILTER
-              }
+                unsetTypeActive ? styles.active : ''
+              }${unsetTypeEmpty ? ` ${styles.itemEmpty}` : ''}${dropClass('category:unset')}`}
+              onClick={() => {
+                if (unsetTypeEmpty) return;
+                onSelectCategoryId(UNSET_TYPE_FILTER);
+              }}
+              aria-pressed={unsetTypeActive}
+              aria-disabled={unsetTypeEmpty || undefined}
+              title={unsetTypeEmpty ? FILTER_EMPTY_TITLE : undefined}
               {...noteDropHandlers('category:unset', {
                 field: 'categoryId',
                 value: null,
@@ -683,6 +698,7 @@ export function Sidebar({
             const pinned = defaultCategoryId === type.id;
             const subtypes = childNoteTypes(noteTypes, type.id);
             const count = rolledTypeCount(type.id, typeCounts, noteTypes);
+            const empty = filterEmpty(count, active);
             return (
               <li key={type.id} className={styles.typeGroup}>
                 <div
@@ -690,9 +706,14 @@ export function Sidebar({
                 >
                   <button
                     type="button"
-                    className={`${styles.item} ${active ? styles.active : ''}${dropClass(`category:${type.id}`)}`}
-                    onClick={() => onSelectCategoryId(type.id)}
+                    className={`${styles.item} ${active ? styles.active : ''}${empty ? ` ${styles.itemEmpty}` : ''}${dropClass(`category:${type.id}`)}`}
+                    onClick={() => {
+                      if (empty) return;
+                      onSelectCategoryId(type.id);
+                    }}
                     aria-pressed={active}
+                    aria-disabled={empty || undefined}
+                    title={empty ? FILTER_EMPTY_TITLE : undefined}
                     {...noteDropHandlers(`category:${type.id}`, {
                       field: 'categoryId',
                       value: type.id,
@@ -795,6 +816,8 @@ export function Sidebar({
                     {subtypes.map((subtype) => {
                       const subActive =
                         view === 'notes' && activeCategoryId === subtype.id;
+                      const subCount = typeCounts[subtype.id] ?? 0;
+                      const subEmpty = filterEmpty(subCount, subActive);
                       const subPinned = defaultCategoryId === subtype.id;
                       return (
                         <li
@@ -803,9 +826,14 @@ export function Sidebar({
                         >
                           <button
                             type="button"
-                            className={`${styles.item} ${styles.subItem} ${subActive ? styles.active : ''}${dropClass(`category:${subtype.id}`)}`}
-                            onClick={() => onSelectCategoryId(subtype.id)}
+                            className={`${styles.item} ${styles.subItem} ${subActive ? styles.active : ''}${subEmpty ? ` ${styles.itemEmpty}` : ''}${dropClass(`category:${subtype.id}`)}`}
+                            onClick={() => {
+                              if (subEmpty) return;
+                              onSelectCategoryId(subtype.id);
+                            }}
                             aria-pressed={subActive}
+                            aria-disabled={subEmpty || undefined}
+                            title={subEmpty ? FILTER_EMPTY_TITLE : undefined}
                             {...noteDropHandlers(`category:${subtype.id}`, {
                               field: 'categoryId',
                               value: subtype.id,
@@ -818,7 +846,7 @@ export function Sidebar({
                             </span>
                             {showCounts.type && (
                               <span className={styles.itemCount}>
-                                {typeCounts[subtype.id] ?? 0}
+                                {subCount}
                               </span>
                             )}
                           </button>
@@ -907,14 +935,15 @@ export function Sidebar({
             <button
               type="button"
               className={`${styles.item} ${
-                view === 'notes' && activeStockId === UNSET_STOCK_FILTER
-                  ? styles.active
-                  : ''
-              }${dropClass('stock:unset')}`}
-              onClick={() => onSelectStock(UNSET_STOCK_FILTER)}
-              aria-pressed={
-                view === 'notes' && activeStockId === UNSET_STOCK_FILTER
-              }
+                unsetStockActive ? styles.active : ''
+              }${unsetStockEmpty ? ` ${styles.itemEmpty}` : ''}${dropClass('stock:unset')}`}
+              onClick={() => {
+                if (unsetStockEmpty) return;
+                onSelectStock(UNSET_STOCK_FILTER);
+              }}
+              aria-pressed={unsetStockActive}
+              aria-disabled={unsetStockEmpty || undefined}
+              title={unsetStockEmpty ? FILTER_EMPTY_TITLE : undefined}
               {...noteDropHandlers('stock:unset', {
                 field: 'stockId',
                 value: null,
@@ -930,6 +959,8 @@ export function Sidebar({
           </li>
           {stockLocations.map((stock) => {
             const active = view === 'notes' && activeStockId === stock.id;
+            const count = stockCounts[stock.id] ?? 0;
+            const empty = filterEmpty(count, active);
             const pinned = defaultStockId === stock.id;
             return (
               <li
@@ -938,9 +969,14 @@ export function Sidebar({
               >
                 <button
                   type="button"
-                  className={`${styles.item} ${active ? styles.active : ''}${dropClass(`stock:${stock.id}`)}`}
-                  onClick={() => onSelectStock(stock.id)}
+                  className={`${styles.item} ${active ? styles.active : ''}${empty ? ` ${styles.itemEmpty}` : ''}${dropClass(`stock:${stock.id}`)}`}
+                  onClick={() => {
+                    if (empty) return;
+                    onSelectStock(stock.id);
+                  }}
                   aria-pressed={active}
+                  aria-disabled={empty || undefined}
+                  title={empty ? FILTER_EMPTY_TITLE : undefined}
                   {...noteDropHandlers(`stock:${stock.id}`, {
                     field: 'stockId',
                     value: stock.id,
@@ -950,9 +986,7 @@ export function Sidebar({
                   <Warehouse size={18} />
                   <span className={styles.itemText}>{stock.name}</span>
                   {showCounts.stock && (
-                    <span className={styles.itemCount}>
-                      {stockCounts[stock.id] ?? 0}
-                    </span>
+                    <span className={styles.itemCount}>{count}</span>
                   )}
                 </button>
                 {onPinStock && (
