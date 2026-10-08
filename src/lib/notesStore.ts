@@ -19,6 +19,9 @@ export const resolveWallThumbs = (
 export const prioritizeWallImages = (
   ...args: Parameters<typeof local.prioritizeWallImages>
 ) => api().prioritizeWallImages(...args);
+export const backfillWallThumbs = (
+  ...args: Parameters<typeof local.backfillWallThumbs>
+) => api().backfillWallThumbs(...args);
 export const createNote = (...args: Parameters<typeof local.createNote>) =>
   api().createNote(...args);
 export const updateNote = (...args: Parameters<typeof local.updateNote>) =>

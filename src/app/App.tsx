@@ -218,8 +218,51 @@ export default function App({ session }: { session: Session | null }) {
     isCloudConfigured() ? null : LOCAL_MEMBERSHIP,
   );
   const [membersOpen, setMembersOpen] = useState(false);
+  const [wallBackfillBusy, setWallBackfillBusy] = useState(false);
   const canEdit = canEditLibrary(membership?.role);
   const isAdmin = isLibraryAdmin(membership?.role);
+
+  async function handleBackfillWallThumbs() {
+    if (!isAdmin || wallBackfillBusy) return;
+    setWallBackfillBusy(true);
+    setNotice('Optimizing wall photos…');
+    try {
+      const result = await store.backfillWallThumbs((progress) => {
+        if (progress.total === 0) return;
+        setNotice(
+          `Optimizing photos ${progress.done}/${progress.total}…`,
+        );
+      });
+      setNotice(
+        result.total === 0
+          ? 'No photos to optimize'
+          : `Wall thumbs: ${result.created} created, ${result.skipped} already done` +
+              (result.failed ? `, ${result.failed} failed` : ''),
+      );
+      // Refresh signed preview URLs onto the wall.
+      const gen = ++thumbResolveGen.current;
+      void store
+        .resolveWallThumbs(notesRef.current, (partial) => {
+          if (gen !== thumbResolveGen.current) return;
+          setNotes((prev) => {
+            const imagesById = new Map(
+              partial.map((note) => [note.id, note.images]),
+            );
+            return prev.map((note) => {
+              const images = imagesById.get(note.id);
+              return images ? { ...note, images } : note;
+            });
+          });
+        })
+        .catch(() => {});
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : 'Wall thumb backfill failed',
+      );
+    } finally {
+      setWallBackfillBusy(false);
+    }
+  }
 
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const notesRef = useRef(notes);
@@ -1618,6 +1661,10 @@ export default function App({ session }: { session: Session | null }) {
           canEdit={canEdit}
           isAdmin={isAdmin}
           onOpenMembers={isAdmin ? () => setMembersOpen(true) : undefined}
+          onBackfillWallThumbs={
+            isAdmin ? () => void handleBackfillWallThumbs() : undefined
+          }
+          wallBackfillBusy={wallBackfillBusy}
           labels={labels}
           noteTypes={noteTypes}
           stockLocations={stockLocations}

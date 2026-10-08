@@ -18,6 +18,7 @@ import {
   Warehouse,
   Wrench,
   X,
+  ImageDown,
 } from 'lucide-react';
 import type {
   Label,
@@ -52,6 +53,9 @@ interface SidebarProps {
   canEdit?: boolean;
   isAdmin?: boolean;
   onOpenMembers?: () => void;
+  /** Admin: create missing `.wall.jpg` previews for the whole library. */
+  onBackfillWallThumbs?: () => void;
+  wallBackfillBusy?: boolean;
   labels: Label[];
   noteTypes: NoteType[];
   stockLocations: StockLocation[];
@@ -146,6 +150,8 @@ export function Sidebar({
   canEdit = true,
   isAdmin = false,
   onOpenMembers,
+  onBackfillWallThumbs,
+  wallBackfillBusy = false,
   labels,
   noteTypes,
   stockLocations,
@@ -1062,6 +1068,18 @@ export function Sidebar({
           >
             <Users size={16} />
             <span>Members</span>
+          </button>
+        )}
+        {isAdmin && onBackfillWallThumbs && (
+          <button
+            type="button"
+            className={styles.itemQuiet}
+            onClick={onBackfillWallThumbs}
+            disabled={wallBackfillBusy}
+            title="Create small wall previews for older photos"
+          >
+            <ImageDown size={16} />
+            <span>{wallBackfillBusy ? 'Optimizing…' : 'Optimize photos'}</span>
           </button>
         )}
         {onSignOut && (
