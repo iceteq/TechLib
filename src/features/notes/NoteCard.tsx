@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  memo,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   Check,
   Layers,
@@ -31,6 +37,77 @@ const LONG_PRESS_MS = 500;
 const MOVE_CANCEL_PX = 12;
 /** Ignore click/contextmenu after long-press (mobile fires several of these). */
 const SUPPRESS_MS = 1200;
+/** Start fetching thumbs well before they enter the viewport. */
+const THUMB_ROOT_MARGIN = '1200px 0px';
+
+function WallThumb({
+  thumbUrl,
+  fullUrl,
+  priority,
+  badge,
+}: {
+  thumbUrl: string;
+  fullUrl: string;
+  priority: boolean;
+  badge?: ReactNode;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(priority);
+  const [loaded, setLoaded] = useState(false);
+  const src = thumbUrl || fullUrl;
+
+  useEffect(() => {
+    if (priority) {
+      setActive(true);
+      return;
+    }
+    const el = wrapRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setActive(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setActive(true);
+        io.disconnect();
+      },
+      { rootMargin: THUMB_ROOT_MARGIN },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [priority]);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [src]);
+
+  return (
+    <div ref={wrapRef} className={styles.imageWrap}>
+      {active && src ? (
+        <img
+          src={src}
+          alt=""
+          className={`${styles.image} ${loaded ? styles.imageLoaded : ''}`}
+          draggable={false}
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : 'auto'}
+          decoding="async"
+          onLoad={(event) => {
+            if (event.currentTarget.naturalWidth > 0) setLoaded(true);
+          }}
+          onError={(event) => {
+            const el = event.currentTarget;
+            if (fullUrl && el.src !== fullUrl) {
+              el.src = fullUrl;
+            }
+          }}
+        />
+      ) : null}
+      {badge}
+    </div>
+  );
+}
 
 interface NoteCardProps {
   note: NoteWithUrls;
@@ -75,7 +152,7 @@ interface NoteCardProps {
   priorityImage?: boolean;
 }
 
-export function NoteCard({
+export const NoteCard = memo(function NoteCard({
   note,
   labels,
   noteTypes,
@@ -349,26 +426,17 @@ export function NoteCard({
           }`}
         >
           {preview.map((img, index) => (
-            <div key={img.id} className={styles.imageWrap}>
-              <img
-                src={img.thumbUrl || img.url}
-                alt=""
-                className={styles.image}
-                draggable={false}
-                loading={priorityImage ? 'eager' : 'lazy'}
-                fetchPriority={priorityImage ? 'high' : 'auto'}
-                decoding="async"
-                onError={(event) => {
-                  const el = event.currentTarget;
-                  if (img.url && el.src !== img.url) {
-                    el.src = img.url;
-                  }
-                }}
-              />
-              {overflow > 0 && index === preview.length - 1 && (
-                <span className={styles.overflow}>+{overflow}</span>
-              )}
-            </div>
+            <WallThumb
+              key={img.id}
+              thumbUrl={img.thumbUrl || img.url}
+              fullUrl={img.url}
+              priority={priorityImage}
+              badge={
+                overflow > 0 && index === preview.length - 1 ? (
+                  <span className={styles.overflow}>+{overflow}</span>
+                ) : null
+              }
+            />
           ))}
         </div>
       )}
@@ -565,4 +633,4 @@ export function NoteCard({
       )}
     </article>
   );
-}
+});

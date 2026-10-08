@@ -18,9 +18,19 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  /* Skip layout/paint for off-screen cards — biggest scroll win without virtualizing. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+  contain: layout style;
 }
 
-.card:hover,
+@media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+}
+
 .card:focus-visible {
   transform: translateY(-2px);
   box-shadow: var(--shadow);
@@ -77,12 +87,11 @@
   gap: 0.12rem;
   padding: 0.15rem 0.32rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.88);
   color: var(--text-muted);
   border: 1px solid rgba(31, 35, 40, 0.1);
   box-shadow: none;
   line-height: 1;
-  backdrop-filter: blur(4px);
   animation: juice-bump var(--juice-duration, 280ms) var(--juice-ease, ease);
 }
 
@@ -93,11 +102,10 @@
   width: 1.35rem;
   height: 1.35rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(31, 35, 40, 0.1);
   font-size: 0.72rem;
   line-height: 1;
-  backdrop-filter: blur(4px);
   box-shadow: 0 1px 3px rgba(20, 24, 30, 0.12);
   animation: juice-pop var(--juice-duration, 280ms) var(--juice-ease, ease);
 }
@@ -231,6 +239,12 @@
   height: 100%;
   object-fit: cover;
   min-height: 100%;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.imageLoaded {
+  opacity: 1;
 }
 
 .overflow {
