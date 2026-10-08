@@ -37,8 +37,8 @@ const LONG_PRESS_MS = 500;
 const MOVE_CANCEL_PX = 12;
 /** Ignore click/contextmenu after long-press (mobile fires several of these). */
 const SUPPRESS_MS = 1200;
-/** Prefer signing when the card is near/in the viewport. */
-const WALL_URL_ROOT_MARGIN = '300px 0px';
+/** Prefer signing when the card is near/in the viewport (~1–2 screens). */
+const WALL_URL_ROOT_MARGIN = '800px 0px';
 
 function WallThumb({
   imageId,
@@ -57,16 +57,46 @@ function WallThumb({
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
+  /** URL currently painted — may lag `src` while a better thumb warms. */
+  const [shownSrc, setShownSrc] = useState('');
   const src = thumbUrl || fullUrl;
   const askedRef = useRef(false);
 
   useEffect(() => {
+    askedRef.current = false;
     setLoaded(false);
-  }, [src]);
+    setShownSrc('');
+  }, [imageId]);
 
   useEffect(() => {
-    askedRef.current = false;
-  }, [imageId]);
+    if (!src) {
+      setShownSrc('');
+      setLoaded(false);
+      return;
+    }
+    if (src === shownSrc) return;
+
+    // Already showing a photo — warm the new URL, then swap without fade-out.
+    if (loaded && shownSrc) {
+      let cancelled = false;
+      const img = new Image();
+      img.onload = () => {
+        if (cancelled) return;
+        setShownSrc(src);
+      };
+      img.onerror = () => {
+        if (cancelled) return;
+        setShownSrc(src);
+      };
+      img.src = src;
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setShownSrc(src);
+    setLoaded(false);
+  }, [src, shownSrc, loaded]);
 
   useEffect(() => {
     if (src || !onVisibleWithoutUrl) return;
@@ -93,9 +123,9 @@ function WallThumb({
 
   return (
     <div ref={wrapRef} className={styles.imageWrap}>
-      {src ? (
+      {shownSrc ? (
         <img
-          src={src}
+          src={shownSrc}
           alt=""
           className={`${styles.image} ${loaded ? styles.imageLoaded : ''}`}
           draggable={false}
@@ -108,7 +138,8 @@ function WallThumb({
           onError={(event) => {
             const el = event.currentTarget;
             if (fullUrl && el.src !== fullUrl) {
-              el.src = fullUrl;
+              setShownSrc(fullUrl);
+              setLoaded(false);
             }
           }}
         />

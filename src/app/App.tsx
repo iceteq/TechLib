@@ -362,21 +362,19 @@ export default function App({ session }: { session: Session | null }) {
           return images ? { ...note, images } : note;
         });
       });
+      // Warm browser cache as each sign batch lands (not only at the end).
+      prefetchImages(
+        partial.flatMap((note) =>
+          note.images
+            .slice(0, NOTE_PREVIEW_IMAGE_LIMIT)
+            .map((img) => img.thumbUrl || img.url),
+        ),
+      );
     };
 
     // Start URL signing immediately (batch full URLs — not slow transforms).
     void store
       .resolveWallThumbs(nextNotes, patchImages)
-      .then((finalNotes) => {
-        if (gen !== thumbResolveGen.current) return;
-        prefetchImages(
-          finalNotes.flatMap((note) =>
-            note.images
-              .slice(0, NOTE_PREVIEW_IMAGE_LIMIT)
-              .map((img) => img.thumbUrl || img.url),
-          ),
-        );
-      })
       .catch((err) => {
         if (gen !== thumbResolveGen.current) return;
         console.error('resolveWallThumbs failed', err);

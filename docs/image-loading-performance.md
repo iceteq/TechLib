@@ -121,7 +121,7 @@ Photos wins because **grid bytes are small by design**, not because signing is m
 - Original: `{owner}/{noteId}/{imageId}`
 - Wall: `{owner}/{noteId}/{imageId}.wall.jpg`
 
-Wall signing/loading **always batch-signs originals first** (so cards paint even when `.wall.jpg` is missing), then upgrades to a verified `.wall.jpg` URL only after a Range GET confirms the object exists. Supabase `createSignedUrls` can mint tokens for missing keys — those ghost URLs must not be cached as thumbs (session cache key `techlib.signedUrlCache.v4` drops poisoned v1–v3 entries).
+Wall signing/loading **always batch-signs originals first** (so cards paint even when `.wall.jpg` is missing), prefetches those URLs into the browser cache, and starts the **next sign batch immediately**. `.wall.jpg` existence probes run in the background and upgrade thumbs without blocking the queue or fading cards out. Supabase `createSignedUrls` can mint tokens for missing keys — those ghost URLs must not be cached as thumbs (session cache key `techlib.signedUrlCache.v4` drops poisoned v1–v3 entries).
 
 **Backfill**
 - **Lazy:** when the wall falls back to an original, editors quietly create `.wall.jpg` in the background (concurrency 2) and swap the card URL when ready.
