@@ -27,9 +27,13 @@ const SORT_OPTIONS: { value: WallSort; label: string; hint: string }[] = [
 ];
 
 const GROUP_OPTIONS: { value: WallGroupBy; label: string; hint: string }[] = [
-  { value: 'none', label: 'None', hint: 'Flat wall' },
-  { value: 'type', label: 'Type', hint: 'Cluster by product type' },
-  { value: 'stock', label: 'Stock', hint: 'Cluster by location' },
+  {
+    value: 'none',
+    label: 'Auto',
+    hint: 'Flat; opposite axis when type or stock filtered',
+  },
+  { value: 'type', label: 'Type', hint: 'Always cluster by product type' },
+  { value: 'stock', label: 'Stock', hint: 'Always cluster by location' },
 ];
 
 interface ViewOptionsMenuProps {
