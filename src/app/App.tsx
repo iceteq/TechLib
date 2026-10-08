@@ -1770,6 +1770,7 @@ export default function App({ session }: { session: Session | null }) {
           showLabels={viewPrefs.labels}
           showAge={viewPrefs.age}
           showTypeChip={viewPrefs.typeChip}
+          showStock={viewPrefs.stock}
           onOpenNote={openNote}
           onChangeQuantity={(noteId, quantity) =>
             void handleCartQuantity(noteId, quantity)
@@ -1821,6 +1822,7 @@ export default function App({ session }: { session: Session | null }) {
           showLabels={viewPrefs.labels}
           showAge={viewPrefs.age}
           showTypeChip={viewPrefs.typeChip}
+          showStock={viewPrefs.stock}
           groupBy={viewPrefs.groupBy}
           onOpenNote={openNote}
           onCreateNote={canEdit ? () => void handleCreateNote() : undefined}
