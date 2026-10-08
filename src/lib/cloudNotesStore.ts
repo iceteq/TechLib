@@ -240,20 +240,26 @@ async function signedUrlsForPaths(options: SignOptions): Promise<{
   return { fullByPath, thumbByPath };
 }
 
+/** Keep `.in(...)` filters under PostgREST URL size limits. */
+const NOTE_ID_IN_CHUNK = 80;
+
 async function labelIdsByNote(
   noteIds: string[],
 ): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>();
   if (noteIds.length === 0) return map;
-  const { data, error } = await getSupabase()
-    .from('note_labels')
-    .select('note_id, label_id')
-    .in('note_id', noteIds);
-  throwIf(error);
-  for (const row of (data ?? []) as NoteLabelRow[]) {
-    const list = map.get(row.note_id) ?? [];
-    list.push(row.label_id);
-    map.set(row.note_id, list);
+  for (let i = 0; i < noteIds.length; i += NOTE_ID_IN_CHUNK) {
+    const chunk = noteIds.slice(i, i + NOTE_ID_IN_CHUNK);
+    const { data, error } = await getSupabase()
+      .from('note_labels')
+      .select('note_id, label_id')
+      .in('note_id', chunk);
+    throwIf(error);
+    for (const row of (data ?? []) as NoteLabelRow[]) {
+      const list = map.get(row.note_id) ?? [];
+      list.push(row.label_id);
+      map.set(row.note_id, list);
+    }
   }
   return map;
 }
@@ -263,24 +269,31 @@ async function imagesByNote(
 ): Promise<Map<string, ImageRow[]>> {
   const map = new Map<string, ImageRow[]>();
   if (noteIds.length === 0) return map;
-  const { data, error } = await getSupabase()
-    .from('note_images')
-    .select('id, note_id, storage_path, position')
-    .in('note_id', noteIds)
-    .order('position', { ascending: true });
-  throwIf(error);
-  for (const row of (data ?? []) as ImageRow[]) {
-    storagePathByImageId.set(row.id, row.storage_path);
-    const list = map.get(row.note_id) ?? [];
-    list.push(row);
-    map.set(row.note_id, list);
+  for (let i = 0; i < noteIds.length; i += NOTE_ID_IN_CHUNK) {
+    const chunk = noteIds.slice(i, i + NOTE_ID_IN_CHUNK);
+    const { data, error } = await getSupabase()
+      .from('note_images')
+      .select('id, note_id, storage_path, position')
+      .in('note_id', chunk)
+      .order('position', { ascending: true });
+    throwIf(error);
+    for (const row of (data ?? []) as ImageRow[]) {
+      storagePathByImageId.set(row.id, row.storage_path);
+      const list = map.get(row.note_id) ?? [];
+      list.push(row);
+      map.set(row.note_id, list);
+    }
+  }
+  // Keep positions stable after chunked fetches.
+  for (const [, list] of map) {
+    list.sort((a, b) => a.position - b.position);
   }
   return map;
 }
 
 type HydrateMode = 'wall' | 'full';
 
-/** Apply session-cached signed URLs onto note images (no network). */
+/** Apply session-cached **full** signed URLs onto note images (no network). */
 function applyCachedImageUrls(notes: NoteWithUrls[]): NoteWithUrls[] {
   let any = false;
   const next = notes.map((note) => {
@@ -288,13 +301,12 @@ function applyCachedImageUrls(notes: NoteWithUrls[]): NoteWithUrls[] {
     const images = note.images.map((img) => {
       const path = storagePathByImageId.get(img.id);
       if (!path) return img;
-      const cached = getCachedSignedUrls(path);
-      if (!cached) return img;
-      const full = cached.full || img.url;
-      const thumb = cached.thumb || cached.full || img.thumbUrl;
-      if (full === img.url && thumb === img.thumbUrl) return img;
+      const full = getCachedSignedUrls(path)?.full;
+      if (!full) return img;
+      // Wall preview = full signed URL (batch-signed). Ignore stale transform thumbs.
+      if (full === img.url && full === img.thumbUrl) return img;
       noteChanged = true;
-      return { ...img, url: full || img.url, thumbUrl: thumb || img.thumbUrl };
+      return { ...img, url: full, thumbUrl: full };
     });
     if (!noteChanged) return note;
     any = true;
@@ -340,22 +352,16 @@ async function hydrateRows(
       const full =
         fullByPath.get(path) ?? cached?.full ?? '';
       const thumb =
-        thumbByPath.get(path) ?? cached?.thumb ?? full;
+        mode === 'wall'
+          ? full // wall never uses transform thumbs (slow + were poisoning the cache)
+          : (thumbByPath.get(path) ?? cached?.thumb ?? full);
       if (mode === 'wall') {
         // Keep slots even without URLs so cards reserve photo space + overflow.
-        if (index >= NOTE_PREVIEW_IMAGE_LIMIT && !full && !thumb) {
-          return {
-            id: img.id,
-            position: img.position,
-            url: '',
-            thumbUrl: '',
-          };
-        }
         return {
           id: img.id,
           position: img.position,
-          url: full || thumb || '',
-          thumbUrl: thumb || full || '',
+          url: index < NOTE_PREVIEW_IMAGE_LIMIT ? full : full || '',
+          thumbUrl: index < NOTE_PREVIEW_IMAGE_LIMIT ? full : '',
         };
       }
       if (!full && !thumb) {
@@ -432,9 +438,8 @@ export async function resolveWallThumbs(
       const path = storagePathByImageId.get(img.id);
       if (!path || seen.has(path)) continue;
       seen.add(path);
-      const cached = getCachedSignedUrls(path);
-      // Full or thumb cache is enough to show a wall preview.
-      if (img.thumbUrl || img.url || cached?.thumb || cached?.full) continue;
+      // Only a cached/batch **full** URL counts — stale transform thumbs do not.
+      if (getCachedSignedUrls(path)?.full) continue;
       missingPaths.push(path);
     }
   }
@@ -445,11 +450,6 @@ export async function resolveWallThumbs(
     const batch = missingPaths.slice(i, i + WALL_URL_SIGN_BATCH);
     // One batch RPC — much faster than N transform createSignedUrl calls.
     await signedUrlsForPaths({ fullPaths: batch, thumbPaths: [] });
-    // Reuse full signed URL as the wall preview URL.
-    for (const path of batch) {
-      const full = getCachedSignedUrls(path)?.full;
-      if (full) putCachedSignedUrls(path, { thumb: full }, SIGNED_URL_TTL_SEC);
-    }
     current = applyCachedImageUrls(current);
     onBatch?.(current);
   }

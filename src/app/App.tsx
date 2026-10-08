@@ -322,16 +322,27 @@ export default function App({ session }: { session: Session | null }) {
     };
 
     // Start URL signing immediately (batch full URLs — not slow transforms).
-    void store.resolveWallThumbs(nextNotes, patchImages).then((finalNotes) => {
-      if (gen !== thumbResolveGen.current) return;
-      prefetchImages(
-        finalNotes.flatMap((note) =>
-          note.images
-            .slice(0, NOTE_PREVIEW_IMAGE_LIMIT)
-            .map((img) => img.thumbUrl || img.url),
-        ),
-      );
-    });
+    void store
+      .resolveWallThumbs(nextNotes, patchImages)
+      .then((finalNotes) => {
+        if (gen !== thumbResolveGen.current) return;
+        prefetchImages(
+          finalNotes.flatMap((note) =>
+            note.images
+              .slice(0, NOTE_PREVIEW_IMAGE_LIMIT)
+              .map((img) => img.thumbUrl || img.url),
+          ),
+        );
+      })
+      .catch((err) => {
+        if (gen !== thumbResolveGen.current) return;
+        console.error('resolveWallThumbs failed', err);
+        setNotice(
+          err instanceof Error
+            ? `Images failed to load: ${err.message}`
+            : 'Images failed to load',
+        );
+      });
 
     const [
       nextLabels,
