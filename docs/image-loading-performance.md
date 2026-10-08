@@ -121,11 +121,11 @@ Photos wins because **grid bytes are small by design**, not because signing is m
 - Original: `{owner}/{noteId}/{imageId}`
 - Wall: `{owner}/{noteId}/{imageId}.wall.jpg`
 
-Wall signing/loading prefers `.wall.jpg`; falls back to original if missing (legacy photos).
+Wall signing/loading **always batch-signs originals first** (so cards paint even when `.wall.jpg` is missing), then upgrades to a verified `.wall.jpg` URL only after a Range GET confirms the object exists. Supabase `createSignedUrls` can mint tokens for missing keys — those ghost URLs must not be cached as thumbs (session cache key `techlib.signedUrlCache.v4` drops poisoned v1–v3 entries).
 
 **Backfill**
 - **Lazy:** when the wall falls back to an original, editors quietly create `.wall.jpg` in the background (concurrency 2) and swap the card URL when ready.
-- **Admin:** Sidebar → **Optimize photos** runs a full-library pass (skip existing derivatives).
+- **Admin:** Sidebar → **Optimize photos** runs a full-library pass (existence verified via fetch, not signed-URL alone).
 
 **Why first:** Fixes cold viewport time and mobile data without needing transforms RPC.
 
