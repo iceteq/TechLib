@@ -147,8 +147,11 @@ function throwIf(error: { message: string } | null) {
 
 /** 12h — matches a long browsing session without re-signing constantly. */
 const SIGNED_URL_TTL_SEC = 60 * 60 * 12;
-/** Wall cards top out ~260px; 480 covers 2x DPR without shipping originals. */
-const WALL_THUMB_WIDTH = 480;
+/**
+ * Wall cards top out ~260px wide in the grid; 360 covers ~1.5–2x DPR
+ * without shipping near-full previews. `cover` matches object-fit on cards.
+ */
+const WALL_THUMB_WIDTH = 360;
 
 type SignOptions = {
   /** Sign full-resolution URLs for these paths (batch). */
@@ -205,8 +208,8 @@ async function signedUrlsForPaths(options: SignOptions): Promise<{
           {
             transform: {
               width: WALL_THUMB_WIDTH,
-              resize: 'contain',
-              quality: 70,
+              resize: 'cover',
+              quality: 55,
             },
           },
         );

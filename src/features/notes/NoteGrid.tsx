@@ -569,11 +569,11 @@ export function NoteGrid({
     [notes, effectiveGroupBy, noteTypes, stockLocations],
   );
   const showGroupHeaders = effectiveGroupBy !== 'none';
-  /** First screen of cards — eager thumb load (lazy still for the rest). */
+  /** First couple of rows — eager thumb load (near-viewport for the rest). */
   const priorityImageIds = useMemo(() => {
     const ids = new Set<string>();
     for (const note of notes) {
-      if (ids.size >= 12) break;
+      if (ids.size >= 24) break;
       ids.add(note.id);
     }
     return ids;

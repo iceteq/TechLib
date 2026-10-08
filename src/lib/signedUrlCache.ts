@@ -11,7 +11,8 @@ export type CachedSignedUrls = {
   expiresAt: number;
 };
 
-const STORAGE_KEY = 'techlib.signedUrlCache.v1';
+/** Bump when thumb transform params change so stale sizes are not reused. */
+const STORAGE_KEY = 'techlib.signedUrlCache.v2';
 /** Drop cache entries this long before the signed TTL ends. */
 const EXPIRY_SKEW_MS = 60 * 60 * 1000; // 1h
 

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadViewPrefs, saveViewPrefs } from '../lib/viewPrefs';
+import { prefetchImages } from '../lib/prefetchImages';
+import { NOTE_PREVIEW_IMAGE_LIMIT } from '../lib/config';
 import {
   loadCreateDefaults,
   saveCreateDefaults,
@@ -313,6 +315,14 @@ export default function App({ session }: { session: Session | null }) {
     setCartItems(nextCart);
     setNoteLinks(nextLinks);
     setReactions(nextReactions);
+    // Warm thumb HTTP cache while idle so scroll-in is less blank→pop.
+    prefetchImages(
+      nextNotes.flatMap((note) =>
+        note.images
+          .slice(0, NOTE_PREVIEW_IMAGE_LIMIT)
+          .map((img) => img.thumbUrl || img.url),
+      ),
+    );
   }, []);
 
   useEffect(() => {
