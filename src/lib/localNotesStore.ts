@@ -227,6 +227,14 @@ export async function ensureFullImageUrls(
   return null;
 }
 
+/** Local mode already has blob URLs on listNotes — nothing to resolve. */
+export async function resolveWallThumbs(
+  notes: NoteWithUrls[],
+  _onBatch?: (notes: NoteWithUrls[]) => void,
+): Promise<NoteWithUrls[]> {
+  return notes;
+}
+
 export async function getNote(id: string): Promise<NoteWithUrls | undefined> {
   const db = await getDb();
   const note = await db.get('notes', id);

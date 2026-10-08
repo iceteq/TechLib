@@ -13,6 +13,9 @@ export const getNote = (...args: Parameters<typeof local.getNote>) =>
 export const ensureFullImageUrls = (
   ...args: Parameters<typeof local.ensureFullImageUrls>
 ) => api().ensureFullImageUrls(...args);
+export const resolveWallThumbs = (
+  ...args: Parameters<typeof local.resolveWallThumbs>
+) => api().resolveWallThumbs(...args);
 export const createNote = (...args: Parameters<typeof local.createNote>) =>
   api().createNote(...args);
 export const updateNote = (...args: Parameters<typeof local.updateNote>) =>

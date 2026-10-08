@@ -280,6 +280,29 @@ async function imagesByNote(
 
 type HydrateMode = 'wall' | 'full';
 
+/** Apply session-cached signed URLs onto note images (no network). */
+function applyCachedImageUrls(notes: NoteWithUrls[]): NoteWithUrls[] {
+  let any = false;
+  const next = notes.map((note) => {
+    let noteChanged = false;
+    const images = note.images.map((img) => {
+      const path = storagePathByImageId.get(img.id);
+      if (!path) return img;
+      const cached = getCachedSignedUrls(path);
+      if (!cached) return img;
+      const full = cached.full || img.url;
+      const thumb = cached.thumb || cached.full || img.thumbUrl;
+      if (full === img.url && thumb === img.thumbUrl) return img;
+      noteChanged = true;
+      return { ...img, url: full || img.url, thumbUrl: thumb || img.thumbUrl };
+    });
+    if (!noteChanged) return note;
+    any = true;
+    return { ...note, images };
+  });
+  return any ? next : notes;
+}
+
 async function hydrateRows(
   rows: NoteRow[],
   mode: HydrateMode = 'full',
@@ -290,42 +313,37 @@ async function hydrateRows(
     imagesByNote(ids),
   ]);
 
+  // Wall mode is cache-only here so the grid can paint immediately.
+  // Missing thumbs are filled later by resolveWallThumbs (batched).
   const thumbPaths: string[] = [];
   const fullPaths: string[] = [];
 
-  for (const id of ids) {
-    const imageRows = imagesMap.get(id) ?? [];
-    for (let i = 0; i < imageRows.length; i++) {
-      const path = imageRows[i].storage_path;
-      if (mode === 'full') {
-        fullPaths.push(path);
-        thumbPaths.push(path);
-      } else {
-        // Wall: only mint thumbs for card previews. Reuse cached full URLs
-        // when present so opening a note is instant; otherwise defer full sign.
-        if (i < NOTE_PREVIEW_IMAGE_LIMIT) thumbPaths.push(path);
-        if (getCachedSignedUrls(path)?.full) fullPaths.push(path);
+  if (mode === 'full') {
+    for (const id of ids) {
+      for (const img of imagesMap.get(id) ?? []) {
+        fullPaths.push(img.storage_path);
+        thumbPaths.push(img.storage_path);
       }
     }
   }
 
-  const { fullByPath, thumbByPath } = await signedUrlsForPaths({
-    fullPaths,
-    thumbPaths,
-  });
+  const { fullByPath, thumbByPath } =
+    mode === 'full'
+      ? await signedUrlsForPaths({ fullPaths, thumbPaths })
+      : { fullByPath: new Map<string, string>(), thumbByPath: new Map<string, string>() };
 
   const notes = rows.map((row) => {
     const imageRows = imagesMap.get(row.id) ?? [];
-    const images = imageRows
-      .map((img, index) => {
-        const path = img.storage_path;
-        const full = fullByPath.get(path) ?? getCachedSignedUrls(path)?.full;
-        const thumb =
-          thumbByPath.get(path) ??
-          getCachedSignedUrls(path)?.thumb ??
-          full;
-        if (mode === 'wall' && index >= NOTE_PREVIEW_IMAGE_LIMIT && !full) {
-          // Preserve slot for "+N" overflow; full URL filled on note open.
+    const images = imageRows.map((img, index) => {
+      const path = img.storage_path;
+      const cached = getCachedSignedUrls(path);
+      const full =
+        fullByPath.get(path) ?? cached?.full ?? '';
+      const thumb =
+        thumbByPath.get(path) ?? cached?.thumb ?? full;
+      if (mode === 'wall') {
+        // Keep slots even without URLs so cards reserve photo space + overflow.
+        if (index >= NOTE_PREVIEW_IMAGE_LIMIT && !full && !thumb) {
           return {
             id: img.id,
             position: img.position,
@@ -333,16 +351,28 @@ async function hydrateRows(
             thumbUrl: '',
           };
         }
-        const display = thumb || full;
-        if (!display) return null;
         return {
           id: img.id,
           position: img.position,
-          url: full || display,
-          thumbUrl: thumb || full || display,
+          url: full || thumb || '',
+          thumbUrl: thumb || full || '',
         };
-      })
-      .filter((img): img is NonNullable<typeof img> => img != null);
+      }
+      if (!full && !thumb) {
+        return {
+          id: img.id,
+          position: img.position,
+          url: '',
+          thumbUrl: '',
+        };
+      }
+      return {
+        id: img.id,
+        position: img.position,
+        url: full || thumb,
+        thumbUrl: thumb || full,
+      };
+    });
     const guidelineLines = resolveGuidelineLines({
       guidelineLines: row.guideline_lines,
       disposition: (row.disposition as NoteDisposition) ?? 'none',
@@ -374,6 +404,43 @@ async function hydrateRows(
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     return b.updatedAt - a.updatedAt;
   });
+}
+
+const WALL_THUMB_SIGN_BATCH = 16;
+
+/**
+ * Sign missing wall preview thumbs in small batches (wall order first).
+ * Calls `onBatch` after each batch so the UI can paint progressively.
+ */
+export async function resolveWallThumbs(
+  notes: NoteWithUrls[],
+  onBatch?: (notes: NoteWithUrls[]) => void,
+): Promise<NoteWithUrls[]> {
+  let current = applyCachedImageUrls(notes);
+  if (current !== notes) onBatch?.(current);
+
+  const missingPaths: string[] = [];
+  const seen = new Set<string>();
+  for (const note of current) {
+    for (const img of note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT)) {
+      const path = storagePathByImageId.get(img.id);
+      if (!path || seen.has(path)) continue;
+      seen.add(path);
+      if (img.thumbUrl || getCachedSignedUrls(path)?.thumb) continue;
+      missingPaths.push(path);
+    }
+  }
+
+  if (missingPaths.length === 0) return current;
+
+  for (let i = 0; i < missingPaths.length; i += WALL_THUMB_SIGN_BATCH) {
+    const batch = missingPaths.slice(i, i + WALL_THUMB_SIGN_BATCH);
+    await signedUrlsForPaths({ fullPaths: [], thumbPaths: batch });
+    current = applyCachedImageUrls(current);
+    onBatch?.(current);
+  }
+
+  return current;
 }
 
 /**
@@ -449,7 +516,7 @@ export async function listNotes(): Promise<NoteWithUrls[]> {
     .select('*')
     .is('deleted_at', null);
   throwIf(error);
-  // Wall browse: thumbs for card previews only; full URLs from cache or on open.
+  // Wall browse: metadata + cached URLs only (fast). Call resolveWallThumbs next.
   return hydrateRows((data ?? []) as NoteRow[], 'wall');
 }
 
