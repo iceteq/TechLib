@@ -33,6 +33,7 @@ interface CollectionViewProps {
   showLabels: boolean;
   showAge: boolean;
   showTypeChip: boolean;
+  showStock: boolean;
   onOpenNote: (noteId: string) => void;
   onChangeQuantity: (noteId: string, quantity: number) => void;
   onRemove: (noteId: string) => void;
@@ -54,6 +55,7 @@ export function CollectionView({
   showLabels,
   showAge,
   showTypeChip,
+  showStock,
   onOpenNote,
   onChangeQuantity,
   onRemove,
@@ -153,6 +155,7 @@ export function CollectionView({
                     showLabels={showLabels}
                     showAge={showAge}
                     showTypeChip={showTypeChip}
+                    showStock={showStock}
                     onOpen={onOpenNote}
                     onToggleSelect={() => {}}
                     onEnterSelect={() => {}}

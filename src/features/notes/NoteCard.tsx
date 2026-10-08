@@ -167,6 +167,7 @@ interface NoteCardProps {
   showLabels: boolean;
   showAge: boolean;
   showTypeChip: boolean;
+  showStock: boolean;
   onOpen: (noteId: string) => void;
   onToggleSelect: (noteId: string) => void;
   onEnterSelect: (noteId: string) => void;
@@ -210,6 +211,7 @@ export const NoteCard = memo(function NoteCard({
   showLabels,
   showAge,
   showTypeChip,
+  showStock,
   onOpen,
   onToggleSelect,
   onEnterSelect,
@@ -520,63 +522,77 @@ export const NoteCard = memo(function NoteCard({
               </time>
             )}
           </div>
-          <div className={styles.metaPrimary} aria-label="Type and stock">
-            {noteType && showTypeChip ? (
-              <TypeChip
-                type={noteType}
-                label={noteTypePathLabel(noteTypes, noteType.id) ?? undefined}
-                muted
-                onClick={
-                  selecting || !onAssignCategory
-                    ? undefined
-                    : () => openAssign('categoryId')
-                }
-              />
-            ) : !noteType ? (
-              <button
-                type="button"
-                className={styles.missingMeta}
-                disabled={selecting || !onAssignCategory}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openAssign('categoryId');
-                }}
-                aria-haspopup="dialog"
-                aria-expanded={assignField === 'categoryId'}
-              >
-                No type
-              </button>
-            ) : null}
-            {stock ? (
-              <button
-                type="button"
-                className={styles.stock}
-                disabled={selecting || !onAssignStock}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openAssign('stockId');
-                }}
-                aria-haspopup="dialog"
-                aria-expanded={assignField === 'stockId'}
-              >
-                {stock.name}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className={styles.missingMeta}
-                disabled={selecting || !onAssignStock}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openAssign('stockId');
-                }}
-                aria-haspopup="dialog"
-                aria-expanded={assignField === 'stockId'}
-              >
-                No stock
-              </button>
-            )}
-          </div>
+          {(showTypeChip || !noteType || showStock) && (
+            <div
+              className={styles.metaPrimary}
+              aria-label={
+                showTypeChip || !noteType
+                  ? showStock
+                    ? 'Type and stock'
+                    : 'Type'
+                  : 'Stock'
+              }
+            >
+              {noteType && showTypeChip ? (
+                <TypeChip
+                  type={noteType}
+                  label={
+                    noteTypePathLabel(noteTypes, noteType.id) ?? undefined
+                  }
+                  muted
+                  onClick={
+                    selecting || !onAssignCategory
+                      ? undefined
+                      : () => openAssign('categoryId')
+                  }
+                />
+              ) : !noteType ? (
+                <button
+                  type="button"
+                  className={styles.missingMeta}
+                  disabled={selecting || !onAssignCategory}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openAssign('categoryId');
+                  }}
+                  aria-haspopup="dialog"
+                  aria-expanded={assignField === 'categoryId'}
+                >
+                  No type
+                </button>
+              ) : null}
+              {showStock &&
+                (stock ? (
+                  <button
+                    type="button"
+                    className={styles.stock}
+                    disabled={selecting || !onAssignStock}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAssign('stockId');
+                    }}
+                    aria-haspopup="dialog"
+                    aria-expanded={assignField === 'stockId'}
+                  >
+                    {stock.name}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.missingMeta}
+                    disabled={selecting || !onAssignStock}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAssign('stockId');
+                    }}
+                    aria-haspopup="dialog"
+                    aria-expanded={assignField === 'stockId'}
+                  >
+                    No stock
+                  </button>
+                ))}
+            </div>
+          )}
         </div>
         {showBarcodes && note.title.trim() && (
           <div className={styles.barcode}>

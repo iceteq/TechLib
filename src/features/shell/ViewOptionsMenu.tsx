@@ -13,6 +13,7 @@ const SHOW_OPTIONS: {
   { key: 'description', label: 'Description' },
   { key: 'specialCase', label: 'Special note' },
   { key: 'typeChip', label: 'Type chip' },
+  { key: 'stock', label: 'Stock' },
   { key: 'labels', label: 'Labels' },
   { key: 'age', label: 'Relative time' },
 ];

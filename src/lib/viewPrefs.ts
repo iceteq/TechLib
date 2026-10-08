@@ -38,6 +38,8 @@ export type ViewPrefs = {
   age: boolean;
   /** Show type chip on cards (muted style). */
   typeChip: boolean;
+  /** Show stock location on cards. */
+  stock: boolean;
   /**
    * default = recently edited (pin-first).
    * recent = recently useful (opened or edited).
@@ -58,6 +60,7 @@ export const DEFAULT_VIEW_PREFS: ViewPrefs = {
   labels: true,
   age: false,
   typeChip: true,
+  stock: true,
   sort: 'default',
   groupBy: 'none',
 };

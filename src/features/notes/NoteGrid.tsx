@@ -111,6 +111,7 @@ interface NoteGridProps {
   showLabels: boolean;
   showAge: boolean;
   showTypeChip: boolean;
+  showStock: boolean;
   /** Wall clustering; forced flat while search is active. */
   groupBy?: WallGroupBy;
   onOpenNote: (noteId: string) => void;
@@ -192,6 +193,7 @@ export function NoteGrid({
   showLabels,
   showAge,
   showTypeChip,
+  showStock,
   groupBy = 'none',
   onOpenNote,
   canEdit = true,
@@ -809,6 +811,7 @@ export function NoteGrid({
                     showLabels={showLabels}
                     showAge={showAge}
                     showTypeChip={showTypeChip}
+                    showStock={showStock}
                     onOpen={onOpenNote}
                     onToggleSelect={canEdit ? toggleSelect : () => {}}
                     onEnterSelect={canEdit ? enterSelect : () => {}}
@@ -887,6 +890,7 @@ export function NoteGrid({
               showLabels={showLabels}
               showAge={showAge}
               showTypeChip={showTypeChip}
+              showStock={showStock}
               onOpen={onOpenNote}
               onToggleSelect={canEdit ? toggleSelect : () => {}}
               onEnterSelect={canEdit ? enterSelect : () => {}}
