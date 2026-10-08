@@ -293,16 +293,9 @@ export default function App({ session }: { session: Session | null }) {
 
 
   const refresh = useCallback(async () => {
-    const [
-      nextNotes,
-      nextLabels,
-      nextTypes,
-      nextStock,
-      nextCart,
-      nextLinks,
-      nextReactions,
-    ] = await Promise.all([
-      store.listNotes(),
+    // Notes first so the wall + image signing can start without waiting on meta.
+    const notesPromise = store.listNotes();
+    const metaPromise = Promise.all([
       store.listLabels(),
       store.listNoteTypes(),
       store.listStockLocations(),
@@ -310,38 +303,50 @@ export default function App({ session }: { session: Session | null }) {
       store.listNoteLinks(),
       store.listAllReactions(),
     ]);
+
+    const nextNotes = await notesPromise;
     setNotes(nextNotes);
+
+    const gen = ++thumbResolveGen.current;
+    const patchImages = (partial: typeof nextNotes) => {
+      if (gen !== thumbResolveGen.current) return;
+      setNotes((prev) => {
+        const imagesById = new Map(
+          partial.map((note) => [note.id, note.images]),
+        );
+        return prev.map((note) => {
+          const images = imagesById.get(note.id);
+          return images ? { ...note, images } : note;
+        });
+      });
+    };
+
+    // Start URL signing immediately (batch full URLs — not slow transforms).
+    void store.resolveWallThumbs(nextNotes, patchImages).then((finalNotes) => {
+      if (gen !== thumbResolveGen.current) return;
+      prefetchImages(
+        finalNotes.flatMap((note) =>
+          note.images
+            .slice(0, NOTE_PREVIEW_IMAGE_LIMIT)
+            .map((img) => img.thumbUrl || img.url),
+        ),
+      );
+    });
+
+    const [
+      nextLabels,
+      nextTypes,
+      nextStock,
+      nextCart,
+      nextLinks,
+      nextReactions,
+    ] = await metaPromise;
     setLabels(nextLabels);
     setNoteTypes(nextTypes);
     setStockLocations(nextStock);
     setCartItems(nextCart);
     setNoteLinks(nextLinks);
     setReactions(nextReactions);
-    // Sign thumbs in batches after the wall is already visible.
-    const gen = ++thumbResolveGen.current;
-    void store
-      .resolveWallThumbs(nextNotes, (partial) => {
-        if (gen !== thumbResolveGen.current) return;
-        setNotes((prev) => {
-          const imagesById = new Map(
-            partial.map((note) => [note.id, note.images]),
-          );
-          return prev.map((note) => {
-            const images = imagesById.get(note.id);
-            return images ? { ...note, images } : note;
-          });
-        });
-      })
-      .then((finalNotes) => {
-        if (gen !== thumbResolveGen.current) return;
-        prefetchImages(
-          finalNotes.flatMap((note) =>
-            note.images
-              .slice(0, NOTE_PREVIEW_IMAGE_LIMIT)
-              .map((img) => img.thumbUrl || img.url),
-          ),
-        );
-      });
   }, []);
 
   useEffect(() => {
