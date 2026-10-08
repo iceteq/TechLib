@@ -464,6 +464,31 @@ let lazyBackfillActive = 0;
 const LAZY_BACKFILL_CONCURRENCY = 2;
 
 /**
+ * True only if the wall object is actually fetchable.
+ * createSignedUrl alone is not enough — Supabase may sign missing keys.
+ */
+async function fetchWallDerivativeSignedUrl(
+  storagePath: string,
+  ttlSec: number = SIGNED_URL_TTL_SEC,
+): Promise<string | null> {
+  const storage = getSupabase().storage.from(BUCKET);
+  const wallPath = wallDerivativePath(storagePath);
+  const { data, error } = await storage.createSignedUrl(wallPath, ttlSec);
+  if (error || !data?.signedUrl) return null;
+  try {
+    const res = await fetch(data.signedUrl, {
+      method: 'GET',
+      headers: { Range: 'bytes=0-0' },
+    });
+    // 200 / 206 = object exists; 404 = signed ghost for a missing key.
+    if (res.ok || res.status === 206) return data.signedUrl;
+  } catch {
+    // network / CORS — treat as missing
+  }
+  return null;
+}
+
+/**
  * Download original → encode small JPEG → upload `{path}.wall.jpg`.
  * Returns true when the derivative exists afterward.
  */
@@ -474,15 +499,11 @@ async function createWallDerivativeForPath(
   const storage = getSupabase().storage.from(BUCKET);
   const wallPath = wallDerivativePath(storagePath);
 
-  // Already present?
-  const { data: existing } = await storage.createSignedUrl(
-    wallPath,
-    60,
-  );
-  if (existing?.signedUrl) {
+  const existingUrl = await fetchWallDerivativeSignedUrl(storagePath, 60);
+  if (existingUrl) {
     putCachedSignedUrls(
       storagePath,
-      { thumb: existing.signedUrl },
+      { thumb: existingUrl },
       SIGNED_URL_TTL_SEC,
     );
     return true;
@@ -572,70 +593,71 @@ function queueLazyWallBackfill(originalPaths: string[]): void {
 
 /**
  * Sign wall preview URLs for original storage paths.
- * Prefers `{path}.wall.jpg` derivatives; falls back to the original object.
- * Missing derivatives are queued for lazy backfill (editors).
+ *
+ * Always batch-signs **originals** first so the wall never depends on
+ * ghost signed URLs for missing `.wall.jpg` keys. Calls `onPainted` as
+ * soon as originals are cached so cards can render before wall probes.
+ * Then upgrades to a verified wall derivative when one exists; otherwise
+ * queues lazy backfill.
  */
 async function signWallPreviewUrls(
   originalPaths: string[],
+  onPainted?: () => void,
 ): Promise<void> {
   const unique = [...new Set(originalPaths.filter(Boolean))];
   if (unique.length === 0) return;
 
   const storage = getSupabase().storage.from(BUCKET);
-  const wallPaths = unique.map(wallDerivativePath);
-  const wallToOriginal = new Map(
-    wallPaths.map((wallPath, i) => [wallPath, unique[i]]),
-  );
 
-  const { data: wallData, error: wallError } = await storage.createSignedUrls(
-    wallPaths,
-    SIGNED_URL_TTL_SEC,
-  );
-  // Don't throwIf — missing derivatives are expected for legacy uploads.
-  if (wallError) {
-    console.warn('wall derivative sign batch failed', wallError.message);
-  }
-
-  const needOriginal: string[] = [];
-  const seenOrig = new Set<string>();
-  for (const item of wallData ?? []) {
-    const original = item.path ? wallToOriginal.get(item.path) : undefined;
-    if (!original) continue;
-    if (item.signedUrl) {
-      putCachedSignedUrls(original, { thumb: item.signedUrl }, SIGNED_URL_TTL_SEC);
-      seenOrig.add(original);
-      lazyBackfillDone.add(original);
-    }
-  }
-  for (const original of unique) {
-    if (!seenOrig.has(original)) needOriginal.push(original);
-  }
-
-  if (needOriginal.length === 0) return;
-
+  // 1) Originals — reliable display path.
   const { data: fullData, error: fullError } = await storage.createSignedUrls(
-    needOriginal,
+    unique,
     SIGNED_URL_TTL_SEC,
   );
   throwIf(fullError);
-  for (const item of fullData ?? []) {
-    if (item.path && item.signedUrl) {
+  for (let i = 0; i < (fullData ?? []).length; i++) {
+    const item = fullData![i];
+    const path = item.path ?? unique[i];
+    if (path && item.signedUrl) {
       putCachedSignedUrls(
-        item.path,
+        path,
         { full: item.signedUrl, thumb: item.signedUrl },
         SIGNED_URL_TTL_SEC,
       );
     }
   }
-  // Show original now; quietly create `.wall.jpg` for next time / live swap.
-  queueLazyWallBackfill(needOriginal);
+
+  // Paint immediately — do not wait for .wall.jpg existence probes.
+  onPainted?.();
+
+  // 2) Upgrade to real `.wall.jpg` when the object actually exists.
+  const needBackfill: string[] = [];
+  await Promise.all(
+    unique.map(async (original) => {
+      const wallUrl = await fetchWallDerivativeSignedUrl(original);
+      if (wallUrl) {
+        putCachedSignedUrls(original, { thumb: wallUrl }, SIGNED_URL_TTL_SEC);
+        lazyBackfillDone.add(original);
+      } else if (
+        !lazyBackfillDone.has(original) &&
+        !lazyBackfillFailed.has(original)
+      ) {
+        needBackfill.push(original);
+      }
+    }),
+  );
+
+  // 3) Create missing derivatives in the background (editors).
+  queueLazyWallBackfill(needBackfill);
 }
 
 function takePaths(from: string[], limit: number): string[] {
   const batch: string[] = [];
   while (from.length > 0 && batch.length < limit) {
     const path = from.shift()!;
-    if (getCachedSignedUrls(path)?.full) continue;
+    // Skip only when we already have something displayable.
+    const cached = getCachedSignedUrls(path);
+    if (cached?.thumb || cached?.full) continue;
     if (batch.includes(path)) continue;
     batch.push(path);
   }
@@ -658,8 +680,13 @@ async function pumpWallSignQueue(): Promise<void> {
         if (state.priority.length === 0 && state.backlog.length === 0) break;
         continue;
       }
-      await signWallPreviewUrls(batch);
+      await signWallPreviewUrls(batch, () => {
+        if (wallSign !== state || state.generation !== gen) return;
+        state.notes = applyCachedImageUrls(state.notes);
+        state.onBatch?.(state.notes);
+      });
       if (wallSign !== state || state.generation !== gen) return;
+      // Re-publish after any .wall.jpg upgrades landed in cache.
       state.notes = applyCachedImageUrls(state.notes);
       state.onBatch?.(state.notes);
     }
@@ -781,30 +808,24 @@ export async function backfillWallThumbs(
 
   const CHECK_BATCH = 40;
   const missing: string[] = [];
-  const storage = supabase.storage.from(BUCKET);
 
   for (let i = 0; i < unique.length; i += CHECK_BATCH) {
     const batch = unique.slice(i, i + CHECK_BATCH);
-    const wallPaths = batch.map(wallDerivativePath);
-    const wallToOriginal = new Map(
-      wallPaths.map((wallPath, idx) => [wallPath, batch[idx]]),
-    );
-    const { data: signed } = await storage.createSignedUrls(wallPaths, 60);
+    // createSignedUrls alone is not existence — Supabase may sign missing keys.
     const have = new Set<string>();
-    for (const item of signed ?? []) {
-      if (item.path && item.signedUrl) {
-        const original = wallToOriginal.get(item.path);
-        if (original) {
-          have.add(original);
-          putCachedSignedUrls(
-            original,
-            { thumb: item.signedUrl },
-            SIGNED_URL_TTL_SEC,
-          );
-          lazyBackfillDone.add(original);
-        }
-      }
-    }
+    await Promise.all(
+      batch.map(async (original) => {
+        const wallUrl = await fetchWallDerivativeSignedUrl(original, 60);
+        if (!wallUrl) return;
+        have.add(original);
+        putCachedSignedUrls(
+          original,
+          { thumb: wallUrl },
+          SIGNED_URL_TTL_SEC,
+        );
+        lazyBackfillDone.add(original);
+      }),
+    );
     for (const original of batch) {
       if (have.has(original)) progress.skipped += 1;
       else missing.push(original);

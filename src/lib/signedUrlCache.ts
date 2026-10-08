@@ -12,13 +12,14 @@ export type CachedSignedUrls = {
 };
 
 /**
- * Bump when wall URL strategy changes so stale transform thumbs are dropped.
- * v2 stored slow/broken per-file transform URLs that blocked re-signing.
+ * Bump when wall URL strategy changes so stale / broken thumbs are dropped.
+ * v3 could cache signed URLs for missing `.wall.jpg` objects (404 at fetch).
  */
-const STORAGE_KEY = 'techlib.signedUrlCache.v3';
+const STORAGE_KEY = 'techlib.signedUrlCache.v4';
 const LEGACY_STORAGE_KEYS = [
   'techlib.signedUrlCache.v1',
   'techlib.signedUrlCache.v2',
+  'techlib.signedUrlCache.v3',
 ];
 /** Drop cache entries this long before the signed TTL ends. */
 const EXPIRY_SKEW_MS = 60 * 60 * 1000; // 1h
