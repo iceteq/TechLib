@@ -52,6 +52,7 @@ import { relatedIdsFromLinks, mergeRelatedIds } from '../lib/noteLinks';
 import {
   normalizePartNumber,
   noteMatchesPartNumberKey,
+  partNumberCollisions,
   partNumberFamilyCount,
   partNumberLabel,
   relatedIdsByPartNumber,
@@ -1124,6 +1125,87 @@ export default function App({ session }: { session: Session | null }) {
     }
   }
 
+  async function discardCollisionDraft(draftId: string) {
+    pendingWallPulseIds.current.delete(draftId);
+    await store.deleteNote(draftId);
+    setNotes((prev) => prev.filter((n) => n.id !== draftId));
+  }
+
+  async function handleOpenPartNumberMatch(targetNoteId: string) {
+    if (!canEdit) return;
+    const draft = activeNote;
+    if (!draft || draft.id === targetNoteId) return;
+    const draftId = draft.id;
+    const hasPhotos = draft.images.length > 0 || imageBusyCount > 0;
+    if (!hasPhotos) {
+      await discardCollisionDraft(draftId);
+      setActiveNoteId(null);
+      openNote(targetNoteId);
+      setNotice('Opened existing note');
+      return;
+    }
+    // Keep the photo draft on the wall; user chose not to merge.
+    openNote(targetNoteId);
+    setNotice('Opened existing note · draft kept on wall');
+  }
+
+  async function handleMergePartNumberMatch(targetNoteId: string) {
+    if (!canEdit) return;
+    const draft = activeNote;
+    if (!draft || draft.id === targetNoteId) return;
+    if (imageBusyCount > 0) {
+      setNotice('Wait for photos to finish adding');
+      return;
+    }
+    const draftId = draft.id;
+    const images = [...draft.images].sort((a, b) => a.position - b.position);
+    if (images.length === 0) {
+      await handleOpenPartNumberMatch(targetNoteId);
+      return;
+    }
+
+    setImageBusyCount(images.length);
+    try {
+      for (const image of images) {
+        const response = await fetch(image.url);
+        if (!response.ok) {
+          throw new Error('Could not read photo');
+        }
+        const blob = await response.blob();
+        const updated = await store.addImage(targetNoteId, blob);
+        if (updated) {
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === updated.id
+                ? {
+                    ...n,
+                    images: updated.images,
+                    updatedAt: updated.updatedAt,
+                  }
+                : n,
+            ),
+          );
+        }
+        setImageBusyCount((count) => Math.max(0, count - 1));
+      }
+      await discardCollisionDraft(draftId);
+      setActiveNoteId(null);
+      await refresh();
+      openNote(targetNoteId);
+      const n = images.length;
+      setNotice(
+        n === 1
+          ? 'Added 1 photo to existing note'
+          : `Added ${n} photos to existing note`,
+      );
+    } catch {
+      setNotice('Could not move photos to existing note');
+      await refresh();
+    } finally {
+      setImageBusyCount(0);
+    }
+  }
+
   async function createNoteFromImages(files: File[]) {
     if (!canEdit) return;
     if (files.length === 0) return;
@@ -1951,6 +2033,18 @@ export default function App({ session }: { session: Session | null }) {
             partNumberFamilyCount(notes, activeNote.title) > 1
               ? () => showRelatedForNote(activeNote.id)
               : undefined
+          }
+          resolvePartNumberCollisions={
+            canEdit
+              ? (title) =>
+                  partNumberCollisions(notes, activeNote.id, title)
+              : undefined
+          }
+          onOpenPartNumberMatch={
+            canEdit ? handleOpenPartNumberMatch : undefined
+          }
+          onMergePartNumberMatch={
+            canEdit ? handleMergePartNumberMatch : undefined
           }
         />
       )}

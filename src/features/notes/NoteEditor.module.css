@@ -189,6 +189,15 @@
   gap: 0.35rem;
 }
 
+.metaRowNudge {
+  padding: 0.25rem;
+  margin: -0.25rem;
+  border-radius: 12px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 1px;
+  background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
+}
+
 .metaChip,
 .metaStock,
 .metaMissing {
