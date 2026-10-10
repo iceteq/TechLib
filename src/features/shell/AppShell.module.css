@@ -22,13 +22,31 @@
   margin-top: 0.35rem;
 }
 
-.topbar > :last-child {
+/* Keep search + view/filter control on one row (including mobile wrap). */
+.searchRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  max-width: calc(420px + 0.5rem + 2.25rem);
+  margin-left: auto;
+}
+
+.searchRow > :last-child {
   margin-top: 0.2rem;
+  flex-shrink: 0;
 }
 
 @media (max-width: 800px) {
   .topbar {
     flex-wrap: wrap;
+  }
+
+  .searchRow {
+    flex: 1 1 100%;
+    max-width: none;
+    margin-left: 0;
   }
 }
 

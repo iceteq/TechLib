@@ -3,8 +3,7 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  max-width: 420px;
-  margin-left: auto;
+  min-width: 0;
 }
 
 .field {
@@ -302,9 +301,3 @@
   color: var(--text);
 }
 
-@media (max-width: 800px) {
-  .wrap {
-    max-width: none;
-    margin-left: 0;
-  }
-}
