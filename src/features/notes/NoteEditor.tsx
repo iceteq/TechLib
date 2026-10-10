@@ -35,6 +35,11 @@ import type {
 import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
 import { RelatedSection, type RelatedNoteEntry } from './RelatedSection';
+import {
+  PartNumberCollisionPanel,
+  type CollisionPickMode,
+} from './PartNumberCollisionPanel';
+import { PartNumberSiblingBanner } from './PartNumberSiblingBanner';
 import { DescriptionField } from '../labels/DescriptionField';
 import { LabelChip } from '../labels/LabelChip';
 import {
@@ -45,6 +50,7 @@ import { AskSection } from './AskSection';
 import { GuidelineLinesList } from './GuidelineLinesList';
 import { TypeChip } from './TypeChip';
 import { SHOW_GUIDELINES } from '../../lib/config';
+import { normalizePartNumber } from '../../lib/partNumber';
 import styles from './NoteEditor.module.css';
 
 /** Bumps on each NoteEditor history-trap effect; helps Strict Mode remounts. */
@@ -109,6 +115,12 @@ interface NoteEditorProps {
   onRemoveRelated?: (noteId: string) => Promise<void>;
   /** Jump to wall filtered to this part-number family. */
   onShowAllRelated?: () => void;
+  /** Other notes sharing a part number (for create-time collision UI). */
+  resolvePartNumberCollisions?: (title: string) => NoteWithUrls[];
+  /** Open an existing match; discard this draft when it has no photos. */
+  onOpenPartNumberMatch?: (targetNoteId: string) => void | Promise<void>;
+  /** Append this note's photos onto a match, then discard this draft. */
+  onMergePartNumberMatch?: (targetNoteId: string) => void | Promise<void>;
 }
 
 export function NoteEditor({
@@ -139,6 +151,9 @@ export function NoteEditor({
   onOpenRelated,
   onRemoveRelated,
   onShowAllRelated,
+  resolvePartNumberCollisions,
+  onOpenPartNumberMatch,
+  onMergePartNumberMatch,
 }: NoteEditorProps) {
   const cartJuice = useJuiceBurst();
   const archiveJuice = useJuiceBurst();
@@ -156,6 +171,15 @@ export function NoteEditor({
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [collisionMatches, setCollisionMatches] = useState<NoteWithUrls[]>([]);
+  const [collisionPickMode, setCollisionPickMode] =
+    useState<CollisionPickMode | null>(null);
+  const [collisionSelectedId, setCollisionSelectedId] = useState<string | null>(
+    null,
+  );
+  const [collisionBusy, setCollisionBusy] = useState(false);
+  const [siblingKeptKey, setSiblingKeptKey] = useState<string | null>(null);
+  const dismissedCollisionKeyRef = useRef<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -220,6 +244,12 @@ export function NoteEditor({
     setAssignField(null);
     setColorOpen(false);
     setMoreOpen(false);
+    setCollisionMatches([]);
+    setCollisionPickMode(null);
+    setCollisionSelectedId(null);
+    setCollisionBusy(false);
+    setSiblingKeptKey(null);
+    dismissedCollisionKeyRef.current = null;
     syncedTitleRef.current = note.title;
     syncedDescriptionRef.current = note.description;
     syncedSpecialCaseRef.current = note.specialCase ?? '';
@@ -517,6 +547,74 @@ export function NoteEditor({
   async function persistTitle(next = title) {
     if (next === note.title) return;
     await saveMeta({ title: next });
+  }
+
+  function evaluatePartNumberCollision(nextTitle: string) {
+    if (readOnly || !resolvePartNumberCollisions) {
+      setCollisionMatches([]);
+      setCollisionPickMode(null);
+      setCollisionSelectedId(null);
+      return;
+    }
+    const key = normalizePartNumber(nextTitle);
+    if (!key || key === dismissedCollisionKeyRef.current) {
+      setCollisionMatches([]);
+      setCollisionPickMode(null);
+      setCollisionSelectedId(null);
+      return;
+    }
+    const matches = resolvePartNumberCollisions(nextTitle);
+    setCollisionMatches(matches);
+    setCollisionPickMode(null);
+    setCollisionSelectedId(matches.length === 1 ? matches[0].id : null);
+    if (siblingKeptKey && siblingKeptKey !== key) {
+      setSiblingKeptKey(null);
+    }
+  }
+
+  async function handleTitleBlur() {
+    await persistTitle();
+    evaluatePartNumberCollision(title);
+  }
+
+  function beginCollisionPick(mode: CollisionPickMode) {
+    if (collisionMatches.length === 0) return;
+    if (collisionMatches.length === 1) {
+      void runCollisionAction(mode, collisionMatches[0].id);
+      return;
+    }
+    setCollisionPickMode(mode);
+    setCollisionSelectedId((current) =>
+      current && collisionMatches.some((m) => m.id === current)
+        ? current
+        : collisionMatches[0]?.id ?? null,
+    );
+  }
+
+  async function runCollisionAction(
+    mode: CollisionPickMode,
+    targetId: string,
+  ) {
+    if (!targetId || collisionBusy) return;
+    setCollisionBusy(true);
+    try {
+      if (mode === 'merge') {
+        await onMergePartNumberMatch?.(targetId);
+      } else {
+        await onOpenPartNumberMatch?.(targetId);
+      }
+    } finally {
+      setCollisionBusy(false);
+    }
+  }
+
+  function handleCreateAnotherSibling() {
+    const key = normalizePartNumber(title);
+    dismissedCollisionKeyRef.current = key || null;
+    setSiblingKeptKey(key || null);
+    setCollisionMatches([]);
+    setCollisionPickMode(null);
+    setCollisionSelectedId(null);
   }
 
   async function persistDescription(next = description) {
@@ -1083,12 +1181,54 @@ export function NoteEditor({
               ref={titleRef}
               className={styles.title}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={() => void persistTitle()}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (collisionMatches.length > 0) {
+                  setCollisionMatches([]);
+                  setCollisionPickMode(null);
+                }
+              }}
+              onBlur={() => void handleTitleBlur()}
               placeholder="Part number"
               aria-label="Part number"
               readOnly={readOnly}
             />
+            {!readOnly && collisionMatches.length > 0 && (
+              <PartNumberCollisionPanel
+                matches={collisionMatches}
+                noteTypes={noteTypes}
+                hasPhotos={note.images.length > 0}
+                pickMode={collisionPickMode}
+                selectedId={collisionSelectedId}
+                busy={collisionBusy || imageBusy}
+                onOpenExisting={() => beginCollisionPick('open')}
+                onAddPhotos={() => beginCollisionPick('merge')}
+                onCreateAnother={handleCreateAnotherSibling}
+                onSelectMatch={setCollisionSelectedId}
+                onConfirmPick={() => {
+                  if (!collisionPickMode || !collisionSelectedId) return;
+                  void runCollisionAction(
+                    collisionPickMode,
+                    collisionSelectedId,
+                  );
+                }}
+                onCancelPick={() => {
+                  setCollisionPickMode(null);
+                }}
+              />
+            )}
+            {!readOnly &&
+              siblingKeptKey &&
+              siblingKeptKey === normalizePartNumber(title) &&
+              collisionMatches.length === 0 && (
+                <PartNumberSiblingBanner
+                  familyCount={
+                    1 +
+                    (resolvePartNumberCollisions?.(title)?.length ?? 0)
+                  }
+                  needsType={!note.categoryId}
+                />
+              )}
             <DescriptionField
               value={description}
               labels={labels}
@@ -1145,7 +1285,16 @@ export function NoteEditor({
                 {noteLabels.length === 0 ? 'Add label' : '+'}
               </button>
             </div>
-            <div className={styles.metaRow} aria-label="Type and stock">
+            <div
+              className={`${styles.metaRow} ${
+                siblingKeptKey &&
+                siblingKeptKey === normalizePartNumber(title) &&
+                !note.categoryId
+                  ? styles.metaRowNudge
+                  : ''
+              }`}
+              aria-label="Type and stock"
+            >
               {selectedType ? (
                 <TypeChip
                   type={selectedType}

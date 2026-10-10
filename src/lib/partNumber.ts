@@ -54,3 +54,19 @@ export function noteMatchesPartNumberKey(
   if (!key) return false;
   return normalizePartNumber(note.title) === key;
 }
+
+/** Other non-deleted notes that share this part number (excludes `noteId`). */
+export function partNumberCollisions(
+  notes: NoteWithUrls[],
+  noteId: string,
+  title: string,
+): NoteWithUrls[] {
+  const key = normalizePartNumber(title);
+  if (!key) return [];
+  return notes.filter(
+    (n) =>
+      n.id !== noteId &&
+      n.deletedAt == null &&
+      normalizePartNumber(n.title) === key,
+  );
+}
