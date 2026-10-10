@@ -72,8 +72,9 @@ export function SearchBar({
 
   const trimmed = value.trim();
   const hasOrTerms = orTerms.length > 0;
+  // Hide recent while a list (OR) search is active so chips stay readable.
   const recentVisible =
-    focused && !listOpen
+    focused && !listOpen && !hasOrTerms
       ? recent.filter((item) => {
           const display = recentDisplay(item);
           return trimmed
@@ -96,11 +97,14 @@ export function SearchBar({
       onChange('');
       onOrTermsChange(terms);
       commitRecent(terms.join('\n'));
-    } else {
-      onOrTermsChange([]);
-      onChange(query);
-      commitRecent(query);
+      setListOpen(false);
+      setFocused(false);
+      inputRef.current?.blur();
+      return;
     }
+    onOrTermsChange([]);
+    onChange(query);
+    commitRecent(query);
     setListOpen(false);
     inputRef.current?.focus();
   }
@@ -129,7 +133,8 @@ export function SearchBar({
     onOrTermsChange(terms);
     commitRecent(terms.join('\n'));
     setListOpen(false);
-    inputRef.current?.focus();
+    setFocused(false);
+    inputRef.current?.blur();
   }
 
   function removeOrTerm(term: string) {
