@@ -46,13 +46,15 @@ export function AppShell({
           <span className={styles.brandMark} aria-hidden />
           <h1 className={styles.brandTitle}>{APP_NAME}</h1>
         </div>
-        <SearchBar
-          value={search}
-          onChange={onSearchChange}
-          orTerms={orTerms}
-          onOrTermsChange={onOrTermsChange}
-        />
-        <ViewOptionsMenu prefs={viewPrefs} onChange={onViewPrefsChange} />
+        <div className={styles.searchRow}>
+          <SearchBar
+            value={search}
+            onChange={onSearchChange}
+            orTerms={orTerms}
+            onOrTermsChange={onOrTermsChange}
+          />
+          <ViewOptionsMenu prefs={viewPrefs} onChange={onViewPrefsChange} />
+        </div>
       </header>
 
       <div className={styles.body}>
