@@ -20,7 +20,9 @@ import {
 import { autosizeTextarea } from '../../lib/autosizeTextarea';
 import { BACKGROUNDS, getBackground } from '../../lib/backgrounds';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
+import { mergeRelatedIds } from '../../lib/noteLinks';
 import { noteTypeById, noteTypePathLabel } from '../../lib/noteTypes';
+import { relatedIdsByPartNumber } from '../../lib/partNumber';
 import { useJuiceBurst } from '../../lib/useJuiceBurst';
 import type {
   GuidelineLine,
@@ -103,12 +105,14 @@ interface NoteEditorProps {
   onCreateLabel: (name: string) => Promise<Label>;
   /** > 0 while images are being saved. */
   imageBusyCount?: number;
-  /** Linked notes + same part-number siblings. */
+  /** All notes — used to match same part numbers against the draft title. */
+  notes?: NoteWithUrls[];
+  /** Linked notes + same part-number siblings (saved title). */
   relatedNotes?: RelatedNoteEntry[];
   onOpenRelated?: (noteId: string) => void;
   onRemoveRelated?: (noteId: string) => Promise<void>;
-  /** Jump to wall filtered to this part-number family. */
-  onShowAllRelated?: () => void;
+  /** Jump to wall filtered to this part-number family (uses draft title). */
+  onShowAllRelated?: (title: string) => void;
 }
 
 export function NoteEditor({
@@ -135,6 +139,7 @@ export function NoteEditor({
   onToggleSorted,
   onCreateLabel,
   imageBusyCount = 0,
+  notes = [],
   relatedNotes = [],
   onOpenRelated,
   onRemoveRelated,
@@ -156,10 +161,15 @@ export function NoteEditor({
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [relatedHighlight, setRelatedHighlight] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const specialCaseRef = useRef<HTMLTextAreaElement>(null);
+  const relatedSectionRef = useRef<HTMLDivElement>(null);
+  const relatedHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   /** Only dismiss when press + release both started on the backdrop (not a text-drag). */
@@ -200,6 +210,34 @@ export function NoteEditor({
     (note.askItems?.length ?? 0) === 0;
 
   const noteLabels = labels.filter((label) => note.labelIds.includes(label.id));
+
+  // Match siblings against the draft title so a scan/type shows Related before blur.
+  const draftPartIds = relatedIdsByPartNumber(notes, note.id, title);
+  const linkedIds = relatedNotes
+    .filter((entry) => !entry.auto)
+    .map((entry) => entry.note.id);
+  const linkedIdSet = new Set(linkedIds);
+  const notesById = new Map(notes.map((n) => [n.id, n]));
+  const displayRelatedNotes: RelatedNoteEntry[] = mergeRelatedIds(
+    linkedIds,
+    draftPartIds,
+  )
+    .map((id) => {
+      const sibling = notesById.get(id);
+      if (!sibling || sibling.deletedAt != null) return null;
+      return {
+        note: sibling,
+        auto: !linkedIdSet.has(id),
+      } satisfies RelatedNoteEntry;
+    })
+    .filter((entry): entry is RelatedNoteEntry => entry != null)
+    .sort((a, b) => {
+      if (a.auto !== b.auto) return a.auto ? -1 : 1;
+      return (a.note.title || '').localeCompare(b.note.title || '', undefined, {
+        sensitivity: 'base',
+      });
+    });
+  const existingPartCount = draftPartIds.length;
 
   const imageBusy = imageBusyCount > 0;
   imageBusyRef.current = imageBusy;
@@ -266,8 +304,27 @@ export function NoteEditor({
   useEffect(() => {
     return () => {
       if (saveHideTimerRef.current) clearTimeout(saveHideTimerRef.current);
+      if (relatedHighlightTimerRef.current) {
+        clearTimeout(relatedHighlightTimerRef.current);
+      }
     };
   }, []);
+
+  function revealRelatedSection() {
+    relatedSectionRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+    if (relatedHighlightTimerRef.current) {
+      clearTimeout(relatedHighlightTimerRef.current);
+      relatedHighlightTimerRef.current = null;
+    }
+    setRelatedHighlight(true);
+    relatedHighlightTimerRef.current = setTimeout(() => {
+      setRelatedHighlight(false);
+      relatedHighlightTimerRef.current = null;
+    }, 2800);
+  }
 
   // New notes (empty part number): focus + select the title so a scanner or
   // keyboard can enter the part # immediately. Existing notes keep chrome focus
@@ -1089,6 +1146,22 @@ export function NoteEditor({
               aria-label="Part number"
               readOnly={readOnly}
             />
+            {existingPartCount > 0 && (
+              <p className={styles.partExists} role="status" aria-live="polite">
+                <span>
+                  {existingPartCount === 1
+                    ? '1 note already uses this part number'
+                    : `${existingPartCount} notes already use this part number`}
+                </span>
+                <button
+                  type="button"
+                  className={styles.partExistsLink}
+                  onClick={revealRelatedSection}
+                >
+                  See related ↓
+                </button>
+              </p>
+            )}
             <DescriptionField
               value={description}
               labels={labels}
@@ -1177,14 +1250,20 @@ export function NoteEditor({
               </button>
             </div>
 
-            {relatedNotes.length > 0 && (
+            {displayRelatedNotes.length > 0 && (
               <RelatedSection
-                relatedNotes={relatedNotes}
+                sectionRef={relatedSectionRef}
+                highlighted={relatedHighlight}
+                relatedNotes={displayRelatedNotes}
                 noteTypes={noteTypes}
                 readOnly={readOnly}
                 onOpen={(id) => onOpenRelated?.(id)}
                 onRemove={onRemoveRelated}
-                onShowAllRelated={onShowAllRelated}
+                onShowAllRelated={
+                  existingPartCount > 0 && onShowAllRelated
+                    ? () => onShowAllRelated(title)
+                    : undefined
+                }
               />
             )}
 

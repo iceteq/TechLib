@@ -363,6 +363,48 @@
   outline: none;
 }
 
+.partExists {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.55rem;
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: var(--accent-soft, rgba(26, 115, 232, 0.1));
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--text);
+  animation: partExistsIn 220ms ease;
+}
+
+.partExistsLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.partExistsLink:hover {
+  text-decoration: underline;
+}
+
+@keyframes partExistsIn {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .section {
   padding: 0.55rem 1.1rem 0.35rem;
 }

@@ -3,6 +3,29 @@
   flex-direction: column;
   gap: 0.35rem;
   margin-top: 0.85rem;
+  border-radius: 12px;
+  transition: background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.highlighted {
+  padding: 0.5rem 0.6rem 0.6rem;
+  margin-left: -0.6rem;
+  margin-right: -0.6rem;
+  border-radius: 12px;
+  background: var(--accent-soft, rgba(26, 115, 232, 0.12));
+  border: 2px solid var(--accent);
+  animation: relatedPulse 2s ease;
+}
+
+@keyframes relatedPulse {
+  0% {
+    background: rgba(26, 115, 232, 0.28);
+    border-color: var(--accent);
+  }
+  100% {
+    background: var(--accent-soft, rgba(26, 115, 232, 0.12));
+    border-color: var(--accent);
+  }
 }
 
 .header {
