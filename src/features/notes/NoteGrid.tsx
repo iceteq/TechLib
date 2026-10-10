@@ -95,6 +95,8 @@ interface NoteGridProps {
   filterCategoryId: string | null;
   filterStockId: string | null;
   search: string;
+  /** Multi-part OR search terms from list search. */
+  orTerms?: string[];
   stockLocations: StockLocation[];
   /** noteId → quantity in collection */
   cartQuantities: Record<string, number>;
@@ -180,6 +182,7 @@ export function NoteGrid({
   filterCategoryId,
   filterStockId,
   search,
+  orTerms = [],
   stockLocations,
   cartQuantities,
   createDefaultsSummary,
@@ -273,6 +276,7 @@ export function NoteGrid({
     filterCategoryId,
     filterStockId,
     search,
+    orTerms,
     clearSelection,
   ]);
 
@@ -525,7 +529,12 @@ export function NoteGrid({
   }
 
   const filterLabels = labels.filter((l) => filterLabelIds.includes(l.id));
-  const hasSearch = search.trim().length > 0;
+  const hasOrTerms = orTerms.length > 0;
+  const hasSearch = search.trim().length > 0 || hasOrTerms;
+  const searchQuery = hasOrTerms ? orTerms.join(' ') : search;
+  const searchChipLabel = hasOrTerms
+    ? `Search: ${orTerms.length} part${orTerms.length === 1 ? '' : 's'}`
+    : `Search: ${search.trim()}`;
   const canCreate = canEdit && view === 'notes' && !selecting && Boolean(onCreateNote);
   const primaryCreateMeta = createFabMeta(primaryCreate);
   const PrimaryCreateIcon = primaryCreateMeta.Icon;
@@ -572,7 +581,7 @@ export function NoteGrid({
     groupBy,
     filterCategoryId,
     filterStockId,
-    searchActive: Boolean(search.trim()),
+    searchActive: hasSearch,
     archive: view === 'archive',
   });
   const wallGroups = useMemo(
@@ -666,7 +675,7 @@ export function NoteGrid({
               onClick={onClearSearch}
               title="Clear search"
             >
-              Search: {search.trim()}
+              {searchChipLabel}
               <X size={14} />
             </button>
           )}
@@ -859,7 +868,7 @@ export function NoteGrid({
                     onNotesDragStart={onNotesDragStart}
                     pulse={pulseNoteIds.includes(note.id)}
                     onPulseEnd={onPulseEnd}
-                    searchQuery={search}
+                    searchQuery={searchQuery}
                     relatedCount={relatedCountByNoteId[note.id] ?? 0}
                     onShowRelated={onShowRelated}
                     priorityImage={priorityImageIds.has(note.id)}
@@ -932,7 +941,7 @@ export function NoteGrid({
               onNotesDragStart={onNotesDragStart}
               pulse={pulseNoteIds.includes(note.id)}
               onPulseEnd={onPulseEnd}
-              searchQuery={search}
+              searchQuery={searchQuery}
               relatedCount={relatedCountByNoteId[note.id] ?? 0}
               onShowRelated={onShowRelated}
               priorityImage={priorityImageIds.has(note.id)}

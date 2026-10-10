@@ -6,6 +6,8 @@ export const FILTER_SESSION_KEY = 'techlib.filterSession';
 export type FilterSession = {
   view: NotesView;
   search: string;
+  /** Multi-part OR search terms (one part number per entry). */
+  orTerms: string[];
   labelIds: string[];
   disposition: NoteDisposition | null;
   categoryId: string | null;
@@ -15,6 +17,7 @@ export type FilterSession = {
 export const DEFAULT_FILTER_SESSION: FilterSession = {
   view: 'notes',
   search: '',
+  orTerms: [],
   labelIds: [],
   disposition: null,
   categoryId: null,
@@ -57,9 +60,14 @@ export function loadFilterSession(): FilterSession {
       typeof parsed.categoryId === 'string' ? parsed.categoryId : null;
     const stockId = typeof parsed.stockId === 'string' ? parsed.stockId : null;
 
+    const orTerms = asStringArray(parsed.orTerms)
+      .map((term) => term.trim())
+      .filter(Boolean);
+
     return {
       view,
       search: typeof parsed.search === 'string' ? parsed.search : '',
+      orTerms,
       labelIds: asStringArray(parsed.labelIds),
       disposition,
       categoryId:

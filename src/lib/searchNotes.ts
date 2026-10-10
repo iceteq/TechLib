@@ -23,6 +23,21 @@ function searchTokens(query: string): string[] {
     .filter(Boolean);
 }
 
+/** One search term per line; trims, drops empties, dedupes case-insensitively. */
+export function parseSearchList(text: string): string[] {
+  const seen = new Set<string>();
+  const terms: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const term = line.trim();
+    if (!term) continue;
+    const key = term.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    terms.push(term);
+  }
+  return terms;
+}
+
 /** Best rank for one token against a note; -1 = no match. */
 function tokenSearchRank(
   note: NoteWithUrls,
@@ -85,16 +100,47 @@ export function matchesNoteSearch(
   stockLocations: StockLocation[],
   noteTypes: NoteType[],
   query: string,
+  orTerms: string[] = [],
 ): boolean {
-  return noteSearchRank(note, labels, stockLocations, noteTypes, query) >= 0;
+  return (
+    noteSearchRank(note, labels, stockLocations, noteTypes, query, orTerms) >=
+    0
+  );
 }
 
 /**
  * Higher is better; -1 means no match.
  * Space-separated terms are ANDed across fields (order independent),
  * so "computer 3209b" and "3209b computer" both match a Computer in stock 3209b.
+ * When `orTerms` is non-empty, each term is ranked with AND semantics and the
+ * best rank wins (match any).
  */
 export function noteSearchRank(
+  note: NoteWithUrls,
+  labels: Label[],
+  stockLocations: StockLocation[],
+  noteTypes: NoteType[],
+  query: string,
+  orTerms: string[] = [],
+): number {
+  if (orTerms.length > 0) {
+    let best = -1;
+    for (const term of orTerms) {
+      const rank = noteSearchRankAnd(
+        note,
+        labels,
+        stockLocations,
+        noteTypes,
+        term,
+      );
+      if (rank > best) best = rank;
+    }
+    return best;
+  }
+  return noteSearchRankAnd(note, labels, stockLocations, noteTypes, query);
+}
+
+function noteSearchRankAnd(
   note: NoteWithUrls,
   labels: Label[],
   stockLocations: StockLocation[],
@@ -135,6 +181,8 @@ export function filterNotes(
   options: {
     labelIds: string[];
     search: string;
+    /** When non-empty, match any term (each term keeps space-AND semantics). */
+    orTerms?: string[];
     view: NotesView;
     disposition: NoteDisposition | null;
     /** Type id, UNSET_TYPE_FILTER for no type, or null for any. */
@@ -143,6 +191,7 @@ export function filterNotes(
     stockId: string | null;
   },
 ): NoteWithUrls[] {
+  const orTerms = options.orTerms ?? [];
   const filtered = notes.filter((note) => {
     if (options.view === 'collection') return false;
     if (options.view === 'archive' ? !note.archived : note.archived) {
@@ -179,17 +228,33 @@ export function filterNotes(
       stockLocations,
       noteTypes,
       options.search,
+      orTerms,
     );
   });
 
   const q = options.search.trim();
-  if (!q) {
+  const hasQuery = orTerms.length > 0 || Boolean(q);
+  if (!hasQuery) {
     return [...filtered].sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   return [...filtered].sort((a, b) => {
-    const rankA = noteSearchRank(a, labels, stockLocations, noteTypes, q);
-    const rankB = noteSearchRank(b, labels, stockLocations, noteTypes, q);
+    const rankA = noteSearchRank(
+      a,
+      labels,
+      stockLocations,
+      noteTypes,
+      q,
+      orTerms,
+    );
+    const rankB = noteSearchRank(
+      b,
+      labels,
+      stockLocations,
+      noteTypes,
+      q,
+      orTerms,
+    );
     if (rankB !== rankA) return rankB - rankA;
     return b.updatedAt - a.updatedAt;
   });

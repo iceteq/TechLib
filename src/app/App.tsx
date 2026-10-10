@@ -293,6 +293,7 @@ export default function App({ session }: { session: Session | null }) {
     initialSession.stockId,
   );
   const [search, setSearch] = useState(initialSession.search);
+  const [orTerms, setOrTerms] = useState<string[]>(initialSession.orTerms);
   /** Wall filter: show only notes with this normalized part number. */
   const [relatedPartKey, setRelatedPartKey] = useState<string | null>(null);
   const [relatedPartLabel, setRelatedPartLabel] = useState<string | null>(null);
@@ -430,6 +431,7 @@ export default function App({ session }: { session: Session | null }) {
     let filtered = filterNotes(notes, labels, stockLocations, noteTypes, {
       labelIds: view === 'notes' ? filterLabelIds : [],
       search,
+      orTerms: view === 'notes' ? orTerms : [],
       view: view === 'collection' ? 'notes' : view,
       disposition: view === 'notes' ? activeDispositionFilter : null,
       categoryId: view === 'notes' ? filterCategoryId : null,
@@ -441,7 +443,7 @@ export default function App({ session }: { session: Session | null }) {
       );
     }
     // Keep search relevance ordering; apply wall sort only when browsing.
-    if (search.trim()) return filtered;
+    if (search.trim() || orTerms.length > 0) return filtered;
     return sortWallNotes(filtered, viewPrefs.sort, openedAtById);
   }, [
     notes,
@@ -453,6 +455,7 @@ export default function App({ session }: { session: Session | null }) {
     filterCategoryId,
     filterStockId,
     search,
+    orTerms,
     view,
     viewPrefs.sort,
     openedAtById,
@@ -463,6 +466,7 @@ export default function App({ session }: { session: Session | null }) {
     saveFilterSession({
       view,
       search,
+      orTerms,
       labelIds: filterLabelIds,
       disposition: activeDispositionFilter,
       categoryId: filterCategoryId,
@@ -471,6 +475,7 @@ export default function App({ session }: { session: Session | null }) {
   }, [
     view,
     search,
+    orTerms,
     filterLabelIds,
     activeDispositionFilter,
     filterCategoryId,
@@ -483,6 +488,7 @@ export default function App({ session }: { session: Session | null }) {
       filterNotes(notes, labels, stockLocations, noteTypes, {
         labelIds: view === 'notes' ? filterLabelIds : [],
         search: view === 'notes' ? search : '',
+        orTerms: view === 'notes' ? orTerms : [],
         view: 'notes',
         disposition: view === 'notes' ? activeDispositionFilter : null,
         categoryId: null,
@@ -497,6 +503,7 @@ export default function App({ session }: { session: Session | null }) {
       activeDispositionFilter,
       filterStockId,
       search,
+      orTerms,
       view,
     ],
   );
@@ -505,6 +512,7 @@ export default function App({ session }: { session: Session | null }) {
       filterNotes(notes, labels, stockLocations, noteTypes, {
         labelIds: view === 'notes' ? filterLabelIds : [],
         search: view === 'notes' ? search : '',
+        orTerms: view === 'notes' ? orTerms : [],
         view: 'notes',
         disposition: view === 'notes' ? activeDispositionFilter : null,
         categoryId: view === 'notes' ? filterCategoryId : null,
@@ -519,6 +527,7 @@ export default function App({ session }: { session: Session | null }) {
       activeDispositionFilter,
       filterCategoryId,
       search,
+      orTerms,
       view,
     ],
   );
@@ -527,6 +536,7 @@ export default function App({ session }: { session: Session | null }) {
       filterNotes(notes, labels, stockLocations, noteTypes, {
         labelIds: [],
         search: view === 'notes' ? search : '',
+        orTerms: view === 'notes' ? orTerms : [],
         view: 'notes',
         disposition: view === 'notes' ? activeDispositionFilter : null,
         categoryId: view === 'notes' ? filterCategoryId : null,
@@ -541,6 +551,7 @@ export default function App({ session }: { session: Session | null }) {
       filterCategoryId,
       filterStockId,
       search,
+      orTerms,
       view,
     ],
   );
@@ -688,8 +699,14 @@ export default function App({ session }: { session: Session | null }) {
     setFilterCategoryId(null);
     setFilterStockId(null);
     setSearch('');
+    setOrTerms([]);
     setRelatedPartKey(null);
     setRelatedPartLabel(null);
+  }
+
+  function clearSearch() {
+    setSearch('');
+    setOrTerms([]);
   }
 
   function showRelatedForNote(noteId: string) {
@@ -703,6 +720,7 @@ export default function App({ session }: { session: Session | null }) {
     setFilterCategoryId(null);
     setFilterStockId(null);
     setSearch('');
+    setOrTerms([]);
     setRelatedPartKey(key);
     setRelatedPartLabel(partNumberLabel(note.title) || key);
     setActiveNoteId(null);
@@ -1656,6 +1674,8 @@ export default function App({ session }: { session: Session | null }) {
       onToggleSidebar={() => setSidebarOpen((open) => !open)}
       search={search}
       onSearchChange={setSearch}
+      orTerms={orTerms}
+      onOrTermsChange={setOrTerms}
       viewPrefs={viewPrefs}
       onViewPrefsChange={updateViewPrefs}
       sidebar={
@@ -1794,6 +1814,7 @@ export default function App({ session }: { session: Session | null }) {
           filterCategoryId={filterCategoryId}
           filterStockId={filterStockId}
           search={search}
+          orTerms={orTerms}
           stockLocations={stockLocations}
           cartQuantities={cartQuantities}
           createDefaultsSummary={
@@ -1846,7 +1867,7 @@ export default function App({ session }: { session: Session | null }) {
           onClearCategory={() => setFilterCategoryId(null)}
           onClearStock={() => setFilterStockId(null)}
           onClearAllFilters={clearAllFilters}
-          onClearSearch={() => setSearch('')}
+          onClearSearch={clearSearch}
           relatedPartKey={relatedPartKey}
           relatedPartLabel={relatedPartLabel}
           onClearRelatedPart={() => {

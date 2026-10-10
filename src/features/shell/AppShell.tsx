@@ -13,6 +13,8 @@ interface AppShellProps {
   onToggleSidebar: () => void;
   search: string;
   onSearchChange: (value: string) => void;
+  orTerms: string[];
+  onOrTermsChange: (terms: string[]) => void;
   viewPrefs: ViewPrefs;
   onViewPrefsChange: (prefs: ViewPrefs) => void;
 }
@@ -24,6 +26,8 @@ export function AppShell({
   onToggleSidebar,
   search,
   onSearchChange,
+  orTerms,
+  onOrTermsChange,
   viewPrefs,
   onViewPrefsChange,
 }: AppShellProps) {
@@ -42,7 +46,12 @@ export function AppShell({
           <span className={styles.brandMark} aria-hidden />
           <h1 className={styles.brandTitle}>{APP_NAME}</h1>
         </div>
-        <SearchBar value={search} onChange={onSearchChange} />
+        <SearchBar
+          value={search}
+          onChange={onSearchChange}
+          orTerms={orTerms}
+          onOrTermsChange={onOrTermsChange}
+        />
         <ViewOptionsMenu prefs={viewPrefs} onChange={onViewPrefsChange} />
       </header>
 
