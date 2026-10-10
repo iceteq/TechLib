@@ -40,6 +40,19 @@ export function RelatedSection({
     <div
       ref={sectionRef}
       className={`${styles.section}${highlighted ? ` ${styles.highlighted}` : ''}`}
+      data-highlighted={highlighted ? 'true' : undefined}
+      style={
+        highlighted
+          ? {
+              border: '2px solid var(--accent)',
+              background: 'var(--accent-soft, rgba(26, 115, 232, 0.14))',
+              padding: '0.5rem 0.6rem 0.6rem',
+              marginLeft: '-0.6rem',
+              marginRight: '-0.6rem',
+              borderRadius: 12,
+            }
+          : undefined
+      }
     >
       <div className={styles.header}>
         <p className={styles.label}>Related</p>

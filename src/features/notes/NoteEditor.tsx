@@ -319,15 +319,11 @@ export function NoteEditor({
       clearTimeout(relatedHighlightTimerRef.current);
       relatedHighlightTimerRef.current = null;
     }
-    // Drop then re-apply so the pulse restarts on every click.
-    setRelatedHighlight(false);
-    window.requestAnimationFrame(() => {
-      setRelatedHighlight(true);
-      relatedHighlightTimerRef.current = setTimeout(() => {
-        setRelatedHighlight(false);
-        relatedHighlightTimerRef.current = null;
-      }, 2000);
-    });
+    setRelatedHighlight(true);
+    relatedHighlightTimerRef.current = setTimeout(() => {
+      setRelatedHighlight(false);
+      relatedHighlightTimerRef.current = null;
+    }, 2800);
   }
 
   // New notes (empty part number): focus + select the title so a scanner or
