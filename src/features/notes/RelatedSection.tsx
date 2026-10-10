@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import { X } from 'lucide-react';
 import type { NoteType, NoteWithUrls } from '../../lib/types';
 import { noteTypePathLabel } from '../../lib/noteTypes';
@@ -16,6 +17,9 @@ interface RelatedSectionProps {
   onOpen: (noteId: string) => void;
   onRemove?: (noteId: string) => Promise<void>;
   onShowAllRelated?: () => void;
+  sectionRef?: Ref<HTMLDivElement>;
+  /** Brief pulse when jumped to from the part-number notice. */
+  highlighted?: boolean;
 }
 
 export function RelatedSection({
@@ -25,13 +29,31 @@ export function RelatedSection({
   onOpen,
   onRemove,
   onShowAllRelated,
+  sectionRef,
+  highlighted = false,
 }: RelatedSectionProps) {
   if (relatedNotes.length === 0) return null;
 
   const autoCount = relatedNotes.filter((r) => r.auto).length;
 
   return (
-    <div className={styles.section}>
+    <div
+      ref={sectionRef}
+      className={`${styles.section}${highlighted ? ` ${styles.highlighted}` : ''}`}
+      data-highlighted={highlighted ? 'true' : undefined}
+      style={
+        highlighted
+          ? {
+              border: '2px solid var(--accent)',
+              background: 'var(--accent-soft, rgba(26, 115, 232, 0.14))',
+              padding: '0.5rem 0.6rem 0.6rem',
+              marginLeft: '-0.6rem',
+              marginRight: '-0.6rem',
+              borderRadius: 12,
+            }
+          : undefined
+      }
+    >
       <div className={styles.header}>
         <p className={styles.label}>Related</p>
         {onShowAllRelated && (

@@ -712,7 +712,11 @@ export default function App({ session }: { session: Session | null }) {
   function showRelatedForNote(noteId: string) {
     const note = notes.find((n) => n.id === noteId);
     if (!note) return;
-    const key = normalizePartNumber(note.title);
+    showRelatedForPartNumber(note.title);
+  }
+
+  function showRelatedForPartNumber(title: string) {
+    const key = normalizePartNumber(title);
     if (!key) return;
     setView('notes');
     setFilterLabelIds([]);
@@ -722,7 +726,7 @@ export default function App({ session }: { session: Session | null }) {
     setSearch('');
     setOrTerms([]);
     setRelatedPartKey(key);
-    setRelatedPartLabel(partNumberLabel(note.title) || key);
+    setRelatedPartLabel(partNumberLabel(title) || key);
     setActiveNoteId(null);
     setSidebarOpen(false);
   }
@@ -1964,15 +1968,11 @@ export default function App({ session }: { session: Session | null }) {
           sorted={sortedNoteIds.has(activeNote.id)}
           onToggleSorted={() => void handleToggleSorted(activeNote.id)}
           imageBusyCount={imageBusyCount}
+          notes={notes}
           relatedNotes={activeRelatedNotes}
           onOpenRelated={(noteId) => openNote(noteId)}
           onRemoveRelated={canEdit ? handleRemoveRelated : undefined}
-          onShowAllRelated={
-            activeNote &&
-            partNumberFamilyCount(notes, activeNote.title) > 1
-              ? () => showRelatedForNote(activeNote.id)
-              : undefined
-          }
+          onShowAllRelated={showRelatedForPartNumber}
         />
       )}
     </AppShell>
