@@ -376,7 +376,7 @@ export default function App({ session }: { session: Session | null }) {
       );
     };
 
-    // Start URL signing immediately (batch full URLs — not slow transforms).
+    // Sign wall thumbs only. Originals stay unsigned until a note is opened.
     void store
       .resolveWallThumbs(nextNotes, patchImages)
       .catch((err) => {

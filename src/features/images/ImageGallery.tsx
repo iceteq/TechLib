@@ -69,7 +69,7 @@ function SortableThumb({
         onClick={onOpen}
         aria-label={`View image ${index + 1}`}
       >
-        <img src={img.url} alt="" draggable={false} />
+        <img src={img.thumbUrl || img.url} alt="" draggable={false} />
       </button>
       {canEdit && onRemove && (
         <button
@@ -251,7 +251,7 @@ export function ImageGallery({ images, onRemove, onReorder }: ImageGalleryProps)
             )}
 
             <img
-              src={active.url}
+              src={active.url || active.thumbUrl}
               alt=""
               className={styles.lightboxImage}
               draggable={false}

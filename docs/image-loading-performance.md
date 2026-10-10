@@ -55,9 +55,10 @@ Warm = same tab, signed URL session cache hit. Cold = new session / empty cache.
 Auth / membership
   → listNotes (notes + image metadata; URLs from session cache only)
   → paint wall (titles/cards; photo slots often empty)
-  → resolveWallThumbs (batch createSignedUrls, viewport priority queue)
-  → <img src=signedUrl> download bytes
-  → open note → ensureFullImageUrls (full signed URL for editor)
+  → resolveWallThumbs (batch-sign `.wall.jpg` for the first screen, then near-viewport)
+  → <img src=thumb> download the small JPEG only
+  → open note → thumbnail strip stays on `.wall.jpg`
+  → lightbox → ensureFullImageUrls, then the original downloads
 ```
 
 ### What we already got right
@@ -73,7 +74,7 @@ Auth / membership
 
 | Photos | TechLib today | UX impact |
 |---|---|---|
-| Tiny **pre-made** thumbs on CDN | Wall often uses **full original** signed URL | Slow first bytes; heavy bandwidth; grey longer |
+| Tiny **pre-made** thumbs on CDN | Wall uses pre-made `.wall.jpg` (~40–80KB) | Originals stay off the grid; missing thumbs backfill once |
 | ~1KB LQIP ahead of scroll | No placeholder ladder | Fast scroll = empty grey, not “soft preview” |
 | ~70KB grid thumbs | Multi‑MB camera files on wall | Viewport floods network; enjoyment drops |
 | Virtualized DOM (~tens of tiles) | **All** note cards mounted | Scroll cost grows with library size |
@@ -106,7 +107,7 @@ T_auth + T_listNotes + T_sign(batch) + T_download(bytes) + T_decode
 ```
 
 We optimized `T_listNotes` (cache-only) and `T_sign` (batch + priority).  
-**`T_download` is now the main wall pain** because previews are often originals.
+Wall `T_download` is the `.wall.jpg` tile. Full-resolution bytes wait until the lightbox.
 
 Photos wins because **grid bytes are small by design**, not because signing is magic.
 
@@ -121,11 +122,16 @@ Photos wins because **grid bytes are small by design**, not because signing is m
 - Original: `{owner}/{noteId}/{imageId}`
 - Wall: `{owner}/{noteId}/{imageId}.wall.jpg`
 
-Wall signing/loading **always batch-signs originals first** (so cards paint even when `.wall.jpg` is missing), prefetches those URLs into the browser cache, and starts the **next sign batch immediately**. `.wall.jpg` existence probes run in the background and upgrade thumbs without blocking the queue or fading cards out. Supabase `createSignedUrls` can mint tokens for missing keys — those ghost URLs must not be cached as thumbs (session cache key `techlib.signedUrlCache.v4` drops poisoned v1–v3 entries).
+Wall signing/loading **uses `{path}.wall.jpg` only**. A batch `createSignedUrls` plus an image probe confirms the object exists (Supabase will mint a token for a missing key — those ghost URLs are not cached; session cache key `techlib.signedUrlCache.v5` drops v1–v4 entries that stored the original as the thumb). The probe downloads the small JPEG and the card reuses that HTTP cache. Originals are not signed or prefetched for the wall.
 
-**Backfill**
-- **Lazy:** when the wall falls back to an original, editors quietly create `.wall.jpg` in the background (concurrency 2) and swap the card URL when ready.
+Off-screen images stay unsigned until a card nears the viewport. The first screen is signed immediately; the rest wait on `prioritizeWallImages`.
+
+**When `.wall.jpg` is missing**
+- **Editors:** the original is downloaded once in the background to create the thumb, then the card swaps to that thumb. The original is not also painted on the wall.
+- **Viewers:** that one card falls back to the original so it is not blank.
 - **Admin:** Sidebar → **Optimize photos** runs a full-library pass (existence verified via fetch, not signed-URL alone).
+
+Opening a note still signs full URLs for the lightbox, but the note’s thumbnail strip keeps using `.wall.jpg`. The original bytes download when the lightbox opens.
 
 **Why first:** Fixes cold viewport time and mobile data without needing transforms RPC.
 
@@ -185,6 +191,7 @@ Dashboard question: **p50 / p90 viewport complete** on cold reload.
 | Viewport sign priority | Visible first | Helps order; not bytes |
 | Drop poisoned transform session cache | Fix blank wall | Restored loading |
 | **Wall `.wall.jpg` derivatives** | Photos-like small tiles at upload | New uploads get ~40–80KB cards; legacy falls back to original |
+| **Wall loads thumbs, not originals** | Stop prefetching full files for every card | Grid egress is the thumb; full file loads in the lightbox |
 
 ---
 

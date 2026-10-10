@@ -137,10 +137,21 @@ async function requireLibraryOwnerId(): Promise<string> {
   return fetchLibraryOwnerId();
 }
 
+/** Role is stable for a session — don't re-RPC on every thumb backfill. */
+let canEditLibraryMemo: Promise<boolean> | null = null;
+
 async function canEditLibraryRpc(): Promise<boolean> {
-  const { data, error } = await getSupabase().rpc('can_edit_library');
-  if (error) throw new Error(error.message);
-  return Boolean(data);
+  if (!canEditLibraryMemo) {
+    canEditLibraryMemo = (async () => {
+      const { data, error } = await getSupabase().rpc('can_edit_library');
+      if (error) throw new Error(error.message);
+      return Boolean(data);
+    })().catch((err) => {
+      canEditLibraryMemo = null;
+      throw err;
+    });
+  }
+  return canEditLibraryMemo;
 }
 
 function throwIf(error: { message: string } | null) {
@@ -149,27 +160,13 @@ function throwIf(error: { message: string } | null) {
 
 /** 12h — matches a long browsing session without re-signing constantly. */
 const SIGNED_URL_TTL_SEC = 60 * 60 * 12;
-/**
- * Wall cards top out ~260px wide in the grid; 360 covers ~1.5–2x DPR
- * without shipping near-full previews. `cover` matches object-fit on cards.
- */
-const WALL_THUMB_WIDTH = 360;
 
-type SignOptions = {
-  /** Sign full-resolution URLs for these paths (batch). */
-  fullPaths: string[];
-  /** Sign ~480px transform URLs for these paths (per-object). */
-  thumbPaths: string[];
-};
-
-async function signedUrlsForPaths(options: SignOptions): Promise<{
-  fullByPath: Map<string, string>;
-  thumbByPath: Map<string, string>;
-}> {
-  const fullWanted = [...new Set(options.fullPaths.filter(Boolean))];
-  const thumbWanted = [...new Set(options.thumbPaths.filter(Boolean))];
+/** Sign full-resolution URLs. Does not download the files. */
+async function signedUrlsForPaths(
+  fullPaths: string[],
+): Promise<Map<string, string>> {
+  const fullWanted = [...new Set(fullPaths.filter(Boolean))];
   const fullByPath = new Map<string, string>();
-  const thumbByPath = new Map<string, string>();
 
   const fullToSign: string[] = [];
   for (const path of fullWanted) {
@@ -178,68 +175,87 @@ async function signedUrlsForPaths(options: SignOptions): Promise<{
     else fullToSign.push(path);
   }
 
-  const thumbToSign: string[] = [];
-  for (const path of thumbWanted) {
-    const cached = getCachedSignedUrls(path)?.thumb;
-    if (cached) thumbByPath.set(path, cached);
-    else thumbToSign.push(path);
-  }
+  if (fullToSign.length === 0) return fullByPath;
 
   const storage = getSupabase().storage.from(BUCKET);
-
-  if (fullToSign.length > 0) {
-    const { data: fullData, error: fullError } = await storage.createSignedUrls(
-      fullToSign,
-      SIGNED_URL_TTL_SEC,
-    );
-    throwIf(fullError);
-    for (const item of fullData ?? []) {
-      if (item.path && item.signedUrl) {
-        fullByPath.set(item.path, item.signedUrl);
-        putCachedSignedUrls(item.path, { full: item.signedUrl }, SIGNED_URL_TTL_SEC);
-      }
+  const { data: fullData, error: fullError } = await storage.createSignedUrls(
+    fullToSign,
+    SIGNED_URL_TTL_SEC,
+  );
+  throwIf(fullError);
+  for (let i = 0; i < (fullData ?? []).length; i++) {
+    const item = fullData![i];
+    const path = item.path ?? fullToSign[i];
+    if (path && item.signedUrl) {
+      fullByPath.set(path, item.signedUrl);
+      putCachedSignedUrls(path, { full: item.signedUrl }, SIGNED_URL_TTL_SEC);
     }
   }
 
-  if (thumbToSign.length > 0) {
-    await Promise.all(
-      thumbToSign.map(async (path) => {
-        const { data, error } = await storage.createSignedUrl(
-          path,
-          SIGNED_URL_TTL_SEC,
-          {
-            transform: {
-              width: WALL_THUMB_WIDTH,
-              resize: 'cover',
-              quality: 55,
-            },
-          },
-        );
-        if (!error && data?.signedUrl) {
-          thumbByPath.set(path, data.signedUrl);
-          putCachedSignedUrls(path, { thumb: data.signedUrl }, SIGNED_URL_TTL_SEC);
-          return;
-        }
-        // Transform unavailable — fall back to full (sign if needed).
-        let full = fullByPath.get(path) ?? getCachedSignedUrls(path)?.full;
-        if (!full) {
-          const { data: fullData, error: fullError } =
-            await storage.createSignedUrl(path, SIGNED_URL_TTL_SEC);
-          if (!fullError && fullData?.signedUrl) {
-            full = fullData.signedUrl;
-            fullByPath.set(path, full);
-            putCachedSignedUrls(path, { full }, SIGNED_URL_TTL_SEC);
-          }
-        }
-        if (full) {
-          thumbByPath.set(path, full);
-          putCachedSignedUrls(path, { thumb: full }, SIGNED_URL_TTL_SEC);
-        }
-      }),
-    );
-  }
+  return fullByPath;
+}
 
-  return { fullByPath, thumbByPath };
+type ThumbProbe = 'ok' | 'missing' | 'timeout';
+
+/**
+ * Confirm a signed URL is a real image and warm the HTTP cache.
+ * `createSignedUrl` can mint a token for a missing key, so a URL alone
+ * is not proof the `.wall.jpg` exists.
+ */
+function probeWallImage(url: string, timeoutMs = 20000): Promise<ThumbProbe> {
+  if (typeof window === 'undefined') return Promise.resolve('missing');
+  return new Promise((resolve) => {
+    const img = new Image();
+    let settled = false;
+    const finish = (result: ThumbProbe) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      resolve(result);
+    };
+    const timer = window.setTimeout(() => finish('timeout'), timeoutMs);
+    img.decoding = 'async';
+    img.onload = () => finish('ok');
+    img.onerror = () => finish('missing');
+    img.src = url;
+  });
+}
+
+/**
+ * Batch-sign `{path}.wall.jpg` and keep only URLs that actually load.
+ * A successful probe has already downloaded the small JPEG.
+ */
+async function signAndVerifyWallThumbs(originalPaths: string[]): Promise<{
+  verified: Map<string, string>;
+  missing: string[];
+}> {
+  const verified = new Map<string, string>();
+  const missing: string[] = [];
+  const unique = [...new Set(originalPaths.filter(Boolean))];
+  if (unique.length === 0) return { verified, missing };
+
+  const storage = getSupabase().storage.from(BUCKET);
+  const wallPaths = unique.map((path) => wallDerivativePath(path));
+  const { data, error } = await storage.createSignedUrls(
+    wallPaths,
+    SIGNED_URL_TTL_SEC,
+  );
+  throwIf(error);
+
+  const probes = await Promise.all(
+    unique.map(async (original, index) => {
+      const signed = data?.[index]?.signedUrl;
+      if (!signed) return { original, probe: 'missing' as ThumbProbe, signed: '' };
+      const probe = await probeWallImage(signed);
+      return { original, probe, signed };
+    }),
+  );
+
+  for (const row of probes) {
+    if (row.probe === 'ok' && row.signed) verified.set(row.original, row.signed);
+    else if (row.probe === 'missing') missing.push(row.original);
+  }
+  return { verified, missing };
 }
 
 /** Keep `.in(...)` filters under PostgREST URL size limits. */
@@ -331,36 +347,49 @@ async function hydrateRows(
 
   // Wall mode is cache-only here so the grid can paint immediately.
   // Missing thumbs are filled later by resolveWallThumbs (batched).
-  const thumbPaths: string[] = [];
   const fullPaths: string[] = [];
 
   if (mode === 'full') {
     for (const id of ids) {
       for (const img of imagesMap.get(id) ?? []) {
         fullPaths.push(img.storage_path);
-        thumbPaths.push(img.storage_path);
       }
     }
   }
 
-  const { fullByPath, thumbByPath } =
+  const fullByPath =
     mode === 'full'
-      ? await signedUrlsForPaths({ fullPaths, thumbPaths })
-      : { fullByPath: new Map<string, string>(), thumbByPath: new Map<string, string>() };
+      ? await signedUrlsForPaths(fullPaths)
+      : new Map<string, string>();
+
+  if (mode === 'full' && fullPaths.length > 0) {
+    const needThumb = fullPaths.filter((path) => {
+      const cached = getCachedSignedUrls(path);
+      // A thumb equal to the full URL is the legacy original fallback.
+      return !cached?.thumb || cached.thumb === cached.full;
+    });
+    if (needThumb.length > 0) {
+      const { verified } = await signAndVerifyWallThumbs(needThumb);
+      for (const [path, url] of verified) {
+        putCachedSignedUrls(path, { thumb: url }, SIGNED_URL_TTL_SEC);
+        lazyBackfillDone.add(path);
+      }
+    }
+  }
 
   const notes = rows.map((row) => {
     const imageRows = imagesMap.get(row.id) ?? [];
     const images = imageRows.map((img, index) => {
       const path = img.storage_path;
       const cached = getCachedSignedUrls(path);
-      const full =
-        fullByPath.get(path) ?? cached?.full ?? '';
-      const thumb =
-        thumbByPath.get(path) ?? cached?.thumb ?? full;
+      const full = fullByPath.get(path) ?? cached?.full ?? '';
+      const wallThumb =
+        cached?.thumb && cached.thumb !== full ? cached.thumb : '';
+      const thumb = wallThumb || cached?.thumb || '';
       if (mode === 'wall') {
         // Keep slots even without URLs so cards reserve photo space + overflow.
-        // Prefer cached wall derivative (thumb); fall back to full if present.
-        const preview = thumb || full;
+        // Prefer the .wall.jpg thumb. Full is only present for a legacy fallback.
+        const preview = wallThumb || thumb || full;
         return {
           id: img.id,
           position: img.position,
@@ -380,7 +409,8 @@ async function hydrateRows(
         id: img.id,
         position: img.position,
         url: full || thumb,
-        thumbUrl: thumb || full,
+        // Keep a distinct wall thumb so the editor strip does not pull the original.
+        thumbUrl: wallThumb || thumb || full,
       };
     });
     const guidelineLines = resolveGuidelineLines({
@@ -495,19 +525,22 @@ async function fetchWallDerivativeSignedUrl(
  */
 async function createWallDerivativeForPath(
   storagePath: string,
+  options?: { knownMissing?: boolean },
 ): Promise<boolean> {
   if (!(await canEditLibraryRpc())) return false;
   const storage = getSupabase().storage.from(BUCKET);
   const wallPath = wallDerivativePath(storagePath);
 
-  const existingUrl = await fetchWallDerivativeSignedUrl(storagePath, 60);
-  if (existingUrl) {
-    putCachedSignedUrls(
-      storagePath,
-      { thumb: existingUrl },
-      SIGNED_URL_TTL_SEC,
-    );
-    return true;
+  if (!options?.knownMissing) {
+    const existingUrl = await fetchWallDerivativeSignedUrl(storagePath, 60);
+    if (existingUrl) {
+      putCachedSignedUrls(
+        storagePath,
+        { thumb: existingUrl },
+        SIGNED_URL_TTL_SEC,
+      );
+      return true;
+    }
   }
 
   const { data: file, error: downloadError } = await storage.download(
@@ -556,16 +589,26 @@ async function pumpLazyWallBackfill(): Promise<void> {
     lazyBackfillActive += 1;
     void (async () => {
       try {
-        const ok = await createWallDerivativeForPath(path);
+        const ok = await createWallDerivativeForPath(path, {
+          knownMissing: true,
+        });
         if (ok) {
           lazyBackfillDone.add(path);
           publishWallUrlUpdate();
         } else {
           lazyBackfillFailed.add(path);
+          await paintOriginalFallbacks([path]);
+          publishWallUrlUpdate();
         }
       } catch (err) {
         console.warn('lazy wall backfill failed', path, err);
         lazyBackfillFailed.add(path);
+        try {
+          await paintOriginalFallbacks([path]);
+          publishWallUrlUpdate();
+        } catch (fallbackErr) {
+          console.warn('original fallback failed', path, fallbackErr);
+        }
       } finally {
         lazyBackfillActive -= 1;
         void pumpLazyWallBackfill();
@@ -593,69 +636,68 @@ function queueLazyWallBackfill(originalPaths: string[]): void {
 }
 
 /**
+ * Last resort for images with no `.wall.jpg`: sign and prefetch the original
+ * so the card is not blank. Never used when a wall thumb exists.
+ */
+async function paintOriginalFallbacks(originalPaths: string[]): Promise<void> {
+  const unique = [...new Set(originalPaths.filter(Boolean))].filter((path) => {
+    const cached = getCachedSignedUrls(path);
+    return !cached?.thumb && !cached?.full;
+  });
+  if (unique.length === 0) return;
+
+  const storage = getSupabase().storage.from(BUCKET);
+  const { data, error } = await storage.createSignedUrls(
+    unique,
+    SIGNED_URL_TTL_SEC,
+  );
+  throwIf(error);
+  const urls: string[] = [];
+  for (let i = 0; i < (data ?? []).length; i++) {
+    const item = data![i];
+    const path = item.path ?? unique[i];
+    if (!path || !item.signedUrl) continue;
+    putCachedSignedUrls(
+      path,
+      { full: item.signedUrl, thumb: item.signedUrl },
+      SIGNED_URL_TTL_SEC,
+    );
+    urls.push(item.signedUrl);
+  }
+  prefetchImages(urls);
+}
+
+/**
  * Sign wall preview URLs for original storage paths.
  *
- * Always batch-signs **originals** first so the wall never depends on
- * ghost signed URLs for missing `.wall.jpg` keys. Calls `onPainted` as
- * soon as originals are cached, then returns so the next sign batch can
- * start. `.wall.jpg` probes / upgrades run in the background.
+ * Loads `{path}.wall.jpg` only. Original bytes are fetched when that file
+ * is missing: editors download once to create the thumb; viewers fall back
+ * to the original so the card is not blank.
  */
 async function signWallPreviewUrls(
   originalPaths: string[],
   onPainted?: () => void,
-  onUpgraded?: () => void,
 ): Promise<void> {
   const unique = [...new Set(originalPaths.filter(Boolean))];
   if (unique.length === 0) return;
 
-  const storage = getSupabase().storage.from(BUCKET);
-
-  // 1) Originals — reliable display path.
-  const { data: fullData, error: fullError } = await storage.createSignedUrls(
-    unique,
-    SIGNED_URL_TTL_SEC,
-  );
-  throwIf(fullError);
-  const paintedUrls: string[] = [];
-  for (let i = 0; i < (fullData ?? []).length; i++) {
-    const item = fullData![i];
-    const path = item.path ?? unique[i];
-    if (path && item.signedUrl) {
-      putCachedSignedUrls(
-        path,
-        { full: item.signedUrl, thumb: item.signedUrl },
-        SIGNED_URL_TTL_SEC,
-      );
-      paintedUrls.push(item.signedUrl);
-    }
+  const { verified, missing } = await signAndVerifyWallThumbs(unique);
+  for (const [original, wallUrl] of verified) {
+    putCachedSignedUrls(original, { thumb: wallUrl }, SIGNED_URL_TTL_SEC);
+    lazyBackfillDone.add(original);
   }
 
-  // Paint + warm browser cache immediately — do not wait for probes.
   onPainted?.();
-  prefetchImages(paintedUrls);
+  if (missing.length === 0) return;
 
-  // 2) Upgrade to real `.wall.jpg` in the background (non-blocking).
-  void (async () => {
-    const needBackfill: string[] = [];
-    let upgraded = false;
-    await Promise.all(
-      unique.map(async (original) => {
-        const wallUrl = await fetchWallDerivativeSignedUrl(original);
-        if (wallUrl) {
-          putCachedSignedUrls(original, { thumb: wallUrl }, SIGNED_URL_TTL_SEC);
-          lazyBackfillDone.add(original);
-          upgraded = true;
-        } else if (
-          !lazyBackfillDone.has(original) &&
-          !lazyBackfillFailed.has(original)
-        ) {
-          needBackfill.push(original);
-        }
-      }),
-    );
-    queueLazyWallBackfill(needBackfill);
-    if (upgraded) onUpgraded?.();
-  })();
+  if (await canEditLibraryRpc()) {
+    // One original download, used to write the thumb — not also shown on the wall.
+    queueLazyWallBackfill(missing);
+    return;
+  }
+
+  await paintOriginalFallbacks(missing);
+  onPainted?.();
 }
 
 function takePaths(from: string[], limit: number): string[] {
@@ -678,34 +720,16 @@ async function pumpWallSignQueue(): Promise<void> {
   const gen = state.generation;
   try {
     while (wallSign === state && state.generation === gen) {
-      // Always finish viewport priority before backlog.
-      const batch =
-        state.priority.length > 0
-          ? takePaths(state.priority, WALL_URL_SIGN_BATCH)
-          : takePaths(state.backlog, WALL_URL_SIGN_BATCH);
-      if (batch.length === 0) {
-        if (state.priority.length === 0 && state.backlog.length === 0) break;
-        continue;
-      }
-      await signWallPreviewUrls(
-        batch,
-        () => {
-          if (wallSign !== state || state.generation !== gen) return;
-          state.notes = applyCachedImageUrls(state.notes);
-          wallNotesSnapshot = state.notes;
-          state.onBatch?.(state.notes);
-        },
-        () => {
-          // Background .wall.jpg upgrades — queue may already be done.
-          if (wallSign === state && state.generation === gen) {
-            state.notes = applyCachedImageUrls(state.notes);
-            wallNotesSnapshot = state.notes;
-            state.onBatch?.(state.notes);
-          } else {
-            publishWallUrlUpdate();
-          }
-        },
-      );
+      // Backlog stays unsigned until a card nears the viewport.
+      if (state.priority.length === 0) break;
+      const batch = takePaths(state.priority, WALL_URL_SIGN_BATCH);
+      if (batch.length === 0) break;
+      await signWallPreviewUrls(batch, () => {
+        if (wallSign !== state || state.generation !== gen) return;
+        state.notes = applyCachedImageUrls(state.notes);
+        wallNotesSnapshot = state.notes;
+        state.onBatch?.(state.notes);
+      });
       if (wallSign !== state || state.generation !== gen) return;
     }
   } finally {
@@ -715,7 +739,7 @@ async function pumpWallSignQueue(): Promise<void> {
   if (
     wallSign === state &&
     state.generation === gen &&
-    (state.priority.length > 0 || state.backlog.length > 0)
+    state.priority.length > 0
   ) {
     void pumpWallSignQueue();
   }
@@ -731,7 +755,8 @@ export function prioritizeWallImages(imageIds: string[]): void {
   let added = false;
   for (const id of imageIds) {
     const path = storagePathByImageId.get(id);
-    if (!path || getCachedSignedUrls(path)?.full) continue;
+    const cached = path ? getCachedSignedUrls(path) : null;
+    if (!path || cached?.thumb || cached?.full) continue;
     // Move to front of priority (dedupe).
     state.priority = state.priority.filter((p) => p !== path);
     state.backlog = state.backlog.filter((p) => p !== path);
@@ -742,8 +767,8 @@ export function prioritizeWallImages(imageIds: string[]): void {
 }
 
 /**
- * Sign missing wall preview URLs. Viewport-sized batch first, then the rest.
- * Cards can call `prioritizeWallImages` to jump the queue when they appear.
+ * Sign missing wall preview URLs for the first screen.
+ * Further images wait until `prioritizeWallImages` (card nears the viewport).
  */
 export async function resolveWallThumbs(
   notes: NoteWithUrls[],
@@ -755,9 +780,11 @@ export async function resolveWallThumbs(
   if (current !== notes) onBatch?.(current);
 
   const missingPaths = collectMissingWallPaths(current);
-  if (missingPaths.length === 0) return current;
-
   const generation = ++wallSignGeneration;
+  if (missingPaths.length === 0) {
+    if (wallSign) wallSign = null;
+    return current;
+  }
   const priority = missingPaths.slice(0, WALL_VIEWPORT_FIRST_PATHS);
   const backlog = missingPaths.slice(WALL_VIEWPORT_FIRST_PATHS);
   wallSign = {
@@ -771,12 +798,12 @@ export async function resolveWallThumbs(
 
   await pumpWallSignQueue();
 
+  // Keep wallSign so scrolling can still pull the backlog into priority.
   if (wallSign?.generation === generation) {
-    current = wallSign.notes;
+    current = applyCachedImageUrls(wallSign.notes);
     wallNotesSnapshot = current;
-    wallSign = null;
   }
-  return applyCachedImageUrls(current);
+  return current;
 }
 
 export type WallBackfillProgress = {
@@ -857,7 +884,7 @@ export async function backfillWallThumbs(
 
   for (const path of missing) {
     try {
-      const ok = await createWallDerivativeForPath(path);
+      const ok = await createWallDerivativeForPath(path, { knownMissing: true });
       if (ok) {
         progress.created += 1;
         lazyBackfillDone.add(path);
@@ -900,10 +927,8 @@ export async function ensureFullImageUrls(
 
   const missingFull = paths.filter((path) => !getCachedSignedUrls(path)?.full);
   if (missingFull.length > 0) {
-    await signedUrlsForPaths({
-      fullPaths: missingFull,
-      thumbPaths: [],
-    });
+    // Signs the original URL only. Bytes download when the lightbox mounts it.
+    await signedUrlsForPaths(missingFull);
   }
 
   let changed = false;
