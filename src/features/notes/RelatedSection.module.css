@@ -3,6 +3,26 @@
   flex-direction: column;
   gap: 0.35rem;
   margin-top: 0.85rem;
+  border-radius: 12px;
+  transition: background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.highlighted {
+  background: var(--accent-soft, rgba(26, 115, 232, 0.1));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+  padding: 0.45rem 0.5rem 0.55rem;
+  margin-left: -0.5rem;
+  margin-right: -0.5rem;
+  animation: relatedPulse 1.6s ease;
+}
+
+@keyframes relatedPulse {
+  0% {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  100% {
+    background: var(--accent-soft, rgba(26, 115, 232, 0.1));
+  }
 }
 
 .header {
