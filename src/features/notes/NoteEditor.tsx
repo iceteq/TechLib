@@ -315,14 +315,19 @@ export function NoteEditor({
       behavior: 'smooth',
       block: 'nearest',
     });
-    setRelatedHighlight(true);
     if (relatedHighlightTimerRef.current) {
       clearTimeout(relatedHighlightTimerRef.current);
-    }
-    relatedHighlightTimerRef.current = setTimeout(() => {
-      setRelatedHighlight(false);
       relatedHighlightTimerRef.current = null;
-    }, 1600);
+    }
+    // Drop then re-apply so the pulse restarts on every click.
+    setRelatedHighlight(false);
+    window.requestAnimationFrame(() => {
+      setRelatedHighlight(true);
+      relatedHighlightTimerRef.current = setTimeout(() => {
+        setRelatedHighlight(false);
+        relatedHighlightTimerRef.current = null;
+      }, 2000);
+    });
   }
 
   // New notes (empty part number): focus + select the title so a scanner or
