@@ -90,6 +90,11 @@ export interface NoteAskItem {
 
 export interface Note {
   id: string;
+  /**
+   * User id of the note author. Editors may only edit/delete their own notes;
+   * admins may edit/delete any. Local mode uses `"local"`.
+   */
+  createdBy: string;
   /** Warehouse part number (shown as “Part number” in the UI). */
   title: string;
   description: string;

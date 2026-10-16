@@ -119,6 +119,11 @@ interface NoteGridProps {
   onOpenNote: (noteId: string) => void;
   /** When false, hide create/select/assign flows (viewers). */
   canEdit?: boolean;
+  /**
+   * Per-note edit/delete rights (editors: own notes only; admins: all).
+   * Defaults to `canEdit` when omitted.
+   */
+  canMutateNote?: (noteId: string) => boolean;
   onCreateNote?: () => void;
   onPasteNotes?: () => void;
   /** Leave archive / return to the notes wall. */
@@ -200,6 +205,7 @@ export function NoteGrid({
   groupBy = 'none',
   onOpenNote,
   canEdit = true,
+  canMutateNote,
   onCreateNote,
   onPasteNotes,
   onBrowseNotes,
@@ -251,6 +257,9 @@ export function NoteGrid({
   const imageDropDepth = useRef(0);
   const selecting = selectedIds.size > 0;
   const imageBusy = imageBusyCount > 0;
+  const mayMutate = canMutateNote ?? ((_noteId: string) => canEdit);
+  const mutableSelectedIds = [...selectedIds].filter((id) => mayMutate(id));
+  const hasMutableSelection = mutableSelectedIds.length > 0;
 
   useEffect(() => {
     if (selecting) setFabOpen(false);
@@ -408,7 +417,7 @@ export function NoteGrid({
   }
 
   async function handleArchiveSelected(archived: boolean) {
-    const ids = [...selectedIds];
+    const ids = mutableSelectedIds;
     if (ids.length === 0) return;
     await runBulk(() => onUpdateNotes(ids, { archived }), {
       clearAfter: true,
@@ -417,20 +426,22 @@ export function NoteGrid({
   }
 
   async function handleDelete() {
-    const ids = [...selectedIds];
+    const ids = mutableSelectedIds;
     if (ids.length === 0) return;
     await runBulk(() => onDeleteNotes(ids), { clearAfter: true });
   }
 
   async function applyDisposition(disposition: NoteDisposition) {
-    const ids = [...selectedIds];
+    const ids = mutableSelectedIds;
+    if (ids.length === 0) return;
     await runBulk(() => onUpdateNotes(ids, { disposition }), {
       celebrate: 'assign',
     });
   }
 
   async function applyGuidelineBulk(edit: BulkGuidelineEdit) {
-    const ids = [...selectedIds];
+    const ids = mutableSelectedIds;
+    if (ids.length === 0) return;
     setBulkGuidelineOpen(false);
     setMenu(null);
     await runBulk(() => onApplyGuidelineBulk(ids, edit), {
@@ -439,21 +450,24 @@ export function NoteGrid({
   }
 
   async function applyCategory(categoryId: string | null) {
-    const ids = [...selectedIds];
+    const ids = mutableSelectedIds;
+    if (ids.length === 0) return;
     await runBulk(() => onUpdateNotes(ids, { categoryId }), {
       celebrate: 'assign',
     });
   }
 
   async function applyStock(stockId: string | null) {
-    const ids = [...selectedIds];
+    const ids = mutableSelectedIds;
+    if (ids.length === 0) return;
     await runBulk(() => onUpdateNotes(ids, { stockId }), {
       celebrate: 'assign',
     });
   }
 
   async function applyLabel(labelId: string | null) {
-    const ids = [...selectedIds];
+    const ids = mutableSelectedIds;
+    if (ids.length === 0) return;
     if (!labelId) {
       await runBulk(() => onUpdateNotes(ids, { labelIds: [] }), {
         celebrate: 'assign',
@@ -826,7 +840,7 @@ export function NoteGrid({
                     onEnterSelect={canEdit ? enterSelect : () => {}}
                     onRangeSelect={canEdit ? rangeSelect : () => {}}
                     onAssignDisposition={
-                      SHOW_GUIDELINES && canEdit
+                      SHOW_GUIDELINES && mayMutate(note.id)
                         ? (noteId, value) =>
                             void onUpdateNotes([noteId], {
                               disposition: value,
@@ -834,7 +848,7 @@ export function NoteGrid({
                         : undefined
                     }
                     onAssignGuidelineLines={
-                      SHOW_GUIDELINES && canEdit
+                      SHOW_GUIDELINES && mayMutate(note.id)
                         ? (noteId, lines) =>
                             void onUpdateNotes([noteId], {
                               guidelineLines: lines,
@@ -842,7 +856,7 @@ export function NoteGrid({
                         : undefined
                     }
                     onAssignCategory={
-                      canEdit
+                      mayMutate(note.id)
                         ? (noteId, value) =>
                             void onUpdateNotes([noteId], {
                               categoryId: value,
@@ -850,18 +864,18 @@ export function NoteGrid({
                         : undefined
                     }
                     onAssignStock={
-                      canEdit
+                      mayMutate(note.id)
                         ? (noteId, value) =>
                             void onUpdateNotes([noteId], { stockId: value })
                         : undefined
                     }
                     onAssignLabels={
-                      canEdit
+                      mayMutate(note.id)
                         ? (noteId, labelIds) =>
                             void onUpdateNotes([noteId], { labelIds })
                         : undefined
                     }
-                    onCreateLabel={canEdit ? onCreateLabel : undefined}
+                    onCreateLabel={mayMutate(note.id) ? onCreateLabel : undefined}
                     dragNoteIds={
                       selectedIds.has(note.id) ? [...selectedIds] : undefined
                     }
@@ -905,36 +919,36 @@ export function NoteGrid({
               onEnterSelect={canEdit ? enterSelect : () => {}}
               onRangeSelect={canEdit ? rangeSelect : () => {}}
               onAssignDisposition={
-                SHOW_GUIDELINES && canEdit
+                SHOW_GUIDELINES && mayMutate(note.id)
                   ? (noteId, value) =>
                       void onUpdateNotes([noteId], { disposition: value })
                   : undefined
               }
               onAssignGuidelineLines={
-                SHOW_GUIDELINES && canEdit
+                SHOW_GUIDELINES && mayMutate(note.id)
                   ? (noteId, lines) =>
                       void onUpdateNotes([noteId], { guidelineLines: lines })
                   : undefined
               }
               onAssignCategory={
-                canEdit
+                mayMutate(note.id)
                   ? (noteId, value) =>
                       void onUpdateNotes([noteId], { categoryId: value })
                   : undefined
               }
               onAssignStock={
-                canEdit
+                mayMutate(note.id)
                   ? (noteId, value) =>
                       void onUpdateNotes([noteId], { stockId: value })
                   : undefined
               }
               onAssignLabels={
-                canEdit
+                mayMutate(note.id)
                   ? (noteId, labelIds) =>
                       void onUpdateNotes([noteId], { labelIds })
                   : undefined
               }
-              onCreateLabel={canEdit ? onCreateLabel : undefined}
+              onCreateLabel={mayMutate(note.id) ? onCreateLabel : undefined}
               dragNoteIds={
                 selectedIds.has(note.id) ? [...selectedIds] : undefined
               }
@@ -977,8 +991,13 @@ export function NoteGrid({
                   menu === 'assign' ? styles.selectionActionOpen : ''
                 } ${assignJuice.bursting ? styles.selectionActionJuice : ''}`}
                 onClick={() => toggleMenu('assign')}
-                disabled={busy}
+                disabled={busy || !hasMutableSelection}
                 aria-expanded={menu === 'assign'}
+                title={
+                  hasMutableSelection
+                    ? undefined
+                    : 'You can only edit notes you created'
+                }
               >
                 Assign
               </button>
@@ -1144,7 +1163,12 @@ export function NoteGrid({
               onClick={() => {
                 void handleArchiveSelected(view !== 'archive');
               }}
-              disabled={busy}
+              disabled={busy || !hasMutableSelection}
+              title={
+                hasMutableSelection
+                  ? undefined
+                  : 'You can only edit notes you created'
+              }
             >
               {view === 'archive' ? (
                 <ArchiveRestore size={14} />
@@ -1158,7 +1182,12 @@ export function NoteGrid({
               type="button"
               className={styles.selectionDelete}
               onClick={() => void handleDelete()}
-              disabled={busy}
+              disabled={busy || !hasMutableSelection}
+              title={
+                hasMutableSelection
+                  ? undefined
+                  : 'You can only delete notes you created'
+              }
             >
               <Trash2 size={16} />
               {busy ? 'Working…' : 'Delete'}
@@ -1251,9 +1280,9 @@ export function NoteGrid({
         </div>
       )}
 
-      {SHOW_GUIDELINES && bulkGuidelineOpen && selectedIds.size > 0 && (
+      {SHOW_GUIDELINES && bulkGuidelineOpen && hasMutableSelection && (
         <BulkGuidelineDialog
-          notes={notes.filter((note) => selectedIds.has(note.id))}
+          notes={notes.filter((note) => mutableSelectedIds.includes(note.id))}
           onApply={(edit) => void applyGuidelineBulk(edit)}
           onClose={() => setBulkGuidelineOpen(false)}
         />

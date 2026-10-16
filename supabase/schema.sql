@@ -38,6 +38,9 @@ alter table public.note_types
 create table if not exists public.notes (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users (id) on delete cascade,
+  -- Author of the note (editors may only mutate their own; admins may mutate all).
+  -- Migration 006 enforces author-scoped RLS; default covers fresh inserts.
+  created_by uuid not null default auth.uid() references auth.users (id),
   title text not null default '',
   description text not null default '',
   background text not null default 'default',
@@ -101,6 +104,8 @@ create table if not exists public.note_images (
   id uuid primary key default gen_random_uuid(),
   note_id uuid not null references public.notes (id) on delete cascade,
   owner_id uuid not null references auth.users (id) on delete cascade,
+  -- Uploader; mutation rights follow the parent note's created_by (see migration 006).
+  created_by uuid not null default auth.uid() references auth.users (id),
   storage_path text not null,
   position integer not null default 0,
   created_at timestamptz not null default now()

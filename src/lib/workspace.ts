@@ -24,6 +24,21 @@ export function isLibraryAdmin(role: WorkspaceRole | null | undefined): boolean 
   return role === 'admin';
 }
 
+/**
+ * Whether this member may edit/delete a specific note (and its images).
+ * Admins: any note. Editors: only notes they created. Viewers: never.
+ */
+export function canMutateNote(
+  role: WorkspaceRole | null | undefined,
+  userId: string | null | undefined,
+  createdBy: string | null | undefined,
+): boolean {
+  if (!role || !userId || !createdBy) return false;
+  if (role === 'admin') return true;
+  if (role === 'editor') return createdBy === userId;
+  return false;
+}
+
 /** Local / non-cloud mode: full edit access, no membership. */
 export const LOCAL_MEMBERSHIP: WorkspaceMembership = {
   workspaceId: 'local',

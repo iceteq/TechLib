@@ -83,6 +83,7 @@ import { MembersDialog } from '../features/auth/MembersDialog';
 import type { Session } from '@supabase/supabase-js';
 import {
   canEditLibrary,
+  canMutateNote,
   ensureWorkspaceMembership,
   isLibraryAdmin,
   LOCAL_MEMBERSHIP,
@@ -221,6 +222,9 @@ export default function App({ session }: { session: Session | null }) {
   const [wallBackfillBusy, setWallBackfillBusy] = useState(false);
   const canEdit = canEditLibrary(membership?.role);
   const isAdmin = isLibraryAdmin(membership?.role);
+  const userId = membership?.userId;
+  const noteMutable = (createdBy: string | null | undefined) =>
+    canMutateNote(membership?.role, userId, createdBy);
 
   async function handleBackfillWallThumbs() {
     if (!isAdmin || wallBackfillBusy) return;
@@ -580,6 +584,12 @@ export default function App({ session }: { session: Session | null }) {
   }, [notes]);
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
+  const canEditActiveNote = noteMutable(activeNote?.createdBy);
+  const mutableNoteIdsAmong = (ids: string[]) =>
+    ids.filter((id) => {
+      const note = notes.find((n) => n.id === id);
+      return note ? noteMutable(note.createdBy) : false;
+    });
   const activeRelatedNotes = useMemo((): RelatedNoteEntry[] => {
     if (!activeNoteId || !activeNote) return [];
     const linkIds = relatedIdsFromLinks(noteLinks, activeNoteId);
@@ -793,7 +803,7 @@ export default function App({ session }: { session: Session | null }) {
   }) {
     // Merge editor draft into the active note for blank detection + wall UI
     // before background persist finishes (Done no longer awaits save).
-    if (canEdit && activeNote && draft) {
+    if (canEditActiveNote && activeNote && draft) {
       const merged: NoteWithUrls = {
         ...activeNote,
         title: draft.title,
@@ -825,7 +835,7 @@ export default function App({ session }: { session: Session | null }) {
 
     // Don't junk a brand-new photo note while images are still uploading.
     if (
-      canEdit &&
+      canEditActiveNote &&
       activeNote &&
       isBlankNote(activeNote) &&
       imageBusyCount === 0
@@ -1006,7 +1016,7 @@ export default function App({ session }: { session: Session | null }) {
   }) {
     if (patch.askItems !== undefined) {
       if (!isAdmin) return;
-    } else if (!canEdit) {
+    } else if (!canEditActiveNote) {
       return;
     }
     // Capture id so in-flight saves stay on the right note if the user navigates away.
@@ -1116,7 +1126,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleAddImages(files: FileList | File[]) {
-    if (!canEdit) return;
+    if (!canEditActiveNote) return;
     if (!activeNoteId) return;
     const list = Array.from(files);
     if (list.length === 0) return;
@@ -1186,7 +1196,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleRemoveImage(imageId: string) {
-    if (!canEdit) return;
+    if (!canEditActiveNote) return;
     if (!activeNoteId) return;
     const updated = await store.removeImage(activeNoteId, imageId);
     if (updated) {
@@ -1201,7 +1211,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleReorderImages(orderedImageIds: string[]) {
-    if (!canEdit) return;
+    if (!canEditActiveNote) return;
     if (!activeNoteId) return;
     const updated = await store.reorderImages(activeNoteId, orderedImageIds);
     if (updated) {
@@ -1216,14 +1226,15 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleDelete() {
-    if (!canEdit) return;
-    if (!activeNoteId) return;
+    if (!canEditActiveNote || !activeNoteId) return;
     await softDeleteWithUndo([activeNoteId]);
   }
 
   async function handleDeleteNotes(noteIds: string[]) {
     if (!canEdit) return;
-    await softDeleteWithUndo(noteIds);
+    const ids = mutableNoteIdsAmong(noteIds);
+    if (ids.length === 0) return;
+    await softDeleteWithUndo(ids);
   }
 
   async function handleAddToCart(noteIds: string[]) {
@@ -1270,7 +1281,15 @@ export default function App({ session }: { session: Session | null }) {
     if (!canEdit) return;
     const ids = [...new Set(noteIds)].filter(Boolean);
     if (ids.length < 2) return;
-    const { links, created } = await store.linkNotes(ids);
+    const owned = isAdmin ? undefined : new Set(mutableNoteIdsAmong(ids));
+    if (owned && owned.size === 0) {
+      setNotice('You can only link notes you created');
+      return;
+    }
+    const { links, created } = await store.linkNotes(
+      ids,
+      owned ? { mutableNoteIds: owned } : undefined,
+    );
     setNoteLinks(links);
     if (created.length === 0) {
       setNotice('Already linked');
@@ -1280,7 +1299,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleRemoveRelated(otherNoteId: string) {
-    if (!canEdit || !activeNoteId) return;
+    if (!canEditActiveNote || !activeNoteId) return;
     const before = noteLinks.find(
       (l) =>
         (l.noteIdA === activeNoteId && l.noteIdB === otherNoteId) ||
@@ -1299,7 +1318,7 @@ export default function App({ session }: { session: Session | null }) {
     options?: { message?: string },
   ) {
     if (!canEdit) return;
-    const ids = [...new Set(noteIds)].filter(Boolean);
+    const ids = mutableNoteIdsAmong([...new Set(noteIds)].filter(Boolean));
     if (ids.length === 0) return;
 
     const before: Array<{ id: string; patch: NoteFieldPatch }> = [];
@@ -1386,7 +1405,7 @@ export default function App({ session }: { session: Session | null }) {
     edit: BulkGuidelineEdit,
   ) {
     if (!canEdit) return;
-    const ids = [...new Set(noteIds)].filter(Boolean);
+    const ids = mutableNoteIdsAmong([...new Set(noteIds)].filter(Boolean));
     if (ids.length === 0) return;
 
     const before: Array<{ id: string; patch: NoteFieldPatch }> = [];
@@ -1458,7 +1477,7 @@ export default function App({ session }: { session: Session | null }) {
 
   async function handleAddLabelToNotes(noteIds: string[], labelId: string) {
     if (!canEdit) return;
-    const ids = [...new Set(noteIds)].filter(Boolean);
+    const ids = mutableNoteIdsAmong([...new Set(noteIds)].filter(Boolean));
     if (ids.length === 0) return;
 
     const before: Array<{ id: string; patch: NoteFieldPatch }> = [];
@@ -1809,6 +1828,10 @@ export default function App({ session }: { session: Session | null }) {
       ) : (
         <NoteGrid
           canEdit={canEdit}
+          canMutateNote={(noteId) => {
+            const note = notes.find((n) => n.id === noteId);
+            return note ? noteMutable(note.createdBy) : false;
+          }}
           notes={visibleNotes}
           labels={labels}
           noteTypes={noteTypes}
@@ -1945,7 +1968,7 @@ export default function App({ session }: { session: Session | null }) {
 
       {activeNote && (
         <NoteEditor
-          readOnly={!canEdit}
+          readOnly={!canEditActiveNote}
           canManageAsk={isAdmin}
           note={activeNote}
           labels={labels}
@@ -1971,7 +1994,7 @@ export default function App({ session }: { session: Session | null }) {
           notes={notes}
           relatedNotes={activeRelatedNotes}
           onOpenRelated={(noteId) => openNote(noteId)}
-          onRemoveRelated={canEdit ? handleRemoveRelated : undefined}
+          onRemoveRelated={canEditActiveNote ? handleRemoveRelated : undefined}
           onShowAllRelated={showRelatedForPartNumber}
         />
       )}

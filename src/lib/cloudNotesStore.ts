@@ -42,6 +42,7 @@ const storagePathByImageId = new Map<string, string>();
 type NoteRow = {
   id: string;
   owner_id: string;
+  created_by: string;
   title: string;
   description: string;
   background: string;
@@ -106,6 +107,7 @@ function noteFromRow(
   });
   return {
     id: row.id,
+    createdBy: row.created_by || row.owner_id,
     title: row.title,
     description: row.description,
     background: row.background as NoteBackground,
@@ -419,6 +421,7 @@ async function hydrateRows(
     });
     const note: NoteWithUrls = {
       id: row.id,
+      createdBy: row.created_by || row.owner_id,
       title: row.title,
       description: row.description,
       background: row.background as NoteBackground,
@@ -1004,6 +1007,7 @@ export async function createNote(input?: {
   labelIds?: string[];
 }): Promise<NoteWithUrls> {
   const ownerId = await requireLibraryOwnerId();
+  const userId = await requireUserId();
   await ensureDefaultNoteTypes();
   const guidelineLines =
     input?.guidelineLines != null
@@ -1014,6 +1018,7 @@ export async function createNote(input?: {
     .from('notes')
     .insert({
       owner_id: ownerId,
+      created_by: userId,
       title: input?.title ?? '',
       description: input?.description ?? '',
       background: input?.background ?? 'default',
@@ -1148,11 +1153,21 @@ export async function purgeNotes(ids: string[]): Promise<void> {
 
 export async function purgeSoftDeletedNotes(): Promise<void> {
   if (!(await canEditLibraryRpc())) return;
-  await requireUserId();
-  const { data, error } = await getSupabase()
+  const userId = await requireUserId();
+  const { data: admin, error: adminError } = await getSupabase().rpc(
+    'is_library_admin',
+  );
+  throwIf(adminError);
+
+  let query = getSupabase()
     .from('notes')
     .select('id')
     .not('deleted_at', 'is', null);
+  // Editors only hard-delete their own soft-deleted notes (RLS + storage).
+  if (!admin) {
+    query = query.eq('created_by', userId);
+  }
+  const { data, error } = await query;
   throwIf(error);
   const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
   await purgeNotes(ids);
@@ -1167,6 +1182,7 @@ export async function addImage(
   file: File | Blob,
 ): Promise<NoteWithUrls | undefined> {
   const ownerId = await requireLibraryOwnerId();
+  const userId = await requireUserId();
   const supabase = getSupabase();
   const imageId = crypto.randomUUID();
   const path = `${ownerId}/${noteId}/${imageId}`;
@@ -1212,6 +1228,7 @@ export async function addImage(
     id: imageId,
     note_id: noteId,
     owner_id: ownerId,
+    created_by: userId,
     storage_path: path,
     position: nextPos,
   });
@@ -1645,8 +1662,15 @@ export async function listNoteLinks(): Promise<NoteLink[]> {
 
 export async function linkNotes(
   noteIds: string[],
+  options?: { mutableNoteIds?: ReadonlySet<string> },
 ): Promise<{ links: NoteLink[]; created: NoteLink[] }> {
-  const pairs = meshLinkPairs(noteIds);
+  let pairs = meshLinkPairs(noteIds);
+  const owned = options?.mutableNoteIds;
+  if (owned) {
+    pairs = pairs.filter(
+      (p) => owned.has(p.noteIdA) || owned.has(p.noteIdB),
+    );
+  }
   if (pairs.length === 0) {
     return { links: await listNoteLinks(), created: [] };
   }

@@ -90,6 +90,7 @@ function normalizeNote(note: Note & { category?: string }): Note {
   });
   return {
     id: note.id,
+    createdBy: note.createdBy || 'local',
     title: note.title,
     description: note.description,
     background: note.background,
@@ -288,6 +289,7 @@ export async function createNote(input?: {
       : alwaysGuidelineLines(input?.disposition ?? 'none');
   const note: Note = {
     id: uid(),
+    createdBy: 'local',
     title: input?.title ?? '',
     description: input?.description ?? '',
     background: input?.background ?? 'default',
@@ -823,8 +825,15 @@ export async function listNoteLinks(): Promise<NoteLink[]> {
 /** Link every pair among noteIds (full mesh). Returns newly created pairs. */
 export async function linkNotes(
   noteIds: string[],
+  options?: { mutableNoteIds?: ReadonlySet<string> },
 ): Promise<{ links: NoteLink[]; created: NoteLink[] }> {
-  const pairs = meshLinkPairs(noteIds);
+  let pairs = meshLinkPairs(noteIds);
+  const owned = options?.mutableNoteIds;
+  if (owned) {
+    pairs = pairs.filter(
+      (p) => owned.has(p.noteIdA) || owned.has(p.noteIdB),
+    );
+  }
   if (pairs.length === 0) {
     return { links: await listNoteLinks(), created: [] };
   }
