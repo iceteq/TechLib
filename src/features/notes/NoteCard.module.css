@@ -208,7 +208,8 @@
   width: 100%;
   min-height: 0;
   overflow: hidden;
-  background: color-mix(in srgb, var(--surface, #fff) 88%, var(--border) 12%);
+  /* Semi-transparent so note background color tints empty / loading areas. */
+  background: rgba(31, 35, 40, 0.06);
 }
 
 .imagesSingle {
@@ -232,14 +233,14 @@
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  background: color-mix(in srgb, var(--surface, #fff) 82%, var(--border) 18%);
+  background: rgba(31, 35, 40, 0.08);
 }
 
 .imagePlaceholder {
   width: 100%;
   height: 100%;
   min-height: 0;
-  background: color-mix(in srgb, var(--surface, #fff) 72%, var(--border) 28%);
+  background: rgba(31, 35, 40, 0.1);
 }
 
 .image {
