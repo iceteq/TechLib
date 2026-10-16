@@ -201,33 +201,45 @@
 }
 
 .images {
+  /* Fixed media band: same outer footprint for 0 / 1 / 2 photos. */
   display: grid;
   gap: 2px;
-  background: rgba(31, 35, 40, 0.08);
-}
-
-.imagesSingle {
-  grid-template-columns: 1fr;
-}
-
-.imagesSplit {
-  grid-template-columns: 1fr 1fr;
-}
-
-.imageWrap {
-  position: relative;
-  /* Image-first: photo dominates the card height. */
   aspect-ratio: 4 / 3;
-  min-height: 160px;
-  max-height: 260px;
+  width: 100%;
+  min-height: 0;
   overflow: hidden;
   background: color-mix(in srgb, var(--surface, #fff) 88%, var(--border) 12%);
 }
 
-.imagesSplit .imageWrap {
-  aspect-ratio: 1 / 1;
-  min-height: 140px;
-  max-height: 220px;
+.imagesSingle {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.imagesSplit {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+.imagesEmpty {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.imageWrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface, #fff) 82%, var(--border) 18%);
+}
+
+.imagePlaceholder {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: color-mix(in srgb, var(--surface, #fff) 72%, var(--border) 28%);
 }
 
 .image {

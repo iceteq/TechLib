@@ -464,34 +464,41 @@ export const NoteCard = memo(function NoteCard({
         </div>
       )}
 
-      {showPhotos && preview.length > 0 && (
+      {showPhotos && (
         <div
           className={`${styles.images} ${
-            preview.length === 1 ? styles.imagesSingle : styles.imagesSplit
+            preview.length === 0
+              ? styles.imagesEmpty
+              : preview.length === 1
+                ? styles.imagesSingle
+                : styles.imagesSplit
           }`}
+          aria-hidden={preview.length === 0 ? true : undefined}
         >
-          {preview.map((img, index) => (
-            <WallThumb
-              key={img.id}
-              imageId={img.id}
-              thumbUrl={img.thumbUrl || img.url}
-              fullUrl={img.url}
-              priority={priorityImage}
-              onVisibleWithoutUrl={onRequestWallImageUrl}
-              badge={
-                overflow > 0 && index === preview.length - 1 ? (
-                  <span className={styles.overflow}>+{overflow}</span>
-                ) : null
-              }
-            />
-          ))}
+          {preview.length === 0 ? (
+            <div className={styles.imagePlaceholder} />
+          ) : (
+            preview.map((img, index) => (
+              <WallThumb
+                key={img.id}
+                imageId={img.id}
+                thumbUrl={img.thumbUrl || img.url}
+                fullUrl={img.url}
+                priority={priorityImage}
+                onVisibleWithoutUrl={onRequestWallImageUrl}
+                badge={
+                  overflow > 0 && index === preview.length - 1 ? (
+                    <span className={styles.overflow}>+{overflow}</span>
+                  ) : null
+                }
+              />
+            ))
+          )}
         </div>
       )}
 
       <div
-        className={`${styles.body} ${
-          showPhotos && preview.length > 0 ? styles.bodyImageFirst : ''
-        }`}
+        className={`${styles.body} ${showPhotos ? styles.bodyImageFirst : ''}`}
       >
         <div className={styles.identity}>
           <div className={styles.titleRow}>
@@ -620,7 +627,7 @@ export const NoteCard = memo(function NoteCard({
                 disposition={note.disposition}
                 disabled={selecting || !onAssignDisposition}
                 expanded={assignField === 'disposition'}
-                quiet={showPhotos && preview.length > 0}
+                quiet={showPhotos}
                 onClick={
                   selecting || !onAssignDisposition
                     ? undefined
@@ -646,7 +653,7 @@ export const NoteCard = memo(function NoteCard({
                 <LabelChip
                   name={label.name}
                   highlightQuery={searchQuery}
-                  compact={showPhotos && preview.length > 0}
+                  compact={showPhotos}
                 />
               </button>
             ))}
