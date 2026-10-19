@@ -43,6 +43,7 @@ import {
   dispositionLabel,
   filterNotes,
   noteIsSorted,
+  resolveListSearch,
   stockLabel,
 } from '../lib/searchNotes';
 import { noteTypeDeleteIds, noteTypePathLabel } from '../lib/noteTypes';
@@ -431,11 +432,18 @@ export default function App({ session }: { session: Session | null }) {
     })();
   }, [refresh, session?.user?.id]);
 
+  const wallSearch = resolveListSearch(
+    search,
+    view === 'notes' ? orTerms : [],
+  );
+  const facetSearch =
+    view === 'notes' ? wallSearch : { search: '', orTerms: [] as string[] };
+
   const visibleNotes = useMemo(() => {
     let filtered = filterNotes(notes, labels, stockLocations, noteTypes, {
       labelIds: view === 'notes' ? filterLabelIds : [],
-      search,
-      orTerms: view === 'notes' ? orTerms : [],
+      search: wallSearch.search,
+      orTerms: wallSearch.orTerms,
       view: view === 'collection' ? 'notes' : view,
       disposition: view === 'notes' ? activeDispositionFilter : null,
       categoryId: view === 'notes' ? filterCategoryId : null,
@@ -447,7 +455,9 @@ export default function App({ session }: { session: Session | null }) {
       );
     }
     // Keep search relevance ordering; apply wall sort only when browsing.
-    if (search.trim() || orTerms.length > 0) return filtered;
+    if (wallSearch.search.trim() || wallSearch.orTerms.length > 0) {
+      return filtered;
+    }
     return sortWallNotes(filtered, viewPrefs.sort, openedAtById);
   }, [
     notes,
@@ -458,8 +468,8 @@ export default function App({ session }: { session: Session | null }) {
     activeDispositionFilter,
     filterCategoryId,
     filterStockId,
-    search,
-    orTerms,
+    wallSearch.search,
+    wallSearch.orTerms,
     view,
     viewPrefs.sort,
     openedAtById,
@@ -491,8 +501,8 @@ export default function App({ session }: { session: Session | null }) {
     () =>
       filterNotes(notes, labels, stockLocations, noteTypes, {
         labelIds: view === 'notes' ? filterLabelIds : [],
-        search: view === 'notes' ? search : '',
-        orTerms: view === 'notes' ? orTerms : [],
+        search: facetSearch.search,
+        orTerms: facetSearch.orTerms,
         view: 'notes',
         disposition: view === 'notes' ? activeDispositionFilter : null,
         categoryId: null,
@@ -506,8 +516,8 @@ export default function App({ session }: { session: Session | null }) {
       filterLabelIds,
       activeDispositionFilter,
       filterStockId,
-      search,
-      orTerms,
+      facetSearch.search,
+      facetSearch.orTerms,
       view,
     ],
   );
@@ -515,8 +525,8 @@ export default function App({ session }: { session: Session | null }) {
     () =>
       filterNotes(notes, labels, stockLocations, noteTypes, {
         labelIds: view === 'notes' ? filterLabelIds : [],
-        search: view === 'notes' ? search : '',
-        orTerms: view === 'notes' ? orTerms : [],
+        search: facetSearch.search,
+        orTerms: facetSearch.orTerms,
         view: 'notes',
         disposition: view === 'notes' ? activeDispositionFilter : null,
         categoryId: view === 'notes' ? filterCategoryId : null,
@@ -530,8 +540,8 @@ export default function App({ session }: { session: Session | null }) {
       filterLabelIds,
       activeDispositionFilter,
       filterCategoryId,
-      search,
-      orTerms,
+      facetSearch.search,
+      facetSearch.orTerms,
       view,
     ],
   );
@@ -539,8 +549,8 @@ export default function App({ session }: { session: Session | null }) {
     () =>
       filterNotes(notes, labels, stockLocations, noteTypes, {
         labelIds: [],
-        search: view === 'notes' ? search : '',
-        orTerms: view === 'notes' ? orTerms : [],
+        search: facetSearch.search,
+        orTerms: facetSearch.orTerms,
         view: 'notes',
         disposition: view === 'notes' ? activeDispositionFilter : null,
         categoryId: view === 'notes' ? filterCategoryId : null,
@@ -554,8 +564,8 @@ export default function App({ session }: { session: Session | null }) {
       activeDispositionFilter,
       filterCategoryId,
       filterStockId,
-      search,
-      orTerms,
+      facetSearch.search,
+      facetSearch.orTerms,
       view,
     ],
   );

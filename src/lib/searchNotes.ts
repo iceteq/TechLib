@@ -38,6 +38,30 @@ export function parseSearchList(text: string): string[] {
   return terms;
 }
 
+/**
+ * When a list (OR) search is active, optionally treat the search-bar draft as an
+ * extra ephemeral term so results preview before Enter commits it.
+ */
+export function resolveListSearch(
+  search: string,
+  orTerms: string[],
+): { search: string; orTerms: string[] } {
+  if (orTerms.length === 0) {
+    return { search, orTerms };
+  }
+  const draft = search.trim();
+  if (!draft) {
+    return { search: '', orTerms };
+  }
+  const exists = orTerms.some(
+    (term) => term.toLowerCase() === draft.toLowerCase(),
+  );
+  return {
+    search: '',
+    orTerms: exists ? orTerms : [...orTerms, draft],
+  };
+}
+
 /** Best rank for one token against a note; -1 = no match. */
 function tokenSearchRank(
   note: NoteWithUrls,

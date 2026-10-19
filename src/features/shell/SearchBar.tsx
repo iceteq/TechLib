@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Clock, List, Search, X } from 'lucide-react';
+import { ClipboardPaste, Clock, List, Search, X } from 'lucide-react';
 import {
   loadRecentSearches,
   rememberSearch,
@@ -27,37 +27,43 @@ export function SearchBar({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
+  const [listMode, setListMode] = useState(() => orTerms.length > 0);
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [listDraft, setListDraft] = useState('');
   const [recent, setRecent] = useState<string[]>(() => loadRecentSearches());
+
+  // Stay in list mode whenever terms exist (e.g. restored session / paste).
+  useEffect(() => {
+    if (orTerms.length > 0) setListMode(true);
+  }, [orTerms.length]);
 
   useEffect(() => {
     setRecent(loadRecentSearches());
   }, [value, orTerms]);
 
   useEffect(() => {
-    if (!listOpen) return;
+    if (!pasteOpen) return;
     textareaRef.current?.focus();
     const selected = textareaRef.current;
     if (selected) {
       const len = selected.value.length;
       selected.setSelectionRange(len, len);
     }
-  }, [listOpen]);
+  }, [pasteOpen]);
 
   useEffect(() => {
-    if (!listOpen) return;
+    if (!pasteOpen) return;
 
     function onPointerDown(e: PointerEvent) {
       if (!wrapRef.current?.contains(e.target as Node)) {
-        setListOpen(false);
+        setPasteOpen(false);
       }
     }
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        setListOpen(false);
+        setPasteOpen(false);
         inputRef.current?.focus();
       }
     }
@@ -68,13 +74,12 @@ export function SearchBar({
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [listOpen]);
+  }, [pasteOpen]);
 
   const trimmed = value.trim();
   const hasOrTerms = orTerms.length > 0;
-  // Hide recent while a list (OR) search is active so chips stay readable.
   const recentVisible =
-    focused && !listOpen && !hasOrTerms
+    focused && !pasteOpen
       ? recent.filter((item) => {
           const display = recentDisplay(item);
           return trimmed
@@ -91,27 +96,55 @@ export function SearchBar({
     setRecent(rememberSearch(query));
   }
 
+  function rememberList(terms: string[]) {
+    if (terms.length === 0) return;
+    commitRecent(terms.join('\n'));
+  }
+
+  function addOrTerm(raw: string) {
+    const term = raw.trim();
+    if (!term) return;
+    const exists = orTerms.some(
+      (item) => item.toLowerCase() === term.toLowerCase(),
+    );
+    if (exists) {
+      onChange('');
+      return;
+    }
+    const next = [...orTerms, term];
+    onOrTermsChange(next);
+    onChange('');
+    rememberList(next);
+  }
+
   function applyRecent(query: string) {
     if (query.includes('\n')) {
       const terms = parseSearchList(query);
       onChange('');
       onOrTermsChange(terms);
-      commitRecent(terms.join('\n'));
-      setListOpen(false);
+      setListMode(true);
+      rememberList(terms);
+      setPasteOpen(false);
       setFocused(false);
       inputRef.current?.blur();
+      return;
+    }
+    if (listMode) {
+      addOrTerm(query);
+      setFocused(false);
+      inputRef.current?.focus();
       return;
     }
     onOrTermsChange([]);
     onChange(query);
     commitRecent(query);
-    setListOpen(false);
+    setPasteOpen(false);
     inputRef.current?.focus();
   }
 
   function clearValue() {
     if (hasOrTerms) {
-      commitRecent(orTerms.join('\n'));
+      rememberList(orTerms);
       onOrTermsChange([]);
     } else if (trimmed) {
       commitRecent(trimmed);
@@ -120,19 +153,36 @@ export function SearchBar({
     inputRef.current?.focus();
   }
 
-  function openList() {
+  function toggleListMode() {
+    if (listMode) {
+      // Leaving list mode drops the OR list so normal search cannot wipe it by accident.
+      if (hasOrTerms) rememberList(orTerms);
+      onOrTermsChange([]);
+      setListMode(false);
+      setPasteOpen(false);
+      inputRef.current?.focus();
+      return;
+    }
+    setListMode(true);
+    setPasteOpen(false);
+    inputRef.current?.focus();
+  }
+
+  function openPaste() {
     setListDraft(orTerms.length > 0 ? orTerms.join('\n') : trimmed);
-    setListOpen(true);
+    setListMode(true);
+    setPasteOpen(true);
     setFocused(false);
   }
 
-  function applyList() {
+  function applyPasteList() {
     const terms = parseSearchList(listDraft);
     if (terms.length === 0) return;
     onChange('');
     onOrTermsChange(terms);
-    commitRecent(terms.join('\n'));
-    setListOpen(false);
+    setListMode(true);
+    rememberList(terms);
+    setPasteOpen(false);
     setFocused(false);
     inputRef.current?.blur();
   }
@@ -142,18 +192,28 @@ export function SearchBar({
     onOrTermsChange(next);
     if (next.length === 0) {
       inputRef.current?.focus();
+    } else {
+      rememberList(next);
     }
   }
 
   function handleInputChange(next: string) {
-    if (hasOrTerms) onOrTermsChange([]);
+    // List mode keeps the OR list; typing is a draft term (Enter commits).
+    if (!listMode && hasOrTerms) onOrTermsChange([]);
     onChange(next);
   }
 
   return (
     <div className={styles.wrap} ref={wrapRef}>
-      <div className={styles.field}>
+      <div
+        className={`${styles.field}${listMode ? ` ${styles.fieldListMode}` : ''}`}
+      >
         <Search size={16} className={styles.icon} aria-hidden />
+        {listMode && (
+          <span className={styles.listModeBadge} aria-hidden>
+            List
+          </span>
+        )}
         <input
           ref={inputRef}
           className={styles.input}
@@ -162,18 +222,21 @@ export function SearchBar({
           onChange={(e) => handleInputChange(e.target.value)}
           onFocus={() => {
             setFocused(true);
-            setListOpen(false);
+            setPasteOpen(false);
           }}
           onBlur={() => {
             // Delay so recent-chip clicks register before the panel closes.
             window.setTimeout(() => setFocused(false), 120);
-            if (trimmed) commitRecent(trimmed);
+            if (!listMode && trimmed) commitRecent(trimmed);
           }}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.preventDefault();
               if (value || hasOrTerms) {
                 clearValue();
+              } else if (listMode) {
+                setListMode(false);
+                inputRef.current?.blur();
               } else {
                 inputRef.current?.blur();
               }
@@ -181,28 +244,50 @@ export function SearchBar({
             }
             if (e.key === 'Enter' && trimmed) {
               e.preventDefault();
+              if (listMode) {
+                addOrTerm(trimmed);
+                return;
+              }
               commitRecent(trimmed);
               inputRef.current?.blur();
             }
           }}
           placeholder={
-            hasOrTerms ? `${orTerms.length} parts…` : 'Search part numbers…'
+            listMode
+              ? hasOrTerms
+                ? 'Add another part…'
+                : 'Add part number…'
+              : 'Search part numbers…'
           }
-          aria-label="Search part numbers and notes"
+          aria-label={
+            listMode
+              ? 'Add part number to list search'
+              : 'Search part numbers and notes'
+          }
           aria-autocomplete="list"
           aria-controls={recentVisible.length > 0 ? listId : undefined}
           aria-expanded={recentVisible.length > 0}
         />
         <button
           type="button"
-          className={`${styles.listBtn}${listOpen || hasOrTerms ? ` ${styles.listBtnActive}` : ''}`}
-          onClick={() => (listOpen ? setListOpen(false) : openList())}
-          aria-label="Search a list of part numbers"
-          aria-expanded={listOpen}
-          aria-controls={popoverId}
-          title="Search a list"
+          className={`${styles.listBtn}${listMode ? ` ${styles.listBtnActive}` : ''}`}
+          onClick={toggleListMode}
+          aria-label={listMode ? 'Exit list search' : 'Enter list search'}
+          aria-pressed={listMode}
+          title={listMode ? 'Exit list search' : 'List search'}
         >
           <List size={15} />
+        </button>
+        <button
+          type="button"
+          className={`${styles.listBtn}${pasteOpen ? ` ${styles.listBtnActive}` : ''}`}
+          onClick={() => (pasteOpen ? setPasteOpen(false) : openPaste())}
+          aria-label="Paste a list of part numbers"
+          aria-expanded={pasteOpen}
+          aria-controls={popoverId}
+          title="Paste a list"
+        >
+          <ClipboardPaste size={15} />
         </button>
         {(value || hasOrTerms) && (
           <button
@@ -216,7 +301,7 @@ export function SearchBar({
         )}
       </div>
 
-      {hasOrTerms && (
+      {listMode && hasOrTerms && (
         <div className={styles.orChips} aria-label="List search terms">
           <span className={styles.orCount}>
             {orTerms.length} part{orTerms.length === 1 ? '' : 's'}
@@ -237,23 +322,29 @@ export function SearchBar({
         </div>
       )}
 
-      {listOpen && (
+      {listMode && !hasOrTerms && !pasteOpen && (
+        <p className={styles.listModeHint}>
+          Press Enter to add each part. Paste a list anytime.
+        </p>
+      )}
+
+      {pasteOpen && (
         <div
           id={popoverId}
           className={styles.listPopover}
           role="dialog"
-          aria-label="Search a list"
+          aria-label="Paste a list"
         >
           <div className={styles.listHeader}>
             <div>
-              <p className={styles.listTitle}>Search a list</p>
+              <p className={styles.listTitle}>Paste a list</p>
               <p className={styles.listHint}>One part number per line</p>
             </div>
             <button
               type="button"
               className={styles.clear}
-              onClick={() => setListOpen(false)}
-              aria-label="Close list search"
+              onClick={() => setPasteOpen(false)}
+              aria-label="Close paste list"
             >
               <X size={14} />
             </button>
@@ -269,7 +360,7 @@ export function SearchBar({
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                 e.preventDefault();
-                applyList();
+                applyPasteList();
               }
             }}
           />
@@ -283,7 +374,7 @@ export function SearchBar({
               <button
                 type="button"
                 className={styles.listCancel}
-                onClick={() => setListOpen(false)}
+                onClick={() => setPasteOpen(false)}
               >
                 Cancel
               </button>
@@ -291,7 +382,7 @@ export function SearchBar({
                 type="button"
                 className={styles.listApply}
                 disabled={!canApplyList}
-                onClick={applyList}
+                onClick={applyPasteList}
               >
                 Search
               </button>
@@ -336,5 +427,7 @@ export function SearchBar({
 }
 
 function recentDisplay(item: string): string {
-  return item.includes('\n') ? item.split(/\r?\n/).filter(Boolean).join(' · ') : item;
+  return item.includes('\n')
+    ? item.split(/\r?\n/).filter(Boolean).join(' · ')
+    : item;
 }

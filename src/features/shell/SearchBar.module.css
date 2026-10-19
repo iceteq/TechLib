@@ -25,6 +25,31 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+.fieldListMode {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--bg-elevated));
+}
+
+.listModeBadge {
+  flex-shrink: 0;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.listModeHint {
+  margin: 0.35rem 0 0;
+  padding: 0 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
 .icon {
   color: var(--text-muted);
   flex-shrink: 0;
