@@ -487,6 +487,32 @@
   font-variant-numeric: tabular-nums;
 }
 
+.groupMore {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition:
+    color var(--transition),
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.groupMore:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text-muted) 45%, var(--border));
+  background: color-mix(in srgb, var(--bg-elevated) 100%, transparent);
+}
+
 @media (max-width: 800px) {
   .groupHeader {
     top: 0;

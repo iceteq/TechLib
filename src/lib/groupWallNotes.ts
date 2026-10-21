@@ -9,6 +9,9 @@ export type WallGroup = {
   notes: NoteWithUrls[];
 };
 
+/** Cards shown per wall group before “See more”. */
+export const WALL_GROUP_PREVIEW_LIMIT = 4;
+
 const NONE_KEY = '__none__';
 
 function compareLabels(a: string, b: string): number {

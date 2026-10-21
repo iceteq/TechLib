@@ -3,6 +3,7 @@ import {
   Archive,
   ArchiveRestore,
   Camera,
+  ChevronDown,
   ChevronUp,
   ClipboardPaste,
   ImagePlus,
@@ -24,7 +25,10 @@ import type {
 import { categoryLabel, dispositionLabel, stockLabel } from '../../lib/searchNotes';
 import { childNoteTypes, rootNoteTypes } from '../../lib/noteTypes';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
-import { groupWallNotes } from '../../lib/groupWallNotes';
+import {
+  groupWallNotes,
+  WALL_GROUP_PREVIEW_LIMIT,
+} from '../../lib/groupWallNotes';
 import { resolveWallGroupBy, type WallGroupBy } from '../../lib/viewPrefs';
 import { SHOW_GUIDELINES } from '../../lib/config';
 import { NoteCard } from './NoteCard';
@@ -249,6 +253,10 @@ export function NoteGrid({
   );
   const [bulkGuidelineOpen, setBulkGuidelineOpen] = useState(false);
   const [imageDropActive, setImageDropActive] = useState(false);
+  /** Group ids the user expanded past the preview strip. */
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const barRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -604,6 +612,27 @@ export function NoteGrid({
     [notes, effectiveGroupBy, noteTypes, stockLocations],
   );
   const showGroupHeaders = effectiveGroupBy !== 'none';
+
+  // Fresh grouping context → collapse previews again.
+  useEffect(() => {
+    setExpandedGroupIds(new Set());
+  }, [
+    effectiveGroupBy,
+    filterCategoryId,
+    filterStockId,
+    view,
+    search,
+    orTerms,
+  ]);
+
+  const toggleGroupExpanded = useCallback((groupId: string) => {
+    setExpandedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }, []);
   /** First couple of rows — eager thumb load (near-viewport for the rest). */
   const priorityImageIds = useMemo(() => {
     const ids = new Set<string>();
@@ -800,98 +829,132 @@ export function NoteGrid({
         </div>
       ) : showGroupHeaders ? (
         <div className={styles.groups}>
-          {wallGroups.map((group) => (
-            <section
-              key={group.id}
-              className={styles.group}
-              aria-labelledby={`wall-group-${group.id}`}
-            >
-              <header className={styles.groupHeader}>
-                <h3
-                  id={`wall-group-${group.id}`}
-                  className={styles.groupTitle}
+          {wallGroups.map((group) => {
+            const overflow = group.notes.length - WALL_GROUP_PREVIEW_LIMIT;
+            const expanded = expandedGroupIds.has(group.id);
+            const truncated = overflow > 0 && !expanded;
+            const visibleNotes = truncated
+              ? group.notes.slice(0, WALL_GROUP_PREVIEW_LIMIT)
+              : group.notes;
+            return (
+              <section
+                key={group.id}
+                className={styles.group}
+                aria-labelledby={`wall-group-${group.id}`}
+              >
+                <header className={styles.groupHeader}>
+                  <h3
+                    id={`wall-group-${group.id}`}
+                    className={styles.groupTitle}
+                  >
+                    {group.label}
+                  </h3>
+                  <span className={styles.groupCount}>{group.notes.length}</span>
+                </header>
+                <div
+                  id={`wall-group-grid-${group.id}`}
+                  className={styles.grid}
                 >
-                  {group.label}
-                </h3>
-                <span className={styles.groupCount}>{group.notes.length}</span>
-              </header>
-              <div className={styles.grid}>
-                {group.notes.map((note) => (
-                  <NoteCard
-                    key={note.id}
-                    note={note}
-                    labels={labels}
-                    noteTypes={noteTypes}
-                    stockLocations={stockLocations}
-                    selecting={canEdit && selecting}
-                    selected={canEdit && selectedIds.has(note.id)}
-                    cartQuantity={cartQuantities[note.id] ?? 0}
-                    sorted={sortedSet.has(note.id)}
-                    showBarcodes={showBarcodes}
-                    showPhotos={showPhotos}
-                    showDescription={showDescription}
-                    showSpecialCase={showSpecialCase}
-                    showLabels={showLabels}
-                    showAge={showAge}
-                    showTypeChip={showTypeChip}
-                    showStock={showStock}
-                    onOpen={onOpenNote}
-                    onToggleSelect={canEdit ? toggleSelect : () => {}}
-                    onEnterSelect={canEdit ? enterSelect : () => {}}
-                    onRangeSelect={canEdit ? rangeSelect : () => {}}
-                    onAssignDisposition={
-                      SHOW_GUIDELINES && mayMutate(note.id)
-                        ? (noteId, value) =>
-                            void onUpdateNotes([noteId], {
-                              disposition: value,
-                            })
-                        : undefined
-                    }
-                    onAssignGuidelineLines={
-                      SHOW_GUIDELINES && mayMutate(note.id)
-                        ? (noteId, lines) =>
-                            void onUpdateNotes([noteId], {
-                              guidelineLines: lines,
-                            })
-                        : undefined
-                    }
-                    onAssignCategory={
-                      mayMutate(note.id)
-                        ? (noteId, value) =>
-                            void onUpdateNotes([noteId], {
-                              categoryId: value,
-                            })
-                        : undefined
-                    }
-                    onAssignStock={
-                      mayMutate(note.id)
-                        ? (noteId, value) =>
-                            void onUpdateNotes([noteId], { stockId: value })
-                        : undefined
-                    }
-                    onAssignLabels={
-                      mayMutate(note.id)
-                        ? (noteId, labelIds) =>
-                            void onUpdateNotes([noteId], { labelIds })
-                        : undefined
-                    }
-                    onCreateLabel={mayMutate(note.id) ? onCreateLabel : undefined}
-                    dragNoteIds={
-                      selectedIds.has(note.id) ? [...selectedIds] : undefined
-                    }
-                    onNotesDragStart={onNotesDragStart}
-                    pulse={pulseNoteIds.includes(note.id)}
-                    onPulseEnd={onPulseEnd}
-                    searchQuery={searchQuery}
-                    relatedCount={relatedCountByNoteId[note.id] ?? 0}
-                    onShowRelated={onShowRelated}
-                    priorityImage={priorityImageIds.has(note.id)}
-                    onRequestWallImageUrl={onRequestWallImageUrl}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
+                  {visibleNotes.map((note) => (
+                    <NoteCard
+                      key={note.id}
+                      note={note}
+                      labels={labels}
+                      noteTypes={noteTypes}
+                      stockLocations={stockLocations}
+                      selecting={canEdit && selecting}
+                      selected={canEdit && selectedIds.has(note.id)}
+                      cartQuantity={cartQuantities[note.id] ?? 0}
+                      sorted={sortedSet.has(note.id)}
+                      showBarcodes={showBarcodes}
+                      showPhotos={showPhotos}
+                      showDescription={showDescription}
+                      showSpecialCase={showSpecialCase}
+                      showLabels={showLabels}
+                      showAge={showAge}
+                      showTypeChip={showTypeChip}
+                      showStock={showStock}
+                      onOpen={onOpenNote}
+                      onToggleSelect={canEdit ? toggleSelect : () => {}}
+                      onEnterSelect={canEdit ? enterSelect : () => {}}
+                      onRangeSelect={canEdit ? rangeSelect : () => {}}
+                      onAssignDisposition={
+                        SHOW_GUIDELINES && mayMutate(note.id)
+                          ? (noteId, value) =>
+                              void onUpdateNotes([noteId], {
+                                disposition: value,
+                              })
+                          : undefined
+                      }
+                      onAssignGuidelineLines={
+                        SHOW_GUIDELINES && mayMutate(note.id)
+                          ? (noteId, lines) =>
+                              void onUpdateNotes([noteId], {
+                                guidelineLines: lines,
+                              })
+                          : undefined
+                      }
+                      onAssignCategory={
+                        mayMutate(note.id)
+                          ? (noteId, value) =>
+                              void onUpdateNotes([noteId], {
+                                categoryId: value,
+                              })
+                          : undefined
+                      }
+                      onAssignStock={
+                        mayMutate(note.id)
+                          ? (noteId, value) =>
+                              void onUpdateNotes([noteId], { stockId: value })
+                          : undefined
+                      }
+                      onAssignLabels={
+                        mayMutate(note.id)
+                          ? (noteId, labelIds) =>
+                              void onUpdateNotes([noteId], { labelIds })
+                          : undefined
+                      }
+                      onCreateLabel={
+                        mayMutate(note.id) ? onCreateLabel : undefined
+                      }
+                      dragNoteIds={
+                        selectedIds.has(note.id) ? [...selectedIds] : undefined
+                      }
+                      onNotesDragStart={onNotesDragStart}
+                      pulse={pulseNoteIds.includes(note.id)}
+                      onPulseEnd={onPulseEnd}
+                      searchQuery={searchQuery}
+                      relatedCount={relatedCountByNoteId[note.id] ?? 0}
+                      onShowRelated={onShowRelated}
+                      priorityImage={priorityImageIds.has(note.id)}
+                      onRequestWallImageUrl={onRequestWallImageUrl}
+                    />
+                  ))}
+                </div>
+                {overflow > 0 && (
+                  <button
+                    type="button"
+                    className={styles.groupMore}
+                    onClick={() => toggleGroupExpanded(group.id)}
+                    aria-expanded={expanded}
+                    aria-controls={`wall-group-grid-${group.id}`}
+                  >
+                    {expanded ? (
+                      <>
+                        Show less
+                        <ChevronUp size={16} aria-hidden />
+                      </>
+                    ) : (
+                      <>
+                        See more ({overflow})
+                        <ChevronDown size={16} aria-hidden />
+                      </>
+                    )}
+                  </button>
+                )}
+              </section>
+            );
+          })}
         </div>
       ) : (
         <div className={styles.grid}>
