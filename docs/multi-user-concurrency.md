@@ -154,7 +154,9 @@ Full offline-first sync engine; CRDT body editing.
 
 **Status:** Implemented (pending deploy of `009_team_reactions.sql`)
 
-**Product decision:** **Team-visible.** Reactions are shared across the library so the floor team sees the same counts. Cart stays personal. The ✅ “sorted” mark is currently **disabled** in the UI (`SHOW_SORTED = false`); data/API remain if we turn it back on.
+**Product decision:** **Team-visible.** Reactions are shared across the library so the floor team sees the same counts. Cart stays personal.
+
+**UI currently off:** `SHOW_REACTIONS = false` (and `SHOW_SORTED` follows it). Plumbing, RLS, and aggregation stay; flip the flag to restore UI + fetch/live-sync.
 
 **Why fourth:** Product polish once collision + freshness are fixed. Previously RLS on `reactions` was own-rows-only, so `listAllReactions` could not show the team.
 
@@ -235,7 +237,7 @@ Record shipped work here so later phases know what already landed.
 | 2026-10-24 | 1 | Soft edit locks (`note_edit_locks` + editor banner / Take over) | PR #85 |
 | 2026-10-24 | 2 | Versioned `updateNote` + Save conflict dialog (Reload / Keep mine) | merged to main |
 | 2026-10-24 | 3 | Live wall sync (Realtime + focus cursor + remote-change banner) | merged to main |
-| 2026-10-24 | 4 | Team-visible reactions (RLS + aggregate counts + live refresh) | (this branch) |
+| 2026-10-24 | 4 | Team-visible reactions (RLS + aggregate); UI gated off via `SHOW_REACTIONS` | merged to main |
 
 <!--
 Example row after a phase ships:

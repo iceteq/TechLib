@@ -4,6 +4,7 @@ import { prefetchImages } from '../lib/prefetchImages';
 import {
   NOTE_PREVIEW_IMAGE_LIMIT,
   SHOW_GUIDELINES,
+  SHOW_REACTIONS,
   SHOW_SORTED,
 } from '../lib/config';
 import {
@@ -399,7 +400,7 @@ export default function App({ session }: { session: Session | null }) {
       store.listStockLocations(),
       store.listCartItems(),
       store.listNoteLinks(),
-      store.listAllReactions(),
+      SHOW_REACTIONS ? store.listAllReactions() : Promise.resolve([] as Reaction[]),
     ]);
 
     const nextNotes = await notesPromise;
@@ -493,13 +494,15 @@ export default function App({ session }: { session: Session | null }) {
           store.listNoteTypes(),
           store.listStockLocations(),
           store.listNoteLinks(),
-          store.listAllReactions(),
+          SHOW_REACTIONS
+            ? store.listAllReactions()
+            : Promise.resolve([] as Reaction[]),
         ]);
       setLabels(nextLabels);
       setNoteTypes(nextTypes);
       setStockLocations(nextStock);
       setNoteLinks(nextLinks);
-      setReactions(nextReactions);
+      if (SHOW_REACTIONS) setReactions(nextReactions);
     } catch (err) {
       console.error('live meta sync failed', err);
     }

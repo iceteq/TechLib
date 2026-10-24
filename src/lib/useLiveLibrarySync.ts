@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { SHOW_REACTIONS } from './config';
 import { getSupabase, isCloudConfigured } from './supabaseClient';
 
 const NOTE_FLUSH_MS = 180;
@@ -135,23 +136,27 @@ export function useLiveLibrarySync(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'note_links' },
         () => queueMeta(),
-      )
-      .on(
+      );
+
+    if (SHOW_REACTIONS) {
+      channel = channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'reactions' },
         () => queueMeta(),
-      )
-      .subscribe((status) => {
-        if (disposed) return;
-        if (status === 'SUBSCRIBED') {
-          // Skip the first subscribe after mount (initial refresh already ran).
-          if (!sawFirstSubscribe) {
-            sawFirstSubscribe = true;
-            return;
-          }
-          scheduleResync();
+      );
+    }
+
+    channel = channel.subscribe((status) => {
+      if (disposed) return;
+      if (status === 'SUBSCRIBED') {
+        // Skip the first subscribe after mount (initial refresh already ran).
+        if (!sawFirstSubscribe) {
+          sawFirstSubscribe = true;
+          return;
         }
-      });
+        scheduleResync();
+      }
+    });
 
     const onVisibility = () => {
       if (document.visibilityState === 'visible') scheduleResync();

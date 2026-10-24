@@ -10,7 +10,13 @@ export const APP_NAME = 'TechLib';
 export const SHOW_GUIDELINES = false;
 
 /**
- * When false, the ✅ “sorted / handled” mark is hidden (wall badge, editor
- * toggle). Reaction data + APIs stay; flip to true to restore.
+ * When false, reaction UI and reaction fetch/live-sync are off.
+ * Data + APIs + Phase 4 RLS stay; flip to true to restore.
  */
-export const SHOW_SORTED = false;
+export const SHOW_REACTIONS = false;
+
+/**
+ * When false, the ✅ “sorted / handled” mark is hidden (wall badge, editor
+ * toggle). Follows SHOW_REACTIONS for now.
+ */
+export const SHOW_SORTED = SHOW_REACTIONS;

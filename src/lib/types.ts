@@ -184,7 +184,10 @@ export interface NoteLink {
   noteIdB: string;
 }
 
-/** Emojis shown in the reaction bar. ✅ sorted is gated separately via SHOW_SORTED. */
+/**
+ * Emojis shown in the reaction bar when `SHOW_REACTIONS` is on.
+ * ✅ sorted is toggled separately in the editor (also gated by SHOW_SORTED).
+ */
 export const REACTION_EMOJIS: ReactionEmoji[] = ['👍', '❤️', '🔥'];
 
 export const DISPOSITIONS: {
