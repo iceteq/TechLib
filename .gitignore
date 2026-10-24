@@ -18,6 +18,9 @@ dist-ssr
 # Supabase CLI local link/cache (may include project refs)
 supabase/.temp/
 
+# Local UX sketches / demo screenshots (not for the repo)
+demos/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
