@@ -136,6 +136,11 @@ export function useLiveLibrarySync(
         { event: '*', schema: 'public', table: 'note_links' },
         () => queueMeta(),
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'reactions' },
+        () => queueMeta(),
+      )
       .subscribe((status) => {
         if (disposed) return;
         if (status === 'SUBSCRIBED') {

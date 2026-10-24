@@ -771,14 +771,18 @@ export async function deleteStockLocation(id: string): Promise<void> {
   }
 }
 
+function withMineFlag(reactions: Reaction[]): Reaction[] {
+  return reactions.map((r) => ({ ...r, mine: true }));
+}
+
 export async function listReactionsForNote(noteId: string): Promise<Reaction[]> {
   const db = await getDb();
-  return db.getAllFromIndex('reactions', 'by-note', noteId);
+  return withMineFlag(await db.getAllFromIndex('reactions', 'by-note', noteId));
 }
 
 export async function listAllReactions(): Promise<Reaction[]> {
   const db = await getDb();
-  return db.getAll('reactions');
+  return withMineFlag(await db.getAll('reactions'));
 }
 
 /** Single-user toggle: add reaction or remove it. */

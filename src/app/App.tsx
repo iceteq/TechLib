@@ -483,16 +483,19 @@ export default function App({ session }: { session: Session | null }) {
 
   const refreshLibraryMeta = useCallback(async () => {
     try {
-      const [nextLabels, nextTypes, nextStock, nextLinks] = await Promise.all([
-        store.listLabels(),
-        store.listNoteTypes(),
-        store.listStockLocations(),
-        store.listNoteLinks(),
-      ]);
+      const [nextLabels, nextTypes, nextStock, nextLinks, nextReactions] =
+        await Promise.all([
+          store.listLabels(),
+          store.listNoteTypes(),
+          store.listStockLocations(),
+          store.listNoteLinks(),
+          store.listAllReactions(),
+        ]);
       setLabels(nextLabels);
       setNoteTypes(nextTypes);
       setStockLocations(nextStock);
       setNoteLinks(nextLinks);
+      setReactions(nextReactions);
     } catch (err) {
       console.error('live meta sync failed', err);
     }

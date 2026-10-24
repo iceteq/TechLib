@@ -34,6 +34,7 @@ import {
 import { prefetchImages } from './prefetchImages';
 import { encodeWallThumb, wallDerivativePath } from './wallThumb';
 import { NoteUpdateConflictError } from './noteUpdateConflict';
+import { aggregateReactionRows } from './aggregateReactions';
 
 const BUCKET = 'note-images';
 
@@ -97,6 +98,7 @@ type ReactionRow = {
   note_id: string;
   emoji: string;
   count: number;
+  owner_id?: string;
 };
 
 function ms(iso: string | null | undefined): number {
@@ -1582,32 +1584,22 @@ export async function setNoteLabels(
 export async function listReactionsForNote(
   noteId: string,
 ): Promise<Reaction[]> {
-  await requireUserId();
+  const userId = await requireUserId();
   const { data, error } = await getSupabase()
     .from('reactions')
-    .select('id, note_id, emoji, count')
+    .select('id, note_id, emoji, count, owner_id')
     .eq('note_id', noteId);
   throwIf(error);
-  return ((data ?? []) as ReactionRow[]).map((r) => ({
-    id: r.id,
-    noteId: r.note_id,
-    emoji: r.emoji as ReactionEmoji,
-    count: r.count,
-  }));
+  return aggregateReactionRows((data ?? []) as ReactionRow[], userId);
 }
 
 export async function listAllReactions(): Promise<Reaction[]> {
-  await requireUserId();
+  const userId = await requireUserId();
   const { data, error } = await getSupabase()
     .from('reactions')
-    .select('id, note_id, emoji, count');
+    .select('id, note_id, emoji, count, owner_id');
   throwIf(error);
-  return ((data ?? []) as ReactionRow[]).map((r) => ({
-    id: r.id,
-    noteId: r.note_id,
-    emoji: r.emoji as ReactionEmoji,
-    count: r.count,
-  }));
+  return aggregateReactionRows((data ?? []) as ReactionRow[], userId);
 }
 
 export async function toggleReaction(

@@ -165,7 +165,10 @@ export interface Reaction {
   id: string;
   noteId: string;
   emoji: ReactionEmoji;
+  /** Team total (sum of per-user rows) after aggregation. */
   count: number;
+  /** True when the current user contributed to this emoji on the note. */
+  mine?: boolean;
 }
 
 export type NotesView = 'notes' | 'archive' | 'collection';

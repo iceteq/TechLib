@@ -291,7 +291,10 @@ export function reactionsForNote(
   return reactions.filter((r) => r.noteId === noteId);
 }
 
-/** ✅ “sorted / handled” mark for the wall and editor. */
+/**
+ * ✅ “sorted / handled” mark for the wall and editor.
+ * Team-visible: any member’s ✅ counts (aggregated `count` > 0).
+ */
 export function noteIsSorted(reactions: Reaction[], noteId: string): boolean {
   return reactions.some(
     (r) => r.noteId === noteId && r.emoji === '✅' && r.count > 0,

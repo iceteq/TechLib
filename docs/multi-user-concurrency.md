@@ -21,7 +21,7 @@ As of this gameplan’s creation:
 |---|---|
 | Library | One shared workspace; members see the same notes/labels/types/images |
 | Roles | **viewer** read-only; **editor** mutates only notes they created; **admin** mutates any |
-| Personal | Cart and reaction *rows* are per signed-in user |
+| Personal | Cart is per signed-in user; reaction *writes* are personal, *counts* are team-visible (Phase 4) |
 | Client data | Full `refresh()` on login; then local React state |
 | Live sync | Realtime wall patches + focus/reconnect incremental sync (Phase 3) |
 | Saves | Partial column updates; title/description on blur; **versioned** editor saves (Phase 2) |
@@ -152,25 +152,30 @@ Full offline-first sync engine; CRDT body editing.
 
 ## Phase 4 — Reactions visibility (team counts)
 
-**Status:** Not started
+**Status:** Implemented (pending deploy of `009_team_reactions.sql`)
 
-**Why fourth:** Product polish once collision + freshness are fixed. Today RLS on `reactions` is own-rows-only, so `listAllReactions` cannot show the team.
+**Product decision:** **Team-visible.** Reactions (including the ✅ sorted mark) are shared across the library so the floor team sees the same counts. Cart stays personal.
+
+**Why fourth:** Product polish once collision + freshness are fixed. Previously RLS on `reactions` was own-rows-only, so `listAllReactions` could not show the team.
 
 ### Intent
 
-If reactions should be social/team-visible:
-
 - Members can **SELECT** all reactions on library notes.
 - Writes stay personal (`owner_id = auth.uid()`).
-- UI aggregates counts across users (and optionally shows who reacted later).
+- UI aggregates counts across users (`mine` for pressed state).
 
-If product decision is “reactions stay private bookmarks,” document that here and skip implementation — mark phase cancelled with rationale.
+### Implementation sketch
+
+- Migration `009_team_reactions.sql`: member SELECT + own write policies; Realtime publish `reactions`.
+- `aggregateReactionRows` → one entry per (note, emoji) with team `count` + `mine`.
+- `ReactionBar` uses `mine` for pressed; count shows the team total.
+- Live meta sync refreshes reactions so ✅ appears for others without reload.
 
 ### Done when
 
-- [ ] Product decision recorded (team-visible vs personal-only)
-- [ ] If team-visible: RLS + list/aggregate + UI counts match across two accounts
-- [ ] Cart remains personal either way
+- [x] Product decision recorded (team-visible vs personal-only)
+- [x] If team-visible: RLS + list/aggregate + UI counts match across two accounts
+- [x] Cart remains personal either way
 
 ---
 
@@ -229,7 +234,8 @@ Record shipped work here so later phases know what already landed.
 | 2026-10-24 | — | Gameplan created (baseline documented; no code changes) | merged to main |
 | 2026-10-24 | 1 | Soft edit locks (`note_edit_locks` + editor banner / Take over) | PR #85 |
 | 2026-10-24 | 2 | Versioned `updateNote` + Save conflict dialog (Reload / Keep mine) | merged to main |
-| 2026-10-24 | 3 | Live wall sync (Realtime + focus cursor + remote-change banner) | (this branch) |
+| 2026-10-24 | 3 | Live wall sync (Realtime + focus cursor + remote-change banner) | merged to main |
+| 2026-10-24 | 4 | Team-visible reactions (RLS + aggregate counts + live refresh) | (this branch) |
 
 <!--
 Example row after a phase ships:

@@ -3,7 +3,8 @@
 -- (001 adds shared-library membership: viewer / editor / admin)
 -- through migrations/006_note_created_by.sql (author-scoped editor mutations)
 -- and migrations/007_note_edit_locks.sql (soft edit locks / presence)
--- and migrations/008_realtime_library_tables.sql (live wall sync publication).
+-- and migrations/008_realtime_library_tables.sql (live wall sync publication)
+-- and migrations/009_team_reactions.sql (team-visible reactions).
 -- Migration 002 is already included in this file for fresh installs.
 
 -- Stock locations (bay / shelf codes) — before notes so notes.stock_id can FK
