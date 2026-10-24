@@ -187,6 +187,8 @@ interface NoteCardProps {
   onNotesDragStart?: () => void;
   /** Play capture highlight when this card lands on the wall. */
   pulse?: boolean;
+  /** Softer highlight when someone else changed this note (live sync). */
+  remotePulse?: boolean;
   onPulseEnd?: (noteId: string) => void;
   /** Active wall search — highlight matches on title/labels. */
   searchQuery?: string;
@@ -231,6 +233,7 @@ export const NoteCard = memo(function NoteCard({
   dragNoteIds,
   onNotesDragStart,
   pulse = false,
+  remotePulse = false,
   onPulseEnd,
   searchQuery = '',
   relatedCount = 0,
@@ -261,6 +264,7 @@ export const NoteCard = memo(function NoteCard({
   const suppressUntil = useRef(0);
 
   // Capture combo: brief highlight when a new photo-note returns to the wall.
+  // Remote pulses skip scroll so multi-note bursts do not yank the viewport.
   useEffect(() => {
     if (!pulse) return;
     const el = cardRef.current;
@@ -399,9 +403,11 @@ export const NoteCard = memo(function NoteCard({
       ref={cardRef}
       className={`${styles.card} ${selected ? styles.selected : ''} ${
         selecting && selected ? styles.draggable : ''
-      } ${pulse ? styles.capturePulse : ''}`}
+      } ${pulse ? styles.capturePulse : ''} ${
+        remotePulse && !pulse ? styles.remotePulse : ''
+      }`}
       onAnimationEnd={(event) => {
-        if (!pulse) return;
+        if (!pulse && !remotePulse) return;
         if (event.target !== event.currentTarget) return;
         onPulseEnd?.(note.id);
       }}

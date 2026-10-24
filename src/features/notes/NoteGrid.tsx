@@ -180,6 +180,8 @@ interface NoteGridProps {
   imageBusyCount?: number;
   /** Note ids that should play a capture highlight on the wall. */
   pulseNoteIds?: string[];
+  /** Live sync: cards changed by someone else. */
+  remotePulseNoteIds?: string[];
   onPulseEnd?: (noteId: string) => void;
 }
 
@@ -240,6 +242,7 @@ export function NoteGrid({
   onDropImages,
   imageBusyCount = 0,
   pulseNoteIds = [],
+  remotePulseNoteIds = [],
   onPulseEnd,
 }: NoteGridProps) {
   const cartJuice = useJuiceBurst();
@@ -928,6 +931,7 @@ export function NoteGrid({
                       }
                       onNotesDragStart={onNotesDragStart}
                       pulse={pulseNoteIds.includes(note.id)}
+                      remotePulse={remotePulseNoteIds.includes(note.id)}
                       onPulseEnd={onPulseEnd}
                       searchQuery={searchQuery}
                       relatedCount={relatedCountByNoteId[note.id] ?? 0}
@@ -1024,6 +1028,7 @@ export function NoteGrid({
               }
               onNotesDragStart={onNotesDragStart}
               pulse={pulseNoteIds.includes(note.id)}
+              remotePulse={remotePulseNoteIds.includes(note.id)}
               onPulseEnd={onPulseEnd}
               searchQuery={searchQuery}
               relatedCount={relatedCountByNoteId[note.id] ?? 0}

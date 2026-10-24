@@ -39,8 +39,8 @@ What the floor team should *feel* while sharing TechLib:
 | Live wall updates | Shipped (Phase 3) | Deploy `008_realtime_library_tables.sql` |
 | Team reaction counts | Shipped (Phase 4), **UI off** | `SHOW_REACTIONS = false`; deploy `009` |
 | **Author on wall cards** | **Shipped** | `SHOW_NOTE_AUTHOR`; deploy `010_library_member_labels.sql` |
+| **Remote-change wall pulse** | **Shipped** | `SHOW_REMOTE_WALL_PULSE`; soft ring on cards others just changed |
 | Online “who’s here” strip | Idea | Library-level presence |
-| Remote-change wall pulse | Idea | Highlight notes others just changed |
 | Debounced autosave | Idea (Phase 5 optional) | Fewer blur races |
 
 Flip flags in `src/lib/config.ts`. SQL steps are listed in `supabase/README.md`.
@@ -254,7 +254,8 @@ Record shipped work here so later phases know what already landed.
 | 2026-10-24 | 2 | Versioned `updateNote` + Save conflict dialog (Reload / Keep mine) | merged to main |
 | 2026-10-24 | 3 | Live wall sync (Realtime + focus cursor + remote-change banner) | merged to main |
 | 2026-10-24 | 4 | Team-visible reactions (RLS + aggregate); UI gated off via `SHOW_REACTIONS` | merged to main |
-| 2026-10-24 | UX | Author labels on wall cards (`SHOW_NOTE_AUTHOR` + `010_library_member_labels`) | (this branch) |
+| 2026-10-24 | UX | Author labels on wall cards (`SHOW_NOTE_AUTHOR` + `010_library_member_labels`) | merged to main |
+| 2026-10-24 | UX | Remote-change wall pulse (`SHOW_REMOTE_WALL_PULSE`) | (this branch) |
 
 <!--
 Example row after a phase ships:

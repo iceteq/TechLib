@@ -3,9 +3,11 @@ import { loadViewPrefs, saveViewPrefs } from '../lib/viewPrefs';
 import { prefetchImages } from '../lib/prefetchImages';
 import {
   NOTE_PREVIEW_IMAGE_LIMIT,
+  REMOTE_WALL_PULSE_CAP,
   SHOW_GUIDELINES,
   SHOW_NOTE_AUTHOR,
   SHOW_REACTIONS,
+  SHOW_REMOTE_WALL_PULSE,
   SHOW_SORTED,
 } from '../lib/config';
 import { authorLabelForUser } from '../lib/authorLabel';
@@ -359,6 +361,10 @@ export default function App({ session }: { session: Session | null }) {
   /** Note ids waiting to pulse on the wall after a capture create. */
   const pendingWallPulseIds = useRef<Set<string>>(new Set());
   const [wallPulseNoteIds, setWallPulseNoteIds] = useState<string[]>([]);
+  /** Live sync: notes changed by someone else. */
+  const [remotePulseNoteIds, setRemotePulseNoteIds] = useState<string[]>([]);
+  /** Suppress Realtime echo pulses after our own writes. */
+  const recentLocalNoteTouchRef = useRef(new Map<string, number>());
   const [pasteOpen, setPasteOpen] = useState(false);
   const [importBurst, setImportBurst] = useState<{ key: number; count: number } | null>(null);
   const [undoAction, setUndoAction] = useState<UndoAction | null>(null);
@@ -556,6 +562,8 @@ export default function App({ session }: { session: Session | null }) {
 
         const found = new Set(fetched.map((n) => n.id));
         const missing = unique.filter((id) => !found.has(id));
+        const prevSnapshot = notesRef.current;
+        const pulseIds = collectRemotePulseIds(prevSnapshot, fetched);
 
         setNotes((prev) => {
           let base = prev;
@@ -568,6 +576,8 @@ export default function App({ session }: { session: Session | null }) {
           }
           return mergeRemoteNotesIntoWall(base, fetched);
         });
+
+        if (pulseIds.length > 0) queueRemoteWallPulses(pulseIds);
 
         let maxIso = lastSyncIsoRef.current;
         for (const note of fetched) {
@@ -1050,6 +1060,7 @@ export default function App({ session }: { session: Session | null }) {
 
   
   function queueWallPulse(noteId: string) {
+    markLocalNoteTouch(noteId);
     pendingWallPulseIds.current.add(noteId);
   }
 
@@ -1062,6 +1073,57 @@ export default function App({ session }: { session: Session | null }) {
 
   function clearWallPulse(noteId: string) {
     setWallPulseNoteIds((prev) => prev.filter((id) => id !== noteId));
+    setRemotePulseNoteIds((prev) => prev.filter((id) => id !== noteId));
+  }
+
+  function markLocalNoteTouch(noteId: string) {
+    recentLocalNoteTouchRef.current.set(noteId, Date.now());
+  }
+
+  function wasRecentLocalNoteTouch(noteId: string, withinMs = 5000): boolean {
+    const at = recentLocalNoteTouchRef.current.get(noteId);
+    if (at == null) return false;
+    if (Date.now() - at > withinMs) {
+      recentLocalNoteTouchRef.current.delete(noteId);
+      return false;
+    }
+    return true;
+  }
+
+  function queueRemoteWallPulses(noteIds: string[]) {
+    if (!SHOW_REMOTE_WALL_PULSE || noteIds.length === 0) return;
+    const capped = noteIds.slice(0, REMOTE_WALL_PULSE_CAP);
+    setRemotePulseNoteIds((prev) => [...new Set([...prev, ...capped])]);
+  }
+
+  function collectRemotePulseIds(
+    prevNotes: NoteWithUrls[],
+    remoteBatch: NoteWithUrls[],
+  ): string[] {
+    if (!SHOW_REMOTE_WALL_PULSE) return [];
+    const prevById = new Map(prevNotes.map((n) => [n.id, n]));
+    const activeId = activeNoteIdRef.current;
+    const out: string[] = [];
+    for (const note of remoteBatch) {
+      if (note.deletedAt != null) continue;
+      if (activeId && note.id === activeId) continue;
+      if (wasRecentLocalNoteTouch(note.id)) continue;
+      const prev = prevById.get(note.id);
+      if (!prev) {
+        out.push(note.id);
+        continue;
+      }
+      if (
+        note.updatedAtIso &&
+        prev.updatedAtIso &&
+        note.updatedAtIso > prev.updatedAtIso
+      ) {
+        out.push(note.id);
+      } else if (note.updatedAt > prev.updatedAt) {
+        out.push(note.id);
+      }
+    }
+    return out;
   }
 
   async function handleCloseEditor(draft?: {
@@ -1126,6 +1188,7 @@ export default function App({ session }: { session: Session | null }) {
       ...createMetaFromDefaults(createDefaults),
       labelIds: [],
     });
+    markLocalNoteTouch(note.id);
     setNotes((prev) =>
       prev.some((n) => n.id === note.id) ? prev : [note, ...prev],
     );
@@ -1253,6 +1316,7 @@ export default function App({ session }: { session: Session | null }) {
       if (nextId) openNote(nextId); else setActiveNoteId(null);
     }
 
+    for (const id of ids) markLocalNoteTouch(id);
     await store.softDeleteNotes(ids);
     await replaceUndoAction({ kind: 'delete', ids });
     await refresh();
@@ -1288,6 +1352,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   function applyNoteToState(updated: NoteWithUrls) {
+    markLocalNoteTouch(updated.id);
     rememberNoteVersion(updated);
     setNotes((prev) => {
       const next = prev.map((n) => (n.id === updated.id ? updated : n));
@@ -1477,6 +1542,7 @@ export default function App({ session }: { session: Session | null }) {
         updated = await store.addImage(noteId, file);
       }
       if (updated) {
+        markLocalNoteTouch(updated.id);
         rememberNoteVersion(updated);
         // Merge images only — keep any optimistic title/description already in state.
         setNotes((prev) =>
@@ -1541,6 +1607,7 @@ export default function App({ session }: { session: Session | null }) {
     if (!activeNoteId) return;
     const updated = await store.removeImage(activeNoteId, imageId);
     if (updated) {
+      markLocalNoteTouch(updated.id);
       rememberNoteVersion(updated);
       setNotes((prev) =>
         prev.map((n) =>
@@ -1562,6 +1629,7 @@ export default function App({ session }: { session: Session | null }) {
     if (!activeNoteId) return;
     const updated = await store.reorderImages(activeNoteId, orderedImageIds);
     if (updated) {
+      markLocalNoteTouch(updated.id);
       rememberNoteVersion(updated);
       setNotes((prev) =>
         prev.map((n) =>
@@ -2272,6 +2340,7 @@ export default function App({ session }: { session: Session | null }) {
           onDropImages={canEdit ? (files) => void createNoteFromImages(files) : undefined}
           imageBusyCount={imageBusyCount}
           pulseNoteIds={wallPulseNoteIds}
+          remotePulseNoteIds={remotePulseNoteIds}
           onPulseEnd={clearWallPulse}
         />
       )}
