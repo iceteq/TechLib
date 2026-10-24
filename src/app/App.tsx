@@ -97,6 +97,7 @@ import { MembersDialog } from '../features/auth/MembersDialog';
 import type { Session } from '@supabase/supabase-js';
 import {
   canEditLibrary,
+  canManageSharedTaxonomy,
   canMutateNote,
   ensureWorkspaceMembership,
   isLibraryAdmin,
@@ -2017,7 +2018,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleDeleteLabel(labelId: string) {
-    if (!canEdit) return;
+    if (!canManageSharedTaxonomy(membership?.role)) return;
     await store.deleteLabel(labelId);
     setLabels(await store.listLabels());
     setFilterLabelIds((current) => current.filter((id) => id !== labelId));
@@ -2025,7 +2026,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleDeleteNoteType(typeId: string) {
-    if (!canEdit) return;
+    if (!canManageSharedTaxonomy(membership?.role)) return;
     const removeIds = noteTypeDeleteIds(noteTypes, typeId);
     await store.deleteNoteType(typeId);
     setNoteTypes(await store.listNoteTypes());
@@ -2222,8 +2223,12 @@ export default function App({ session }: { session: Session | null }) {
           onCreateLabel={canEdit ? handleSidebarCreateLabel : undefined}
           onCreateType={canEdit ? handleCreateNoteType : undefined}
           onCreateStock={canEdit ? handleSidebarCreateStock : undefined}
-          onDeleteLabel={canEdit ? (id) => handleDeleteLabel(id) : undefined}
-          onDeleteType={canEdit ? (id) => handleDeleteNoteType(id) : undefined}
+          onDeleteLabel={
+            isAdmin ? (id) => handleDeleteLabel(id) : undefined
+          }
+          onDeleteType={
+            isAdmin ? (id) => handleDeleteNoteType(id) : undefined
+          }
           onAssignNotes={canEdit ? handleAssignNotes : undefined}
           onSignOut={
             isCloudConfigured()

@@ -50,8 +50,9 @@ import { SHOW_GUIDELINES } from '../../lib/config';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
-  /** False for viewers — hide create/delete/assign. */
+  /** False for viewers — hide create/assign. */
   canEdit?: boolean;
+  /** Admins only — delete shared labels / types (stock delete is admin RLS too). */
   isAdmin?: boolean;
   onOpenMembers?: () => void;
   /** Admin: create missing `.wall.jpg` previews for the whole library. */
@@ -633,7 +634,7 @@ export function Sidebar({
         onToggle={() => toggleSection('type')}
         trailing={
           sectionActions('type', {
-            canEdit: canEdit && noteTypes.length > 0,
+            canEdit: isAdmin && noteTypes.length > 0,
             creating: creatingType || creatingSubtypeParentId != null,
             onToggleCreate: () => toggleCreate('type', setCreatingType),
             createLabel: 'Create type',
@@ -1013,7 +1014,7 @@ export function Sidebar({
         onToggle={() => toggleSection('labels')}
         trailing={
           sectionActions('labels', {
-            canEdit: canEdit && labels.length > 0,
+            canEdit: isAdmin && labels.length > 0,
             creating: creatingLabel,
             onToggleCreate: () => toggleCreate('labels', setCreatingLabel),
             createLabel: 'Create label',

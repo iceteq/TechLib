@@ -25,6 +25,16 @@ export function isLibraryAdmin(role: WorkspaceRole | null | undefined): boolean 
 }
 
 /**
+ * Shared taxonomy (labels, note types, stock locations) is library-wide.
+ * Editors may create; only admins may rename/delete (enforced in RLS too).
+ */
+export function canManageSharedTaxonomy(
+  role: WorkspaceRole | null | undefined,
+): boolean {
+  return role === 'admin';
+}
+
+/**
  * Whether this member may edit/delete a specific note (and its images).
  * Admins: any note. Editors: only notes they created. Viewers: never.
  */
