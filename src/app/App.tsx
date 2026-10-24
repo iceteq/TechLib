@@ -19,6 +19,7 @@ import { NoteGrid } from '../features/notes/NoteGrid';
 import { PasteNotesDialog } from '../features/notes/PasteNotesDialog';
 import { ImportBurst } from '../features/notes/ImportBurst';
 import { UndoToast } from '../features/notes/UndoToast';
+import { SaveConflictDialog } from '../features/notes/SaveConflictDialog';
 import type {
   CartItem,
   Label,
@@ -92,6 +93,29 @@ import {
 } from '../lib/workspace';
 import { formatLockHolderLabel } from '../lib/noteEditLock';
 import { useNoteEditLock } from '../lib/useNoteEditLock';
+import { isNoteUpdateConflictError } from '../lib/noteUpdateConflict';
+
+type NoteMetaPatch = {
+  title?: string;
+  description?: string;
+  background?: NoteBackground;
+  labelIds?: string[];
+  pinned?: boolean;
+  archived?: boolean;
+  disposition?: NoteDisposition;
+  guidelineLines?: GuidelineLine[];
+  categoryId?: string | null;
+  stockId?: string | null;
+  specialCase?: string;
+  askItems?: import('../lib/types').NoteAskItem[];
+};
+
+type SaveConflictState = {
+  noteId: string;
+  serverNote: NoteWithUrls;
+  pendingPatch: NoteMetaPatch;
+  localBefore: NoteWithUrls;
+};
 
 type NoteFieldPatch = {
   disposition?: NoteDisposition;
@@ -223,6 +247,15 @@ export default function App({ session }: { session: Session | null }) {
   );
   const [membersOpen, setMembersOpen] = useState(false);
   const [wallBackfillBusy, setWallBackfillBusy] = useState(false);
+  const [saveConflict, setSaveConflict] = useState<SaveConflictState | null>(
+    null,
+  );
+  const [saveConflictBusy, setSaveConflictBusy] = useState(false);
+  /** Bumps to remount NoteEditor after Reload so drafts match server. */
+  const [editorEpoch, setEditorEpoch] = useState(0);
+  /** Serialize per-note saves so title+description blurs don't false-conflict. */
+  const noteSaveChainRef = useRef(new Map<string, Promise<unknown>>());
+  const knownUpdatedAtIsoRef = useRef(new Map<string, string>());
   const canEdit = canEditLibrary(membership?.role);
   const isAdmin = isLibraryAdmin(membership?.role);
   const userId = membership?.userId;
@@ -361,6 +394,11 @@ export default function App({ session }: { session: Session | null }) {
 
     const nextNotes = await notesPromise;
     setNotes(nextNotes);
+    for (const note of nextNotes) {
+      if (note.updatedAtIso) {
+        knownUpdatedAtIsoRef.current.set(note.id, note.updatedAtIso);
+      }
+    }
 
     const gen = ++thumbResolveGen.current;
     const patchImages = (partial: typeof nextNotes) => {
@@ -1024,20 +1062,37 @@ export default function App({ session }: { session: Session | null }) {
     openNote(visibleNotes[activeNavIndex + 1].id);
   }
 
-  async function handleSaveMeta(patch: {
-    title?: string;
-    description?: string;
-    background?: NoteBackground;
-    labelIds?: string[];
-    pinned?: boolean;
-    archived?: boolean;
-    disposition?: NoteDisposition;
-    guidelineLines?: import('../lib/types').GuidelineLine[];
-    categoryId?: string | null;
-    stockId?: string | null;
-    specialCase?: string;
-    askItems?: import('../lib/types').NoteAskItem[];
-  }) {
+  function rememberNoteVersion(note: NoteWithUrls) {
+    if (note.updatedAtIso) {
+      knownUpdatedAtIsoRef.current.set(note.id, note.updatedAtIso);
+    }
+  }
+
+  function enqueueNoteSave<T>(noteId: string, run: () => Promise<T>): Promise<T> {
+    const prev = noteSaveChainRef.current.get(noteId) ?? Promise.resolve();
+    const next = prev.then(run, run);
+    noteSaveChainRef.current.set(
+      noteId,
+      next.then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
+    return next;
+  }
+
+  function applyNoteToState(updated: NoteWithUrls) {
+    rememberNoteVersion(updated);
+    setNotes((prev) => {
+      const next = prev.map((n) => (n.id === updated.id ? updated : n));
+      return [...next].sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt - a.updatedAt;
+      });
+    });
+  }
+
+  async function handleSaveMeta(patch: NoteMetaPatch) {
     if (patch.askItems !== undefined) {
       if (!isAdmin || editLockedByOther) return;
     } else if (!canMutateOpenNote) {
@@ -1047,96 +1102,109 @@ export default function App({ session }: { session: Session | null }) {
     const noteId = activeNoteId;
     if (!noteId) return;
     const current = notes.find((n) => n.id === noteId);
+    if (!current) return;
+    rememberNoteVersion(current);
+
     const undoPatch: NoteFieldPatch = {};
     if (patch.archived !== undefined) undoPatch.archived = patch.archived;
     if (patch.labelIds !== undefined) undoPatch.labelIds = patch.labelIds;
     const before =
-      current && Object.keys(undoPatch).length > 0
+      Object.keys(undoPatch).length > 0
         ? [{ id: current.id, patch: snapshotNotePatch(current, undoPatch) }]
         : [];
 
-    if (current) {
-      setNotes((prev) => {
-        const next = prev.map((n) => {
-          if (n.id !== noteId) return n;
-          const guidelineLines =
-            patch.guidelineLines !== undefined
-              ? patch.guidelineLines
-              : patch.disposition !== undefined
-                ? undefined
-                : n.guidelineLines;
-          return {
-            ...n,
-            ...(patch.title !== undefined ? { title: patch.title } : {}),
-            ...(patch.description !== undefined
-              ? { description: patch.description }
-              : {}),
-            ...(patch.background !== undefined
-              ? { background: patch.background }
-              : {}),
-            ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
-            ...(patch.archived !== undefined
-              ? { archived: patch.archived }
-              : {}),
-            ...(patch.specialCase !== undefined
-              ? { specialCase: patch.specialCase }
-              : {}),
-            ...(patch.askItems !== undefined
-              ? { askItems: patch.askItems }
-              : {}),
-            ...('categoryId' in patch
-              ? { categoryId: patch.categoryId ?? null }
-              : {}),
-            ...('stockId' in patch ? { stockId: patch.stockId ?? null } : {}),
-            ...(patch.labelIds !== undefined
-              ? { labelIds: [...patch.labelIds] }
-              : {}),
-            ...(patch.disposition !== undefined
-              ? { disposition: patch.disposition }
-              : {}),
-            ...(guidelineLines !== undefined ? { guidelineLines } : {}),
-            updatedAt: Date.now(),
-          };
-        });
-        return [...next].sort((a, b) => {
-          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-          return b.updatedAt - a.updatedAt;
-        });
+    // Optimistic content only — keep server updatedAt / updatedAtIso for versioning.
+    setNotes((prev) => {
+      const next = prev.map((n) => {
+        if (n.id !== noteId) return n;
+        const guidelineLines =
+          patch.guidelineLines !== undefined
+            ? patch.guidelineLines
+            : patch.disposition !== undefined
+              ? undefined
+              : n.guidelineLines;
+        return {
+          ...n,
+          ...(patch.title !== undefined ? { title: patch.title } : {}),
+          ...(patch.description !== undefined
+            ? { description: patch.description }
+            : {}),
+          ...(patch.background !== undefined
+            ? { background: patch.background }
+            : {}),
+          ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
+          ...(patch.archived !== undefined
+            ? { archived: patch.archived }
+            : {}),
+          ...(patch.specialCase !== undefined
+            ? { specialCase: patch.specialCase }
+            : {}),
+          ...(patch.askItems !== undefined
+            ? { askItems: patch.askItems }
+            : {}),
+          ...('categoryId' in patch
+            ? { categoryId: patch.categoryId ?? null }
+            : {}),
+          ...('stockId' in patch ? { stockId: patch.stockId ?? null } : {}),
+          ...(patch.labelIds !== undefined
+            ? { labelIds: [...patch.labelIds] }
+            : {}),
+          ...(patch.disposition !== undefined
+            ? { disposition: patch.disposition }
+            : {}),
+          ...(guidelineLines !== undefined ? { guidelineLines } : {}),
+        };
       });
-    }
+      return next;
+    });
 
-    try {
-      const updated = await store.updateNote(noteId, patch);
-      if (!updated) {
-        if (current) {
+    await enqueueNoteSave(noteId, async () => {
+      const expectedIso =
+        knownUpdatedAtIsoRef.current.get(noteId) ?? current.updatedAtIso;
+      try {
+        const updated = await store.updateNote(noteId, patch, {
+          expectedUpdatedAtIso: expectedIso,
+          expectedUpdatedAt: expectedIso ? undefined : current.updatedAt,
+        });
+        if (!updated) {
           setNotes((prev) =>
             prev.map((n) => (n.id === current.id ? current : n)),
           );
           setNotice('Could not save changes');
+          return;
         }
-        return;
-      }
-      setNotes((prev) => {
-        const next = prev.map((n) => (n.id === updated.id ? updated : n));
-        return [...next].sort((a, b) => {
-          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-          return b.updatedAt - a.updatedAt;
-        });
-      });
-      if (patch.labelIds) {
-        setLabels(await store.listLabels());
-      }
-      if (before.length > 0) {
-        let message = 'Updated note';
-        if (patch.archived !== undefined) {
-          message = patch.archived ? 'Archived note' : 'Unarchived note';
-        } else if (patch.labelIds !== undefined) {
-          message = 'Updated labels';
+        applyNoteToState(updated);
+        if (patch.labelIds) {
+          setLabels(await store.listLabels());
         }
-        await replaceUndoAction({ kind: 'patch', message, before });
-      }
-    } catch {
-      if (current) {
+        if (before.length > 0) {
+          let message = 'Updated note';
+          if (patch.archived !== undefined) {
+            message = patch.archived ? 'Archived note' : 'Unarchived note';
+          } else if (patch.labelIds !== undefined) {
+            message = 'Updated labels';
+          }
+          await replaceUndoAction({ kind: 'patch', message, before });
+        }
+      } catch (err) {
+        if (isNoteUpdateConflictError(err)) {
+          const serverNote = err.serverNote;
+          if (serverNote) {
+            rememberNoteVersion(serverNote);
+            setSaveConflict({
+              noteId,
+              serverNote,
+              pendingPatch: patch,
+              localBefore: current,
+            });
+          } else {
+            setNotes((prev) =>
+              prev.map((n) => (n.id === current.id ? current : n)),
+            );
+            setNotice('Could not save — note was updated elsewhere');
+          }
+          return;
+        }
         setNotes((prev) =>
           prev.map((n) => (n.id === current.id ? current : n)),
         );
@@ -1146,6 +1214,47 @@ export default function App({ session }: { session: Session | null }) {
             : 'Could not save changes',
         );
       }
+    });
+  }
+
+  async function handleConflictReload() {
+    if (!saveConflict) return;
+    const { noteId, serverNote } = saveConflict;
+    applyNoteToState(serverNote);
+    setSaveConflict(null);
+    setEditorEpoch((n) => n + 1);
+    if (activeNoteId === noteId) {
+      setNotice('Loaded the latest version');
+    }
+  }
+
+  async function handleConflictKeepMine() {
+    if (!saveConflict) return;
+    const { noteId, serverNote, pendingPatch, localBefore } = saveConflict;
+    setSaveConflictBusy(true);
+    try {
+      const updated = await store.updateNote(noteId, pendingPatch, {
+        force: true,
+        expectedUpdatedAtIso: serverNote.updatedAtIso,
+        expectedUpdatedAt: serverNote.updatedAt,
+      });
+      if (!updated) {
+        setNotice('Could not overwrite changes');
+        return;
+      }
+      applyNoteToState(updated);
+      if (pendingPatch.labelIds) {
+        setLabels(await store.listLabels());
+      }
+      setSaveConflict(null);
+      setNotice('Kept your version');
+    } catch {
+      setNotes((prev) =>
+        prev.map((n) => (n.id === localBefore.id ? localBefore : n)),
+      );
+      setNotice('Could not overwrite changes');
+    } finally {
+      setSaveConflictBusy(false);
     }
   }
 
@@ -1162,6 +1271,7 @@ export default function App({ session }: { session: Session | null }) {
         updated = await store.addImage(noteId, file);
       }
       if (updated) {
+        rememberNoteVersion(updated);
         // Merge images only — keep any optimistic title/description already in state.
         setNotes((prev) =>
           prev.map((n) =>
@@ -1170,6 +1280,7 @@ export default function App({ session }: { session: Session | null }) {
                   ...n,
                   images: updated!.images,
                   updatedAt: updated!.updatedAt,
+                  updatedAtIso: updated!.updatedAtIso,
                 }
               : n,
           ),
@@ -1224,10 +1335,16 @@ export default function App({ session }: { session: Session | null }) {
     if (!activeNoteId) return;
     const updated = await store.removeImage(activeNoteId, imageId);
     if (updated) {
+      rememberNoteVersion(updated);
       setNotes((prev) =>
         prev.map((n) =>
           n.id === updated.id
-            ? { ...n, images: updated.images, updatedAt: updated.updatedAt }
+            ? {
+                ...n,
+                images: updated.images,
+                updatedAt: updated.updatedAt,
+                updatedAtIso: updated.updatedAtIso,
+              }
             : n,
         ),
       );
@@ -1239,10 +1356,16 @@ export default function App({ session }: { session: Session | null }) {
     if (!activeNoteId) return;
     const updated = await store.reorderImages(activeNoteId, orderedImageIds);
     if (updated) {
+      rememberNoteVersion(updated);
       setNotes((prev) =>
         prev.map((n) =>
           n.id === updated.id
-            ? { ...n, images: updated.images, updatedAt: updated.updatedAt }
+            ? {
+                ...n,
+                images: updated.images,
+                updatedAt: updated.updatedAt,
+                updatedAtIso: updated.updatedAtIso,
+              }
             : n,
         ),
       );
@@ -1990,8 +2113,24 @@ export default function App({ session }: { session: Session | null }) {
         />
       )}
 
+      {saveConflict && (
+        <SaveConflictDialog
+          holderHint={
+            editLockHolderLabel ||
+            (saveConflict.serverNote.updatedAt
+              ? new Date(saveConflict.serverNote.updatedAt).toLocaleString()
+              : null)
+          }
+          busy={saveConflictBusy}
+          onReload={() => void handleConflictReload()}
+          onKeepMine={() => void handleConflictKeepMine()}
+          onDismiss={() => setSaveConflict(null)}
+        />
+      )}
+
       {activeNote && (
         <NoteEditor
+          key={`${activeNote.id}-${editorEpoch}`}
           readOnly={editorReadOnly}
           canManageAsk={isAdmin && !editLockedByOther}
           note={activeNote}

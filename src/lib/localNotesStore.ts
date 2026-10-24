@@ -22,6 +22,7 @@ import {
 } from './guidelineLines';
 import { normalizeAskItems } from './noteAskItems';
 import { linkKey, meshLinkPairs, normalizeLinkPair } from './noteLinks';
+import { NoteUpdateConflictError } from './noteUpdateConflict';
 
 interface TechLibDB extends DBSchema {
   notes: {
@@ -311,6 +312,12 @@ export async function createNote(input?: {
   return hydrateNote(note);
 }
 
+export type UpdateNoteOptions = {
+  expectedUpdatedAtIso?: string;
+  expectedUpdatedAt?: number;
+  force?: boolean;
+};
+
 export async function updateNote(
   id: string,
   patch: Partial<
@@ -330,12 +337,27 @@ export async function updateNote(
       | 'askItems'
     >
   >,
+  options?: UpdateNoteOptions,
 ): Promise<NoteWithUrls | undefined> {
   const db = await getDb();
   const existing = await db.get('notes', id);
   if (!existing) return undefined;
 
   const base = normalizeNote(existing);
+  if (!options?.force) {
+    const expectedMs =
+      options?.expectedUpdatedAt ??
+      (options?.expectedUpdatedAtIso
+        ? Date.parse(options.expectedUpdatedAtIso)
+        : null);
+    if (
+      expectedMs != null &&
+      Number.isFinite(expectedMs) &&
+      base.updatedAt !== expectedMs
+    ) {
+      throw new NoteUpdateConflictError(id, await hydrateNote(base));
+    }
+  }
   let guidelineLines = base.guidelineLines;
   let disposition = base.disposition;
 

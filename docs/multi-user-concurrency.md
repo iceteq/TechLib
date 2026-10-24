@@ -23,9 +23,9 @@ As of this gameplan’s creation:
 | Roles | **viewer** read-only; **editor** mutates only notes they created; **admin** mutates any |
 | Personal | Cart and reaction *rows* are per signed-in user |
 | Client data | Full `refresh()` on login; then local React state |
-| Live sync | **None** — no Realtime, no polling, no refetch on tab focus |
-| Saves | Partial column updates; title/description on blur; **last-write-wins** (no version check) |
-| Same-note awareness | Soft edit locks (Phase 1) — see below; no versioned conflict UI yet (Phase 2) |
+| Live sync | **None** — no Realtime, no polling, no refetch on tab focus (Phase 3) |
+| Saves | Partial column updates; title/description on blur; **versioned** editor saves (Phase 2) |
+| Same-note awareness | Soft edit locks (Phase 1) + conflict dialog on stale save (Phase 2) |
 
 **Who can collide on one note today?** Two admins, or an admin + the note’s author. Editors cannot edit each other’s notes (UI + RLS).
 
@@ -76,7 +76,7 @@ Live wall updates, conflict merge UI, CRDT.
 
 ## Phase 2 — Optimistic concurrency on save
 
-**Status:** Not started
+**Status:** Implemented
 
 **Why second:** Soft locks are not perfect (expired lease, two tabs, take-over). Saves must not clobber without a warning.
 
@@ -94,15 +94,17 @@ If 0 rows updated: fetch latest → show “Updated by someone else” → **Rel
 
 ### Implementation sketch
 
-- Thread `updatedAt` through `updateNote` (and label replace paths that race).
-- On conflict, surface a small dialog in `NoteEditor` / `App` — not a full page reload unless the user chooses Reload.
-- Treat wipe-and-rewrite label updates carefully (same version gate or transactional replace).
+- Notes carry `updatedAtIso` (exact Postgres timestamptz) for precise `WHERE` matches.
+- `updateNote(id, patch, { expectedUpdatedAtIso | force })` — editor saves are versioned; bulk/undo may omit the check.
+- Per-note save queue avoids false conflicts when title + description blur together.
+- Optimistic UI updates content fields only (does not bump `updatedAt` until the server confirms).
+- `SaveConflictDialog`: Reload (adopt server + remount editor) / Keep mine (force overwrite) / Cancel.
 
 ### Done when
 
-- [ ] Stale saves cannot overwrite without user acknowledgment
-- [ ] Happy path (sole editor) stays one round-trip, no extra lag
-- [ ] Conflict path is understandable on phone and desktop
+- [x] Stale saves cannot overwrite without user acknowledgment
+- [x] Happy path (sole editor) stays one round-trip, no extra lag
+- [x] Conflict path is understandable on phone and desktop
 
 ### Out of scope for this phase
 
@@ -223,7 +225,8 @@ Record shipped work here so later phases know what already landed.
 | Date (Europe/Warsaw) | Phase | What changed | PR / commit |
 |---|---|---|---|
 | 2026-10-24 | — | Gameplan created (baseline documented; no code changes) | merged to main |
-| 2026-10-24 | 1 | Soft edit locks (`note_edit_locks` + editor banner / Take over) | (this branch) |
+| 2026-10-24 | 1 | Soft edit locks (`note_edit_locks` + editor banner / Take over) | PR #85 |
+| 2026-10-24 | 2 | Versioned `updateNote` + Save conflict dialog (Reload / Keep mine) | (this branch) |
 
 <!--
 Example row after a phase ships:

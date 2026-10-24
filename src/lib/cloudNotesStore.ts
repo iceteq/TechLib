@@ -33,8 +33,21 @@ import {
 } from './signedUrlCache';
 import { prefetchImages } from './prefetchImages';
 import { encodeWallThumb, wallDerivativePath } from './wallThumb';
+import { NoteUpdateConflictError } from './noteUpdateConflict';
 
 const BUCKET = 'note-images';
+
+export type UpdateNoteOptions = {
+  /**
+   * Only apply the update when the row's `updated_at` still matches.
+   * Prefer the note's `updatedAtIso` when available.
+   */
+  expectedUpdatedAtIso?: string;
+  /** Milliseconds fallback when ISO is unavailable (local / legacy). */
+  expectedUpdatedAt?: number;
+  /** Skip the version check (Keep mine / forced overwrite). */
+  force?: boolean;
+};
 
 /** image id → storage path (needed to re-sign full URLs after wall hydrate). */
 const storagePathByImageId = new Map<string, string>();
@@ -122,6 +135,7 @@ function noteFromRow(
     deletedAt: row.deleted_at ? ms(row.deleted_at) : null,
     createdAt: ms(row.created_at),
     updatedAt: ms(row.updated_at),
+    updatedAtIso: row.updated_at,
     labelIds,
     images,
   };
@@ -437,6 +451,7 @@ async function hydrateRows(
       deletedAt: row.deleted_at ? ms(row.deleted_at) : null,
       createdAt: ms(row.created_at),
       updatedAt: ms(row.updated_at),
+      updatedAtIso: row.updated_at,
       labelIds: labelsMap.get(row.id) ?? [],
       images,
     };
@@ -1061,6 +1076,7 @@ export async function updateNote(
       | 'askItems'
     >
   >,
+  options?: UpdateNoteOptions,
 ): Promise<NoteWithUrls | undefined> {
   await requireUserId();
   const {
@@ -1096,8 +1112,26 @@ export async function updateNote(
     update.disposition = primaryDispositionFromLines(lines);
   }
 
-  const { error } = await getSupabase().from('notes').update(update).eq('id', id);
+  const expectedIso =
+    options?.expectedUpdatedAtIso ??
+    (options?.expectedUpdatedAt != null
+      ? iso(options.expectedUpdatedAt)
+      : null);
+  const useVersionCheck = Boolean(expectedIso) && !options?.force;
+
+  let query = getSupabase().from('notes').update(update).eq('id', id);
+  if (useVersionCheck && expectedIso) {
+    query = query.eq('updated_at', expectedIso);
+  }
+
+  const { data, error } = await query.select('id');
   throwIf(error);
+
+  if (useVersionCheck && (!data || data.length === 0)) {
+    const latest = await getNote(id);
+    throw new NoteUpdateConflictError(id, latest);
+  }
+
   if (labelIds) await replaceNoteLabels(id, labelIds);
   return getNote(id);
 }

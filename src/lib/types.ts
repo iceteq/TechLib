@@ -123,6 +123,12 @@ export interface Note {
   deletedAt: number | null;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Exact server `updated_at` timestamptz (ISO). Used for optimistic
+   * concurrency so WHERE updated_at = … matches Postgres precision.
+   * Local mode may omit this and use `updatedAt` ms instead.
+   */
+  updatedAtIso?: string;
   labelIds: string[];
   images: NoteImage[];
 }
