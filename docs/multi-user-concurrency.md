@@ -13,21 +13,37 @@ Related product context: shared workspace roles live in `supabase/migrations/001
 
 ---
 
-## Current state (baseline)
-
-As of this gameplan’s creation:
+## Current state (shipped collaboration)
 
 | Area | Behavior |
 |---|---|
 | Library | One shared workspace; members see the same notes/labels/types/images |
 | Roles | **viewer** read-only; **editor** mutates only notes they created; **admin** mutates any |
-| Personal | Cart is per signed-in user; reaction *writes* are personal, *counts* are team-visible (Phase 4) |
+| Personal | Cart is per signed-in user; reaction *writes* are personal, *counts* are team-visible (Phase 4; UI gated by `SHOW_REACTIONS`) |
 | Client data | Full `refresh()` on login; then local React state |
 | Live sync | Realtime wall patches + focus/reconnect incremental sync (Phase 3) |
 | Saves | Partial column updates; title/description on blur; **versioned** editor saves (Phase 2) |
 | Same-note awareness | Soft edit locks (Phase 1) + conflict dialog on stale save (Phase 2) |
+| Author on cards | Short label from `createdBy` (“you” / email local-part); `SHOW_NOTE_AUTHOR` |
 
 **Who can collide on one note today?** Two admins, or an admin + the note’s author. Editors cannot edit each other’s notes (UI + RLS).
+
+### Collaboration UX (enjoyable multiplayer)
+
+What the floor team should *feel* while sharing TechLib:
+
+| Feature | Status | Notes |
+|---|---|---|
+| Soft lock / “Editing: name” | Shipped (Phase 1) | Deploy `007_note_edit_locks.sql` |
+| Stale-save conflict dialog | Shipped (Phase 2) | Reload / Keep mine |
+| Live wall updates | Shipped (Phase 3) | Deploy `008_realtime_library_tables.sql` |
+| Team reaction counts | Shipped (Phase 4), **UI off** | `SHOW_REACTIONS = false`; deploy `009` |
+| **Author on wall cards** | **Shipped** | `SHOW_NOTE_AUTHOR`; deploy `010_library_member_labels.sql` |
+| Online “who’s here” strip | Idea | Library-level presence |
+| Remote-change wall pulse | Idea | Highlight notes others just changed |
+| Debounced autosave | Idea (Phase 5 optional) | Fewer blur races |
+
+Flip flags in `src/lib/config.ts`. SQL steps are listed in `supabase/README.md`.
 
 ---
 
@@ -192,7 +208,7 @@ Full offline-first sync engine; CRDT body editing.
 - Incremental fetch: `WHERE updated_at > :cursor` (or rely on Realtime after first load).
 - Avoid re-signing every image on refresh (keep `signedUrlCache` / wall-thumb path).
 - Coalesce Realtime bursts; prioritize visible notes.
-- Optional UX: show **author** on cards (`createdBy` → email) so people know whose note it is before opening.
+- ~~Optional UX: show **author** on cards~~ → **done** (see Collaboration UX table).
 - Optional: debounced autosave of title/description (~1–2s) *after* Phases 1–2, to reduce blur-race lost work.
 
 ### Done when
@@ -238,6 +254,7 @@ Record shipped work here so later phases know what already landed.
 | 2026-10-24 | 2 | Versioned `updateNote` + Save conflict dialog (Reload / Keep mine) | merged to main |
 | 2026-10-24 | 3 | Live wall sync (Realtime + focus cursor + remote-change banner) | merged to main |
 | 2026-10-24 | 4 | Team-visible reactions (RLS + aggregate); UI gated off via `SHOW_REACTIONS` | merged to main |
+| 2026-10-24 | UX | Author labels on wall cards (`SHOW_NOTE_AUTHOR` + `010_library_member_labels`) | (this branch) |
 
 <!--
 Example row after a phase ships:

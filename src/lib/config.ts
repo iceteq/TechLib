@@ -16,6 +16,12 @@ export const SHOW_GUIDELINES = false;
 export const SHOW_REACTIONS = false;
 
 /**
+ * When true, wall cards show a short author label from `createdBy`
+ * (email local-part, or “you” for the current user).
+ */
+export const SHOW_NOTE_AUTHOR = true;
+
+/**
  * When false, the ✅ “sorted / handled” mark is hidden (wall badge, editor
  * toggle). Follows SHOW_REACTIONS for now.
  */

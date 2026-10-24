@@ -95,6 +95,18 @@ export async function listWorkspaceMembers(): Promise<WorkspaceMember[]> {
   }));
 }
 
+/** userId → email for author labels (any library member). */
+export async function listLibraryMemberLabels(): Promise<Map<string, string>> {
+  if (!isCloudConfigured()) return new Map();
+  const { data, error } = await getSupabase().rpc('list_library_member_labels');
+  if (error) throw new Error(error.message);
+  const map = new Map<string, string>();
+  for (const row of (data ?? []) as Array<{ user_id: string; email: string }>) {
+    if (row.user_id && row.email) map.set(row.user_id, row.email);
+  }
+  return map;
+}
+
 export async function setMemberRole(
   userId: string,
   role: WorkspaceRole,

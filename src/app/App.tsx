@@ -4,9 +4,11 @@ import { prefetchImages } from '../lib/prefetchImages';
 import {
   NOTE_PREVIEW_IMAGE_LIMIT,
   SHOW_GUIDELINES,
+  SHOW_NOTE_AUTHOR,
   SHOW_REACTIONS,
   SHOW_SORTED,
 } from '../lib/config';
+import { authorLabelForUser } from '../lib/authorLabel';
 import {
   loadCreateDefaults,
   saveCreateDefaults,
@@ -93,6 +95,7 @@ import {
   canMutateNote,
   ensureWorkspaceMembership,
   isLibraryAdmin,
+  listLibraryMemberLabels,
   LOCAL_MEMBERSHIP,
   type WorkspaceMembership,
 } from '../lib/workspace';
@@ -252,6 +255,10 @@ export default function App({ session }: { session: Session | null }) {
   const [membership, setMembership] = useState<WorkspaceMembership | null>(
     isCloudConfigured() ? null : LOCAL_MEMBERSHIP,
   );
+  /** userId → email for wall author labels. */
+  const [memberEmailByUserId, setMemberEmailByUserId] = useState<
+    Map<string, string>
+  >(() => new Map());
   const [membersOpen, setMembersOpen] = useState(false);
   const [wallBackfillBusy, setWallBackfillBusy] = useState(false);
   const [saveConflict, setSaveConflict] = useState<SaveConflictState | null>(
@@ -472,6 +479,21 @@ export default function App({ session }: { session: Session | null }) {
           ? await ensureWorkspaceMembership()
           : LOCAL_MEMBERSHIP;
         setMembership(nextMembership);
+        if (SHOW_NOTE_AUTHOR && isCloudConfigured()) {
+          try {
+            const emails = await listLibraryMemberLabels();
+            const selfEmail = session?.user?.email;
+            if (selfEmail && nextMembership.userId) {
+              emails.set(nextMembership.userId, selfEmail);
+            }
+            setMemberEmailByUserId(emails);
+          } catch (err) {
+            console.error('member labels failed', err);
+            setMemberEmailByUserId(new Map());
+          }
+        } else {
+          setMemberEmailByUserId(new Map());
+        }
         if (canEditLibrary(nextMembership.role)) {
           await store.purgeSoftDeletedNotes();
         }
@@ -799,6 +821,22 @@ export default function App({ session }: { session: Session | null }) {
     }
     return map;
   }, [notes]);
+
+  const authorLabelByUserId = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!SHOW_NOTE_AUTHOR) return map;
+    const currentId = membership?.userId ?? null;
+    const ids = new Set<string>();
+    for (const note of notes) {
+      if (note.createdBy) ids.add(note.createdBy);
+    }
+    if (currentId) ids.add(currentId);
+    for (const id of ids) {
+      const label = authorLabelForUser(id, memberEmailByUserId, currentId);
+      if (label) map.set(id, label);
+    }
+    return map;
+  }, [memberEmailByUserId, membership?.userId, notes]);
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
   const canEditActiveNote = noteMutable(activeNote?.createdBy);
@@ -2179,6 +2217,7 @@ export default function App({ session }: { session: Session | null }) {
               : undefined
           }
           sortedNoteIds={sortedNoteIds}
+          authorLabelByUserId={authorLabelByUserId}
           showBarcodes={viewPrefs.barcodes}
           showPhotos={viewPrefs.photos}
           showDescription={viewPrefs.description}

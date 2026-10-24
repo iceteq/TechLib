@@ -13,9 +13,10 @@
 11. Run `supabase/migrations/007_note_edit_locks.sql` (soft edit locks so two people don’t overwrite the same open note)
 12. Run `supabase/migrations/008_realtime_library_tables.sql` (Realtime publication for live wall sync)
 13. Run `supabase/migrations/009_team_reactions.sql` (team-visible reaction counts; cart stays personal)
-14. (Recommended) **Authentication → Providers → Email**:
+14. Run `supabase/migrations/010_library_member_labels.sql` (author labels on wall cards)
+15. (Recommended) **Authentication → Providers → Email**:
    turn **off** “Confirm email” so signup signs you in immediately
-12. Restart `npm run dev`, open the app, **Sign up once** with your email  
+16. Restart `npm run dev`, open the app, **Sign up once** with your email  
    - First account becomes **admin** of the shared library  
    - Later accounts join as **viewers** (browse only) until an admin promotes them to **editor** or **admin**  
    - **Editors** can create notes and change only their own notes/images; **admins** can change any  

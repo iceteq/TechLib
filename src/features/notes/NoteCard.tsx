@@ -197,6 +197,8 @@ interface NoteCardProps {
   priorityImage?: boolean;
   /** Ask the store to sign this image next (viewport-visible, still waiting). */
   onRequestWallImageUrl?: (imageId: string) => void;
+  /** Short author label (“you” / email local-part). Hidden when null. */
+  authorLabel?: string | null;
 }
 
 export const NoteCard = memo(function NoteCard({
@@ -235,6 +237,7 @@ export const NoteCard = memo(function NoteCard({
   onShowRelated,
   priorityImage = false,
   onRequestWallImageUrl,
+  authorLabel = null,
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
@@ -525,14 +528,30 @@ export const NoteCard = memo(function NoteCard({
                 {relatedCount} related
               </button>
             )}
-            {showAge && (
-              <time
-                className={styles.age}
-                dateTime={new Date(note.createdAt).toISOString()}
-                title={`Created ${new Date(note.createdAt).toLocaleString()}`}
-              >
-                {formatNoteAge(note.createdAt)}
-              </time>
+            {(authorLabel || showAge) && (
+              <div className={styles.titleMeta}>
+                {authorLabel ? (
+                  <span
+                    className={styles.author}
+                    title={
+                      authorLabel === 'you'
+                        ? 'Created by you'
+                        : `Created by ${authorLabel}`
+                    }
+                  >
+                    {authorLabel}
+                  </span>
+                ) : null}
+                {showAge && (
+                  <time
+                    className={styles.age}
+                    dateTime={new Date(note.createdAt).toISOString()}
+                    title={`Created ${new Date(note.createdAt).toLocaleString()}`}
+                  >
+                    {formatNoteAge(note.createdAt)}
+                  </time>
+                )}
+              </div>
             )}
           </div>
           {(showTypeChip || !noteType || showStock) && (
