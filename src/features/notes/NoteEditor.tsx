@@ -119,6 +119,8 @@ interface NoteEditorProps {
   canTakeOverEditLock?: boolean;
   takeOverBusy?: boolean;
   onTakeOverEditLock?: () => void | Promise<void>;
+  /** Live sync: discard dirty drafts and reload server version. */
+  onReloadRemoteChanges?: () => void;
 }
 
 export function NoteEditor({
@@ -154,6 +156,7 @@ export function NoteEditor({
   canTakeOverEditLock = false,
   takeOverBusy = false,
   onTakeOverEditLock,
+  onReloadRemoteChanges,
 }: NoteEditorProps) {
   const cartJuice = useJuiceBurst();
   const archiveJuice = useJuiceBurst();
@@ -172,6 +175,8 @@ export function NoteEditor({
   const [dropActive, setDropActive] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [relatedHighlight, setRelatedHighlight] = useState(false);
+  const [remoteChangePending, setRemoteChangePending] = useState(false);
+  const remoteBaselineIsoRef = useRef(note.updatedAtIso ?? null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -268,10 +273,40 @@ export function NoteEditor({
     setAssignField(null);
     setColorOpen(false);
     setMoreOpen(false);
+    setRemoteChangePending(false);
+    remoteBaselineIsoRef.current = note.updatedAtIso ?? null;
     syncedTitleRef.current = note.title;
     syncedDescriptionRef.current = note.description;
     syncedSpecialCaseRef.current = note.specialCase ?? '';
   }, [note.id]);
+
+  // Live sync advanced the server version while local text drafts diverge.
+  useEffect(() => {
+    const iso = note.updatedAtIso ?? null;
+    if (!iso) return;
+    if (iso === remoteBaselineIsoRef.current) {
+      setRemoteChangePending(false);
+      return;
+    }
+    const diverged =
+      title !== note.title ||
+      description !== note.description ||
+      specialCase !== (note.specialCase ?? '');
+    if (diverged) {
+      setRemoteChangePending(true);
+    } else {
+      remoteBaselineIsoRef.current = iso;
+      setRemoteChangePending(false);
+    }
+  }, [
+    note.updatedAtIso,
+    note.title,
+    note.description,
+    note.specialCase,
+    title,
+    description,
+    specialCase,
+  ]);
 
   // Adopt remote text when it changes and the field is not dirty.
   useEffect(() => {
@@ -1145,6 +1180,24 @@ export function NoteEditor({
                 {takeOverBusy ? 'Taking over…' : 'Take over'}
               </button>
             )}
+          </div>
+        )}
+
+        {remoteChangePending && onReloadRemoteChanges && (
+          <div className={styles.remoteChangeBanner} role="status">
+            <span className={styles.editLockText}>
+              Updated elsewhere — your unsaved text is kept
+            </span>
+            <button
+              type="button"
+              className={styles.editLockTakeOver}
+              onClick={() => {
+                setRemoteChangePending(false);
+                onReloadRemoteChanges();
+              }}
+            >
+              Reload
+            </button>
           </div>
         )}
 

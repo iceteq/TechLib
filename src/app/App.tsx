@@ -94,6 +94,8 @@ import {
 import { formatLockHolderLabel } from '../lib/noteEditLock';
 import { useNoteEditLock } from '../lib/useNoteEditLock';
 import { isNoteUpdateConflictError } from '../lib/noteUpdateConflict';
+import { mergeRemoteNotesIntoWall } from '../lib/mergeRemoteNotes';
+import { useLiveLibrarySync } from '../lib/useLiveLibrarySync';
 
 type NoteMetaPatch = {
   title?: string;
@@ -307,6 +309,9 @@ export default function App({ session }: { session: Session | null }) {
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
   const notesRef = useRef(notes);
   notesRef.current = notes;
+  /** Cursor for incremental live sync (`notes.updated_at`). */
+  const lastSyncIsoRef = useRef<string | null>(null);
+  const activeNoteIdRef = useRef<string | null>(null);
   /** Ignore stale progressive thumb batches after a newer refresh. */
   const thumbResolveGen = useRef(0);
   const [labels, setLabels] = useState<Label[]>([]);
@@ -338,6 +343,7 @@ export default function App({ session }: { session: Session | null }) {
   const [relatedPartKey, setRelatedPartKey] = useState<string | null>(null);
   const [relatedPartLabel, setRelatedPartLabel] = useState<string | null>(null);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  activeNoteIdRef.current = activeNoteId;
   /** Note ids waiting to pulse on the wall after a capture create. */
   const pendingWallPulseIds = useRef<Set<string>>(new Set());
   const [wallPulseNoteIds, setWallPulseNoteIds] = useState<string[]>([]);
@@ -394,11 +400,14 @@ export default function App({ session }: { session: Session | null }) {
 
     const nextNotes = await notesPromise;
     setNotes(nextNotes);
+    let maxIso = lastSyncIsoRef.current;
     for (const note of nextNotes) {
       if (note.updatedAtIso) {
         knownUpdatedAtIsoRef.current.set(note.id, note.updatedAtIso);
+        if (!maxIso || note.updatedAtIso > maxIso) maxIso = note.updatedAtIso;
       }
     }
+    if (maxIso) lastSyncIsoRef.current = maxIso;
 
     const gen = ++thumbResolveGen.current;
     const patchImages = (partial: typeof nextNotes) => {
@@ -471,6 +480,154 @@ export default function App({ session }: { session: Session | null }) {
       }
     })();
   }, [refresh, session?.user?.id]);
+
+  const refreshLibraryMeta = useCallback(async () => {
+    try {
+      const [nextLabels, nextTypes, nextStock, nextLinks] = await Promise.all([
+        store.listLabels(),
+        store.listNoteTypes(),
+        store.listStockLocations(),
+        store.listNoteLinks(),
+      ]);
+      setLabels(nextLabels);
+      setNoteTypes(nextTypes);
+      setStockLocations(nextStock);
+      setNoteLinks(nextLinks);
+    } catch (err) {
+      console.error('live meta sync failed', err);
+    }
+  }, []);
+
+  const applyRemoteNoteIds = useCallback((ids: string[]) => {
+    void (async () => {
+      const unique = [...new Set(ids.filter(Boolean))];
+      if (unique.length === 0) return;
+      try {
+        let fetched = await store.fetchNotesByIds(unique, 'wall');
+        const activeId = activeNoteIdRef.current;
+        if (activeId && unique.includes(activeId)) {
+          const full = await store.getNote(activeId);
+          if (!full) {
+            setActiveNoteId(null);
+            setNotes((prev) => prev.filter((n) => n.id !== activeId));
+            knownUpdatedAtIsoRef.current.delete(activeId);
+            setNotice('This note was removed');
+            fetched = fetched.filter((n) => n.id !== activeId);
+          } else if (full.deletedAt != null) {
+            setActiveNoteId(null);
+            setNotice('This note was deleted');
+            fetched = fetched.map((n) => (n.id === full.id ? full : n));
+          } else {
+            fetched = fetched.map((n) => (n.id === full.id ? full : n));
+          }
+        }
+
+        const found = new Set(fetched.map((n) => n.id));
+        const missing = unique.filter((id) => !found.has(id));
+
+        setNotes((prev) => {
+          let base = prev;
+          if (missing.length > 0) {
+            const drop = new Set(missing);
+            base = prev.filter((n) => !drop.has(n.id));
+            for (const id of missing) {
+              knownUpdatedAtIsoRef.current.delete(id);
+            }
+          }
+          return mergeRemoteNotesIntoWall(base, fetched);
+        });
+
+        let maxIso = lastSyncIsoRef.current;
+        for (const note of fetched) {
+          if (note.updatedAtIso) {
+            knownUpdatedAtIsoRef.current.set(note.id, note.updatedAtIso);
+            if (!maxIso || note.updatedAtIso > maxIso) {
+              maxIso = note.updatedAtIso;
+            }
+          }
+        }
+        if (maxIso) lastSyncIsoRef.current = maxIso;
+
+        const alive = fetched.filter((n) => n.deletedAt == null);
+        if (alive.length > 0) {
+          const gen = thumbResolveGen.current;
+          void store
+            .resolveWallThumbs(alive, (partial) => {
+              if (gen !== thumbResolveGen.current) return;
+              setNotes((prev) => mergeRemoteNotesIntoWall(prev, partial));
+              prefetchImages(
+                partial.flatMap((note) =>
+                  note.images
+                    .slice(0, NOTE_PREVIEW_IMAGE_LIMIT)
+                    .map((img) => img.thumbUrl || img.url),
+                ),
+              );
+            })
+            .catch((err) => {
+              console.error('live wall thumbs failed', err);
+            });
+        }
+      } catch (err) {
+        console.error('live note sync failed', err);
+      }
+    })();
+  }, []);
+
+  const resyncSinceCursor = useCallback(() => {
+    void (async () => {
+      const since = lastSyncIsoRef.current;
+      if (!since) return;
+      try {
+        const changed = await store.listNotesChangedSince(since);
+        if (changed.length === 0) return;
+        setNotes((prev) => mergeRemoteNotesIntoWall(prev, changed));
+        let maxIso = since;
+        for (const note of changed) {
+          if (note.updatedAtIso) {
+            knownUpdatedAtIsoRef.current.set(note.id, note.updatedAtIso);
+            if (note.updatedAtIso > maxIso) maxIso = note.updatedAtIso;
+          }
+        }
+        lastSyncIsoRef.current = maxIso;
+
+        const activeId = activeNoteIdRef.current;
+        if (
+          activeId &&
+          changed.some((n) => n.id === activeId && n.deletedAt != null)
+        ) {
+          setActiveNoteId(null);
+          setNotice('This note was deleted');
+        } else if (activeId && changed.some((n) => n.id === activeId)) {
+          const full = await store.getNote(activeId);
+          if (full && full.deletedAt == null) {
+            setNotes((prev) => mergeRemoteNotesIntoWall(prev, [full]));
+            if (full.updatedAtIso) {
+              knownUpdatedAtIsoRef.current.set(full.id, full.updatedAtIso);
+            }
+          }
+        }
+
+        const alive = changed.filter((n) => n.deletedAt == null);
+        if (alive.length > 0) {
+          const gen = thumbResolveGen.current;
+          void store
+            .resolveWallThumbs(alive, (partial) => {
+              if (gen !== thumbResolveGen.current) return;
+              setNotes((prev) => mergeRemoteNotesIntoWall(prev, partial));
+            })
+            .catch(() => {});
+        }
+      } catch (err) {
+        console.error('incremental library sync failed', err);
+      }
+    })();
+  }, []);
+
+  useLiveLibrarySync(ready && isCloudConfigured() && membership != null, {
+    onNotesTouched: applyRemoteNoteIds,
+    onMetaTouched: () => void refreshLibraryMeta(),
+    onResync: resyncSinceCursor,
+  });
 
   const wallSearch = resolveListSearch(
     search,
@@ -2163,6 +2320,7 @@ export default function App({ session }: { session: Session | null }) {
           canTakeOverEditLock={canEditActiveNote && editLockedByOther}
           takeOverBusy={editLock.claiming}
           onTakeOverEditLock={() => void editLock.takeOver()}
+          onReloadRemoteChanges={() => setEditorEpoch((n) => n + 1)}
         />
       )}
     </AppShell>

@@ -1010,6 +1010,47 @@ export async function getNote(id: string): Promise<NoteWithUrls | undefined> {
   return note;
 }
 
+/**
+ * Fetch notes by id for live sync patches (includes soft-deleted so callers
+ * can drop them from the wall). Wall hydrate = cache-only image URLs.
+ */
+export async function fetchNotesByIds(
+  ids: string[],
+  mode: HydrateMode = 'wall',
+): Promise<NoteWithUrls[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return [];
+  await requireUserId();
+  const rows: NoteRow[] = [];
+  for (let i = 0; i < unique.length; i += NOTE_ID_IN_CHUNK) {
+    const chunk = unique.slice(i, i + NOTE_ID_IN_CHUNK);
+    const { data, error } = await getSupabase()
+      .from('notes')
+      .select('*')
+      .in('id', chunk);
+    throwIf(error);
+    rows.push(...((data ?? []) as NoteRow[]));
+  }
+  if (rows.length === 0) return [];
+  return hydrateRows(rows, mode);
+}
+
+/** Notes touched after `sinceIso` (inclusive of soft-deletes). */
+export async function listNotesChangedSince(
+  sinceIso: string,
+): Promise<NoteWithUrls[]> {
+  if (!sinceIso) return listNotes();
+  await requireUserId();
+  const { data, error } = await getSupabase()
+    .from('notes')
+    .select('*')
+    .gt('updated_at', sinceIso);
+  throwIf(error);
+  const rows = (data ?? []) as NoteRow[];
+  if (rows.length === 0) return [];
+  return hydrateRows(rows, 'wall');
+}
+
 export async function createNote(input?: {
   title?: string;
   description?: string;

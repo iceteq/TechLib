@@ -270,6 +270,29 @@ export async function getNote(id: string): Promise<NoteWithUrls | undefined> {
   return hydrateNote(note);
 }
 
+/** Local / single-user: return matching notes (including soft-deleted). */
+export async function fetchNotesByIds(
+  ids: string[],
+  _mode?: 'wall' | 'full',
+): Promise<NoteWithUrls[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return [];
+  const db = await getDb();
+  const out: NoteWithUrls[] = [];
+  for (const id of unique) {
+    const note = await db.get('notes', id);
+    if (note) out.push(await hydrateNote(note));
+  }
+  return out;
+}
+
+/** Local mode has no remote peers — empty delta. */
+export async function listNotesChangedSince(
+  _sinceIso: string,
+): Promise<NoteWithUrls[]> {
+  return [];
+}
+
 export async function createNote(input?: {
   title?: string;
   description?: string;

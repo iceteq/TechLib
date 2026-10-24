@@ -23,7 +23,7 @@ As of this gameplan’s creation:
 | Roles | **viewer** read-only; **editor** mutates only notes they created; **admin** mutates any |
 | Personal | Cart and reaction *rows* are per signed-in user |
 | Client data | Full `refresh()` on login; then local React state |
-| Live sync | **None** — no Realtime, no polling, no refetch on tab focus (Phase 3) |
+| Live sync | Realtime wall patches + focus/reconnect incremental sync (Phase 3) |
 | Saves | Partial column updates; title/description on blur; **versioned** editor saves (Phase 2) |
 | Same-note awareness | Soft edit locks (Phase 1) + conflict dialog on stale save (Phase 2) |
 
@@ -114,7 +114,7 @@ Autosave cadence changes (optional follow-up after locks + versions exist).
 
 ## Phase 3 — Live wall sync (Realtime or focus sync)
 
-**Status:** Not started
+**Status:** Implemented (pending deploy of `008_realtime_library_tables.sql`)
 
 **Why third:** Library should feel multiplayer without forcing full reloads. Also avoids “I thought that note was still mine” after someone else archived/deleted it.
 
@@ -131,16 +131,18 @@ Rules:
 
 ### Implementation sketch
 
-- Supabase Realtime on `notes`, `note_images`, `note_labels` (and optionally types/labels/stock) scoped to the library owner.
-- Debounce/coalesce bursts (e.g. many image inserts) so the wall does not thrash.
-- Keep signed-URL cache hot; do not re-sign every image on every remote event.
+- Migration `008_realtime_library_tables.sql` publishes notes / images / labels / types / stock / links.
+- `useLiveLibrarySync` coalesces `postgres_changes` → `fetchNotesByIds` / meta list refresh.
+- `mergeRemoteNotesIntoWall` patches local state; preserves signed URLs; drops soft-deletes.
+- `listNotesChangedSince` on tab visible / Realtime re-subscribe (skips first connect).
+- NoteEditor banner: “Updated elsewhere” + Reload (remount) when drafts diverge from a newer server version.
 
 ### Done when
 
-- [ ] Second browser sees another user’s new/edited note without a manual reload
-- [ ] Open dirty editor is not clobbered by remote patches
-- [ ] Focus/reconnect recovers if the socket was down
-- [ ] Typical session does not re-run a full library hydrate on every remote change
+- [x] Second browser sees another user’s new/edited note without a manual reload
+- [x] Open dirty editor is not clobbered by remote patches
+- [x] Focus/reconnect recovers if the socket was down
+- [x] Typical session does not re-run a full library hydrate on every remote change
 
 ### Out of scope for this phase
 
@@ -226,7 +228,8 @@ Record shipped work here so later phases know what already landed.
 |---|---|---|---|
 | 2026-10-24 | — | Gameplan created (baseline documented; no code changes) | merged to main |
 | 2026-10-24 | 1 | Soft edit locks (`note_edit_locks` + editor banner / Take over) | PR #85 |
-| 2026-10-24 | 2 | Versioned `updateNote` + Save conflict dialog (Reload / Keep mine) | (this branch) |
+| 2026-10-24 | 2 | Versioned `updateNote` + Save conflict dialog (Reload / Keep mine) | merged to main |
+| 2026-10-24 | 3 | Live wall sync (Realtime + focus cursor + remote-change banner) | (this branch) |
 
 <!--
 Example row after a phase ships:

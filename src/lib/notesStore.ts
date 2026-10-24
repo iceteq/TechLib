@@ -10,6 +10,12 @@ export const listNotes = (...args: Parameters<typeof local.listNotes>) =>
   api().listNotes(...args);
 export const getNote = (...args: Parameters<typeof local.getNote>) =>
   api().getNote(...args);
+export const fetchNotesByIds = (
+  ...args: Parameters<typeof local.fetchNotesByIds>
+) => api().fetchNotesByIds(...args);
+export const listNotesChangedSince = (
+  ...args: Parameters<typeof local.listNotesChangedSince>
+) => api().listNotesChangedSince(...args);
 export const ensureFullImageUrls = (
   ...args: Parameters<typeof local.ensureFullImageUrls>
 ) => api().ensureFullImageUrls(...args);
