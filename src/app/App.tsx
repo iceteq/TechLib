@@ -6,11 +6,13 @@ import {
   REMOTE_WALL_PULSE_CAP,
   SHOW_GUIDELINES,
   SHOW_NOTE_AUTHOR,
+  SHOW_ONLINE_PRESENCE,
   SHOW_REACTIONS,
   SHOW_REMOTE_WALL_PULSE,
   SHOW_SORTED,
 } from '../lib/config';
 import { authorLabelForUser } from '../lib/authorLabel';
+import { useLibraryPresence } from '../lib/useLibraryPresence';
 import {
   loadCreateDefaults,
   saveCreateDefaults,
@@ -21,6 +23,7 @@ import {
   saveFilterSession,
 } from '../lib/filterSession';
 import { AppShell } from '../features/shell/AppShell';
+import { PresenceStrip } from '../features/shell/PresenceStrip';
 import { Sidebar } from '../features/shell/Sidebar';
 import { CollectionView } from '../features/notes/CollectionView';
 import { NoteEditor } from '../features/notes/NoteEditor';
@@ -670,6 +673,12 @@ export default function App({ session }: { session: Session | null }) {
     onMetaTouched: () => void refreshLibraryMeta(),
     onResync: resyncSinceCursor,
   });
+
+  const onlineMembers = useLibraryPresence(
+    ready && SHOW_ONLINE_PRESENCE && isCloudConfigured() && membership != null,
+    membership?.userId,
+    session?.user?.email ?? null,
+  );
 
   const wallSearch = resolveListSearch(
     search,
@@ -2125,6 +2134,11 @@ export default function App({ session }: { session: Session | null }) {
       onOrTermsChange={setOrTerms}
       viewPrefs={viewPrefs}
       onViewPrefsChange={updateViewPrefs}
+      presence={
+        SHOW_ONLINE_PRESENCE ? (
+          <PresenceStrip members={onlineMembers} />
+        ) : null
+      }
       sidebar={
         <Sidebar
           canEdit={canEdit}

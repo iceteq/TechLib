@@ -31,6 +31,12 @@ export const SHOW_REMOTE_WALL_PULSE = true;
 export const REMOTE_WALL_PULSE_CAP = 15;
 
 /**
+ * When true, show a quiet “N online · names” strip when at least one
+ * other library member is connected (Supabase Realtime Presence).
+ */
+export const SHOW_ONLINE_PRESENCE = true;
+
+/**
  * When false, the ✅ “sorted / handled” mark is hidden (wall badge, editor
  * toggle). Follows SHOW_REACTIONS for now.
  */

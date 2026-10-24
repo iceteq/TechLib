@@ -9,6 +9,8 @@ import styles from './AppShell.module.css';
 interface AppShellProps {
   sidebar: ReactNode;
   children: ReactNode;
+  /** Optional quiet strip under the topbar (e.g. online presence). */
+  presence?: ReactNode;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   search: string;
@@ -22,6 +24,7 @@ interface AppShellProps {
 export function AppShell({
   sidebar,
   children,
+  presence = null,
   sidebarOpen,
   onToggleSidebar,
   search,
@@ -56,6 +59,7 @@ export function AppShell({
           <ViewOptionsMenu prefs={viewPrefs} onChange={onViewPrefsChange} />
         </div>
       </header>
+      {presence}
 
       <div className={styles.body}>
         <aside
