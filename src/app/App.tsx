@@ -506,7 +506,7 @@ export default function App({ session }: { session: Session | null }) {
         setReady(true);
       }
     })();
-  }, [refresh, session?.user?.id]);
+  }, [refresh, session?.user?.id, session?.user?.email]);
 
   const refreshLibraryMeta = useCallback(async () => {
     try {
