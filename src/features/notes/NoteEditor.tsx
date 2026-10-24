@@ -113,6 +113,12 @@ interface NoteEditorProps {
   onRemoveRelated?: (noteId: string) => Promise<void>;
   /** Jump to wall filtered to this part-number family (uses draft title). */
   onShowAllRelated?: (title: string) => void;
+  /** Soft lock: another member is editing this note. */
+  editLockHolder?: string | null;
+  /** Show Take over when the current user may mutate this note. */
+  canTakeOverEditLock?: boolean;
+  takeOverBusy?: boolean;
+  onTakeOverEditLock?: () => void | Promise<void>;
 }
 
 export function NoteEditor({
@@ -144,6 +150,10 @@ export function NoteEditor({
   onOpenRelated,
   onRemoveRelated,
   onShowAllRelated,
+  editLockHolder = null,
+  canTakeOverEditLock = false,
+  takeOverBusy = false,
+  onTakeOverEditLock,
 }: NoteEditorProps) {
   const cartJuice = useJuiceBurst();
   const archiveJuice = useJuiceBurst();
@@ -1118,6 +1128,25 @@ export function NoteEditor({
             )}
           </div>
         </div>
+
+        {editLockHolder && (
+          <div className={styles.editLockBanner} role="status">
+            <span className={styles.editLockText}>
+              Editing: <strong>{editLockHolder}</strong>
+              {readOnly ? ' — view only' : ''}
+            </span>
+            {canTakeOverEditLock && onTakeOverEditLock && (
+              <button
+                type="button"
+                className={styles.editLockTakeOver}
+                disabled={takeOverBusy}
+                onClick={() => void onTakeOverEditLock()}
+              >
+                {takeOverBusy ? 'Taking over…' : 'Take over'}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className={styles.dialogBody}>
           <ImageGallery

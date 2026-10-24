@@ -1,7 +1,8 @@
 -- TechLib Supabase schema
 -- Solo install: run this file, then migrations/001_workspace_roles.sql
 -- (001 adds shared-library membership: viewer / editor / admin)
--- through migrations/006_note_created_by.sql (author-scoped editor mutations).
+-- through migrations/006_note_created_by.sql (author-scoped editor mutations)
+-- and migrations/007_note_edit_locks.sql (soft edit locks / presence).
 -- Migration 002 is already included in this file for fresh installs.
 
 -- Stock locations (bay / shelf codes) — before notes so notes.stock_id can FK

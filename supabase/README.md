@@ -10,7 +10,8 @@
 8. Run `supabase/migrations/004_note_links.sql` (related notes)
 9. Run `supabase/migrations/005_signup_domain_allowlist.sql` (signup limited to `@onitio.com`)
 10. Run `supabase/migrations/006_note_created_by.sql` (editors may only edit/delete notes & images they created; admins can edit anyone’s)
-11. (Recommended) **Authentication → Providers → Email**:
+11. Run `supabase/migrations/007_note_edit_locks.sql` (soft edit locks so two people don’t overwrite the same open note)
+12. (Recommended) **Authentication → Providers → Email**:
    turn **off** “Confirm email” so signup signs you in immediately
 12. Restart `npm run dev`, open the app, **Sign up once** with your email  
    - First account becomes **admin** of the shared library  

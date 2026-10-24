@@ -90,6 +90,8 @@ import {
   LOCAL_MEMBERSHIP,
   type WorkspaceMembership,
 } from '../lib/workspace';
+import { formatLockHolderLabel } from '../lib/noteEditLock';
+import { useNoteEditLock } from '../lib/useNoteEditLock';
 
 type NoteFieldPatch = {
   disposition?: NoteDisposition;
@@ -595,6 +597,18 @@ export default function App({ session }: { session: Session | null }) {
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
   const canEditActiveNote = noteMutable(activeNote?.createdBy);
+  const editLock = useNoteEditLock(
+    activeNote?.id ?? null,
+    Boolean(activeNote && canEditActiveNote && isCloudConfigured()),
+  );
+  const editLockedByOther = editLock.blockedByOther;
+  /** Authorship + soft lock: may mutate the currently open note. */
+  const canMutateOpenNote = canEditActiveNote && !editLockedByOther;
+  const editorReadOnly = !canMutateOpenNote;
+  const editLockHolderLabel =
+    editLockedByOther && editLock.lock
+      ? formatLockHolderLabel(editLock.lock)
+      : null;
   const mutableNoteIdsAmong = (ids: string[]) =>
     ids.filter((id) => {
       const note = notes.find((n) => n.id === id);
@@ -813,7 +827,7 @@ export default function App({ session }: { session: Session | null }) {
   }) {
     // Merge editor draft into the active note for blank detection + wall UI
     // before background persist finishes (Done no longer awaits save).
-    if (canEditActiveNote && activeNote && draft) {
+    if (canMutateOpenNote && activeNote && draft) {
       const merged: NoteWithUrls = {
         ...activeNote,
         title: draft.title,
@@ -845,7 +859,7 @@ export default function App({ session }: { session: Session | null }) {
 
     // Don't junk a brand-new photo note while images are still uploading.
     if (
-      canEditActiveNote &&
+      canMutateOpenNote &&
       activeNote &&
       isBlankNote(activeNote) &&
       imageBusyCount === 0
@@ -1025,8 +1039,8 @@ export default function App({ session }: { session: Session | null }) {
     askItems?: import('../lib/types').NoteAskItem[];
   }) {
     if (patch.askItems !== undefined) {
-      if (!isAdmin) return;
-    } else if (!canEditActiveNote) {
+      if (!isAdmin || editLockedByOther) return;
+    } else if (!canMutateOpenNote) {
       return;
     }
     // Capture id so in-flight saves stay on the right note if the user navigates away.
@@ -1136,7 +1150,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleAddImages(files: FileList | File[]) {
-    if (!canEditActiveNote) return;
+    if (!canMutateOpenNote) return;
     if (!activeNoteId) return;
     const list = Array.from(files);
     if (list.length === 0) return;
@@ -1206,7 +1220,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleRemoveImage(imageId: string) {
-    if (!canEditActiveNote) return;
+    if (!canMutateOpenNote) return;
     if (!activeNoteId) return;
     const updated = await store.removeImage(activeNoteId, imageId);
     if (updated) {
@@ -1221,7 +1235,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleReorderImages(orderedImageIds: string[]) {
-    if (!canEditActiveNote) return;
+    if (!canMutateOpenNote) return;
     if (!activeNoteId) return;
     const updated = await store.reorderImages(activeNoteId, orderedImageIds);
     if (updated) {
@@ -1236,7 +1250,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleDelete() {
-    if (!canEditActiveNote || !activeNoteId) return;
+    if (!canMutateOpenNote || !activeNoteId) return;
     await softDeleteWithUndo([activeNoteId]);
   }
 
@@ -1309,7 +1323,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleRemoveRelated(otherNoteId: string) {
-    if (!canEditActiveNote || !activeNoteId) return;
+    if (!canMutateOpenNote || !activeNoteId) return;
     const before = noteLinks.find(
       (l) =>
         (l.noteIdA === activeNoteId && l.noteIdB === otherNoteId) ||
@@ -1978,8 +1992,8 @@ export default function App({ session }: { session: Session | null }) {
 
       {activeNote && (
         <NoteEditor
-          readOnly={!canEditActiveNote}
-          canManageAsk={isAdmin}
+          readOnly={editorReadOnly}
+          canManageAsk={isAdmin && !editLockedByOther}
           note={activeNote}
           labels={labels}
           noteTypes={noteTypes}
@@ -2004,8 +2018,12 @@ export default function App({ session }: { session: Session | null }) {
           notes={notes}
           relatedNotes={activeRelatedNotes}
           onOpenRelated={(noteId) => openNote(noteId)}
-          onRemoveRelated={canEditActiveNote ? handleRemoveRelated : undefined}
+          onRemoveRelated={!editorReadOnly ? handleRemoveRelated : undefined}
           onShowAllRelated={showRelatedForPartNumber}
+          editLockHolder={editLockHolderLabel}
+          canTakeOverEditLock={canEditActiveNote && editLockedByOther}
+          takeOverBusy={editLock.claiming}
+          onTakeOverEditLock={() => void editLock.takeOver()}
         />
       )}
     </AppShell>

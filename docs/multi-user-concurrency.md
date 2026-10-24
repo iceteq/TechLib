@@ -25,7 +25,7 @@ As of this gameplan’s creation:
 | Client data | Full `refresh()` on login; then local React state |
 | Live sync | **None** — no Realtime, no polling, no refetch on tab focus |
 | Saves | Partial column updates; title/description on blur; **last-write-wins** (no version check) |
-| Same-note awareness | **None** — no presence, no soft lock, no conflict UI |
+| Same-note awareness | Soft edit locks (Phase 1) — see below; no versioned conflict UI yet (Phase 2) |
 
 **Who can collide on one note today?** Two admins, or an admin + the note’s author. Editors cannot edit each other’s notes (UI + RLS).
 
@@ -42,7 +42,7 @@ As of this gameplan’s creation:
 
 ## Phase 1 — Soft lock / presence on open
 
-**Status:** Not started
+**Status:** Implemented (pending deploy of `007_note_edit_locks.sql`)
 
 **Why first:** Stops most “we both edited the same note” confusion with the smallest UX change.
 
@@ -51,21 +51,22 @@ As of this gameplan’s creation:
 When someone opens the note editor:
 
 1. Claim a short-lived lease: `note_id`, `user_id`, `expires_at` (≈ 30–60s).
-2. Heartbeat while the editor stays open; release on close / tab hide.
+2. Heartbeat while the editor stays open; release on close / unload.
 3. Others see who is editing and open **read-only**, or confirm to take over.
 
 ### Implementation sketch
 
-- Supabase Realtime **Presence** on a per-note or workspace channel, **or** a small `note_edit_locks` table (queryable + RLS).
-- Show a quiet banner in the editor / on the card: “Editing: anna@…”.
-- Admins still *can* take over; editors already blocked from others’ notes by authorship.
+- Table `note_edit_locks` + RPCs (`claim_note_edit_lock`, `heartbeat_note_edit_lock`, `release_note_edit_lock`, `get_note_edit_lock`) in `007_note_edit_locks.sql`.
+- Client: `src/lib/noteEditLock.ts`, `src/lib/useNoteEditLock.ts`; wired from `App.tsx` into `NoteEditor` banner + read-only.
+- Realtime `postgres_changes` on the lock row; 45s TTL, 15s heartbeat.
+- Network failures **fail open** (solo edit still works); a live foreign lease **fails closed** (view only + Take over).
 
 ### Done when
 
-- [ ] Opening a note advertises presence/lease to other clients
-- [ ] Second opener sees who holds the note and cannot silently overwrite
-- [ ] Lease expires if the holder crashes or leaves the tab
-- [ ] No meaningful slowdown opening notes when alone
+- [x] Opening a note advertises presence/lease to other clients
+- [x] Second opener sees who holds the note and cannot silently overwrite
+- [x] Lease expires if the holder crashes or leaves the tab
+- [x] No meaningful slowdown opening notes when alone
 
 ### Out of scope for this phase
 
@@ -221,7 +222,8 @@ Record shipped work here so later phases know what already landed.
 
 | Date (Europe/Warsaw) | Phase | What changed | PR / commit |
 |---|---|---|---|
-| 2026-10-24 | — | Gameplan created (baseline documented; no code changes) | — |
+| 2026-10-24 | — | Gameplan created (baseline documented; no code changes) | merged to main |
+| 2026-10-24 | 1 | Soft edit locks (`note_edit_locks` + editor banner / Take over) | (this branch) |
 
 <!--
 Example row after a phase ships:
