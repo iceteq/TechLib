@@ -8,3 +8,9 @@ export const APP_NAME = 'TechLib';
  * bulk assign, collection column). Data + APIs stay; flip to true to restore.
  */
 export const SHOW_GUIDELINES = false;
+
+/**
+ * When false, the ✅ “sorted / handled” mark is hidden (wall badge, editor
+ * toggle). Reaction data + APIs stay; flip to true to restore.
+ */
+export const SHOW_SORTED = false;

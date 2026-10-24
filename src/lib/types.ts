@@ -184,7 +184,8 @@ export interface NoteLink {
   noteIdB: string;
 }
 
-export const REACTION_EMOJIS: ReactionEmoji[] = ['👍', '❤️', '🔥', '✅'];
+/** Emojis shown in the reaction bar. ✅ sorted is gated separately via SHOW_SORTED. */
+export const REACTION_EMOJIS: ReactionEmoji[] = ['👍', '❤️', '🔥'];
 
 export const DISPOSITIONS: {
   id: NoteDisposition;

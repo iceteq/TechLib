@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadViewPrefs, saveViewPrefs } from '../lib/viewPrefs';
 import { prefetchImages } from '../lib/prefetchImages';
-import { NOTE_PREVIEW_IMAGE_LIMIT, SHOW_GUIDELINES } from '../lib/config';
+import {
+  NOTE_PREVIEW_IMAGE_LIMIT,
+  SHOW_GUIDELINES,
+  SHOW_SORTED,
+} from '../lib/config';
 import {
   loadCreateDefaults,
   saveCreateDefaults,
@@ -853,6 +857,7 @@ export default function App({ session }: { session: Session | null }) {
   }, [cartItems]);
   const sortedNoteIds = useMemo(() => {
     const ids = new Set<string>();
+    if (!SHOW_SORTED) return ids;
     for (const note of notes) {
       if (noteIsSorted(reactions, note.id)) ids.add(note.id);
     }
@@ -1563,6 +1568,7 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   async function handleToggleSorted(noteId: string) {
+    if (!SHOW_SORTED) return;
     const emoji: ReactionEmoji = '✅';
     await store.toggleReaction(noteId, emoji);
     setReactions(await store.listAllReactions());
@@ -2311,8 +2317,12 @@ export default function App({ session }: { session: Session | null }) {
           onCreateLabel={handleCreateLabel}
           onAddToCart={handleAddActiveToCart}
           cartQuantity={cartQuantities[activeNote.id] ?? 0}
-          sorted={sortedNoteIds.has(activeNote.id)}
-          onToggleSorted={() => void handleToggleSorted(activeNote.id)}
+          sorted={SHOW_SORTED ? sortedNoteIds.has(activeNote.id) : false}
+          onToggleSorted={
+            SHOW_SORTED
+              ? () => void handleToggleSorted(activeNote.id)
+              : undefined
+          }
           imageBusyCount={imageBusyCount}
           notes={notes}
           relatedNotes={activeRelatedNotes}

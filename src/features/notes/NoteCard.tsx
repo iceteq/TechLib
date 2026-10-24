@@ -9,7 +9,11 @@ import {
   Check,
   Layers,
 } from 'lucide-react';
-import { NOTE_PREVIEW_IMAGE_LIMIT, SHOW_GUIDELINES } from '../../lib/config';
+import {
+  NOTE_PREVIEW_IMAGE_LIMIT,
+  SHOW_GUIDELINES,
+  SHOW_SORTED,
+} from '../../lib/config';
 import { getBackground } from '../../lib/backgrounds';
 import { formatNoteAge } from '../../lib/formatNoteAge';
 import { noteTypeById, noteTypePathLabel } from '../../lib/noteTypes';
@@ -427,9 +431,11 @@ export const NoteCard = memo(function NoteCard({
         </span>
       )}
 
-      {(note.pinned || cartQuantity > 0 || sorted) && (
+      {(note.pinned ||
+        cartQuantity > 0 ||
+        (SHOW_SORTED && sorted)) && (
         <div className={styles.badges}>
-          {sorted && (
+          {SHOW_SORTED && sorted && (
             <span
               className={styles.sortedBadge}
               title="Sorted"

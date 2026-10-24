@@ -154,7 +154,7 @@ Full offline-first sync engine; CRDT body editing.
 
 **Status:** Implemented (pending deploy of `009_team_reactions.sql`)
 
-**Product decision:** **Team-visible.** Reactions (including the ✅ sorted mark) are shared across the library so the floor team sees the same counts. Cart stays personal.
+**Product decision:** **Team-visible.** Reactions are shared across the library so the floor team sees the same counts. Cart stays personal. The ✅ “sorted” mark is currently **disabled** in the UI (`SHOW_SORTED = false`); data/API remain if we turn it back on.
 
 **Why fourth:** Product polish once collision + freshness are fixed. Previously RLS on `reactions` was own-rows-only, so `listAllReactions` could not show the team.
 

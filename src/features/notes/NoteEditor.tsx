@@ -46,7 +46,7 @@ import {
 import { AskSection } from './AskSection';
 import { GuidelineLinesList } from './GuidelineLinesList';
 import { TypeChip } from './TypeChip';
-import { SHOW_GUIDELINES } from '../../lib/config';
+import { SHOW_GUIDELINES, SHOW_SORTED } from '../../lib/config';
 import styles from './NoteEditor.module.css';
 
 /** Bumps on each NoteEditor history-trap effect; helps Strict Mode remounts. */
@@ -913,6 +913,7 @@ export function NoteEditor({
                   {note.pinned ? <PinOff size={18} /> : <Pin size={18} />}
                 </button>
                 )}
+                {SHOW_SORTED && (
                 <button
                   type="button"
                   className={`${styles.iconBtn} ${sorted ? styles.iconActive : ''} ${
@@ -931,6 +932,7 @@ export function NoteEditor({
                     ✅
                   </span>
                 </button>
+                )}
                 {!readOnly && (
                 <button
                   type="button"
@@ -1048,6 +1050,7 @@ export function NoteEditor({
                       <span>{note.pinned ? 'Unpin' : 'Pin'}</span>
                     </button>
                     )}
+                    {SHOW_SORTED && (
                     <button
                       type="button"
                       className={styles.moreItem}
@@ -1064,6 +1067,7 @@ export function NoteEditor({
                       </span>
                       <span>{sorted ? 'Unmark sorted' : 'Mark sorted'}</span>
                     </button>
+                    )}
                     {!readOnly && (
                     <>
                     <button
