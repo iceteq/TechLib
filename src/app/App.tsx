@@ -1785,8 +1785,10 @@ export default function App({ session }: { session: Session | null }) {
 
     try {
       for (const id of ids) {
+        markLocalNoteTouch(id);
         const updated = await store.updateNote(id, patch);
         if (updated) {
+          rememberNoteVersion(updated);
           setNotes((prev) => {
             const next = prev.map((n) => (n.id === updated.id ? updated : n));
             return [...next].sort((a, b) => {
