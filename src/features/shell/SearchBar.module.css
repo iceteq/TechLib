@@ -25,29 +25,9 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.fieldListMode {
+.fieldListActive {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   background: color-mix(in srgb, var(--accent-soft) 55%, var(--bg-elevated));
-}
-
-.listModeBadge {
-  flex-shrink: 0;
-  padding: 0.12rem 0.4rem;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 1.2;
-}
-
-.listModeHint {
-  margin: 0.35rem 0 0;
-  padding: 0 0.35rem;
-  color: var(--text-muted);
-  font-size: 0.78rem;
 }
 
 .icon {
@@ -80,9 +60,14 @@
   color: var(--text-muted);
 }
 
-.listBtn:hover {
+.listBtn:hover:not(:disabled) {
   background: rgba(31, 35, 40, 0.08);
   color: var(--text);
+}
+
+.listBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .listBtnActive {
@@ -149,6 +134,47 @@
 
 .orChip:hover {
   background: color-mix(in srgb, var(--accent) 18%, white);
+}
+
+.orChipFresh {
+  animation: chipFresh 1.4s ease-out;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+@keyframes chipFresh {
+  0% {
+    transform: scale(1.06);
+    background: color-mix(in srgb, var(--accent) 28%, white);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orChipFresh {
+    animation: none;
+  }
+}
+
+.undoBtn {
+  flex-shrink: 0;
+  padding: 0.22rem 0.55rem;
+  border: 1px dashed color-mix(in srgb, var(--text-muted) 45%, var(--border));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.undoBtn:hover {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .listPopover {

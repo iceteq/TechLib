@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { ClipboardPaste, Clock, List, Search, X } from 'lucide-react';
+import { ClipboardPaste, Clock, Plus, Search, X } from 'lucide-react';
 import {
   loadRecentSearches,
   rememberSearch,
@@ -15,6 +15,15 @@ interface SearchBarProps {
   onOrTermsChange: (terms: string[]) => void;
 }
 
+const HIGHLIGHT_MS = 1600;
+const UNDO_MS = 4000;
+
+type UndoSnapshot = {
+  orTerms: string[];
+  /** When set, undo also puts this text back in the search field. */
+  restoreValue?: string;
+};
+
 export function SearchBar({
   value,
   onChange,
@@ -26,20 +35,25 @@ export function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const highlightTimer = useRef<number | null>(null);
+  const undoTimer = useRef<number | null>(null);
   const [focused, setFocused] = useState(false);
-  const [listMode, setListMode] = useState(() => orTerms.length > 0);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [listDraft, setListDraft] = useState('');
   const [recent, setRecent] = useState<string[]>(() => loadRecentSearches());
-
-  // Stay in list mode whenever terms exist (e.g. restored session / paste).
-  useEffect(() => {
-    if (orTerms.length > 0) setListMode(true);
-  }, [orTerms.length]);
+  const [highlightedTerm, setHighlightedTerm] = useState<string | null>(null);
+  const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null);
 
   useEffect(() => {
     setRecent(loadRecentSearches());
   }, [value, orTerms]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimer.current != null) window.clearTimeout(highlightTimer.current);
+      if (undoTimer.current != null) window.clearTimeout(undoTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!pasteOpen) return;
@@ -78,6 +92,7 @@ export function SearchBar({
 
   const trimmed = value.trim();
   const hasOrTerms = orTerms.length > 0;
+  const canAddTerm = trimmed.length > 0;
   const recentVisible =
     focused && !pasteOpen
       ? recent.filter((item) => {
@@ -101,6 +116,32 @@ export function SearchBar({
     commitRecent(terms.join('\n'));
   }
 
+  function flashHighlight(term: string) {
+    setHighlightedTerm(term);
+    if (highlightTimer.current != null) window.clearTimeout(highlightTimer.current);
+    highlightTimer.current = window.setTimeout(() => {
+      setHighlightedTerm(null);
+      highlightTimer.current = null;
+    }, HIGHLIGHT_MS);
+  }
+
+  function armUndo(previous: string[], restoreValue?: string) {
+    setUndoSnapshot({ orTerms: previous, restoreValue });
+    if (undoTimer.current != null) window.clearTimeout(undoTimer.current);
+    undoTimer.current = window.setTimeout(() => {
+      setUndoSnapshot(null);
+      undoTimer.current = null;
+    }, UNDO_MS);
+  }
+
+  function clearUndo() {
+    setUndoSnapshot(null);
+    if (undoTimer.current != null) {
+      window.clearTimeout(undoTimer.current);
+      undoTimer.current = null;
+    }
+  }
+
   function addOrTerm(raw: string) {
     const term = raw.trim();
     if (!term) return;
@@ -109,32 +150,73 @@ export function SearchBar({
     );
     if (exists) {
       onChange('');
+      flashHighlight(
+        orTerms.find((item) => item.toLowerCase() === term.toLowerCase()) ??
+          term,
+      );
       return;
     }
+    const previous = orTerms;
     const next = [...orTerms, term];
     onOrTermsChange(next);
     onChange('');
     rememberList(next);
+    flashHighlight(term);
+    // Undo removes the chip and puts the text back for a quick edit.
+    armUndo(previous, term);
+  }
+
+  function undoLastChange() {
+    if (!undoSnapshot) return;
+    const { orTerms: restored, restoreValue } = undoSnapshot;
+    clearUndo();
+    setHighlightedTerm(null);
+    onOrTermsChange(restored);
+    if (restoreValue != null) onChange(restoreValue);
+    if (restored.length > 0) rememberList(restored);
+    inputRef.current?.focus();
+  }
+
+  function removeLastOrTerm() {
+    if (orTerms.length === 0) return;
+    clearUndo();
+    const previous = orTerms;
+    const next = orTerms.slice(0, -1);
+    onOrTermsChange(next);
+    // Keep a short undo so accidental backspace is recoverable.
+    armUndo(previous);
+    if (next.length > 0) {
+      rememberList(next);
+      flashHighlight(next[next.length - 1]!);
+    } else {
+      setHighlightedTerm(null);
+    }
   }
 
   function applyRecent(query: string) {
     if (query.includes('\n')) {
       const terms = parseSearchList(query);
+      const previous = orTerms;
       onChange('');
       onOrTermsChange(terms);
-      setListMode(true);
       rememberList(terms);
       setPasteOpen(false);
       setFocused(false);
+      clearUndo();
+      if (terms.length > 0) {
+        flashHighlight(terms[terms.length - 1]!);
+        armUndo(previous);
+      }
       inputRef.current?.blur();
       return;
     }
-    if (listMode) {
+    if (hasOrTerms) {
       addOrTerm(query);
       setFocused(false);
       inputRef.current?.focus();
       return;
     }
+    clearUndo();
     onOrTermsChange([]);
     onChange(query);
     commitRecent(query);
@@ -143,6 +225,8 @@ export function SearchBar({
   }
 
   function clearValue() {
+    clearUndo();
+    setHighlightedTerm(null);
     if (hasOrTerms) {
       rememberList(orTerms);
       onOrTermsChange([]);
@@ -153,24 +237,8 @@ export function SearchBar({
     inputRef.current?.focus();
   }
 
-  function toggleListMode() {
-    if (listMode) {
-      // Leaving list mode drops the OR list so normal search cannot wipe it by accident.
-      if (hasOrTerms) rememberList(orTerms);
-      onOrTermsChange([]);
-      setListMode(false);
-      setPasteOpen(false);
-      inputRef.current?.focus();
-      return;
-    }
-    setListMode(true);
-    setPasteOpen(false);
-    inputRef.current?.focus();
-  }
-
   function openPaste() {
     setListDraft(orTerms.length > 0 ? orTerms.join('\n') : trimmed);
-    setListMode(true);
     setPasteOpen(true);
     setFocused(false);
   }
@@ -178,18 +246,22 @@ export function SearchBar({
   function applyPasteList() {
     const terms = parseSearchList(listDraft);
     if (terms.length === 0) return;
+    const previous = orTerms;
     onChange('');
     onOrTermsChange(terms);
-    setListMode(true);
     rememberList(terms);
     setPasteOpen(false);
     setFocused(false);
+    flashHighlight(terms[terms.length - 1]!);
+    armUndo(previous);
     inputRef.current?.blur();
   }
 
   function removeOrTerm(term: string) {
+    clearUndo();
     const next = orTerms.filter((item) => item !== term);
     onOrTermsChange(next);
+    if (highlightedTerm === term) setHighlightedTerm(null);
     if (next.length === 0) {
       inputRef.current?.focus();
     } else {
@@ -197,29 +269,18 @@ export function SearchBar({
     }
   }
 
-  function handleInputChange(next: string) {
-    // List mode keeps the OR list; typing is a draft term (Enter commits).
-    if (!listMode && hasOrTerms) onOrTermsChange([]);
-    onChange(next);
-  }
-
   return (
     <div className={styles.wrap} ref={wrapRef}>
       <div
-        className={`${styles.field}${listMode ? ` ${styles.fieldListMode}` : ''}`}
+        className={`${styles.field}${hasOrTerms ? ` ${styles.fieldListActive}` : ''}`}
       >
         <Search size={16} className={styles.icon} aria-hidden />
-        {listMode && (
-          <span className={styles.listModeBadge} aria-hidden>
-            List
-          </span>
-        )}
         <input
           ref={inputRef}
           className={styles.input}
           type="search"
           value={value}
-          onChange={(e) => handleInputChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           onFocus={() => {
             setFocused(true);
             setPasteOpen(false);
@@ -227,40 +288,35 @@ export function SearchBar({
           onBlur={() => {
             // Delay so recent-chip clicks register before the panel closes.
             window.setTimeout(() => setFocused(false), 120);
-            if (!listMode && trimmed) commitRecent(trimmed);
+            if (!hasOrTerms && trimmed) commitRecent(trimmed);
           }}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.preventDefault();
               if (value || hasOrTerms) {
                 clearValue();
-              } else if (listMode) {
-                setListMode(false);
-                inputRef.current?.blur();
               } else {
                 inputRef.current?.blur();
               }
               return;
             }
+            if (e.key === 'Backspace' && !value && hasOrTerms) {
+              e.preventDefault();
+              removeLastOrTerm();
+              return;
+            }
             if (e.key === 'Enter' && trimmed) {
               e.preventDefault();
-              if (listMode) {
-                addOrTerm(trimmed);
-                return;
-              }
-              commitRecent(trimmed);
-              inputRef.current?.blur();
+              // Enter and Shift+Enter both commit a list term — no mode switch.
+              addOrTerm(trimmed);
+              return;
             }
           }}
           placeholder={
-            listMode
-              ? hasOrTerms
-                ? 'Add another part…'
-                : 'Add part number…'
-              : 'Search part numbers…'
+            hasOrTerms ? 'Add another part…' : 'Search part numbers…'
           }
           aria-label={
-            listMode
+            hasOrTerms
               ? 'Add part number to list search'
               : 'Search part numbers and notes'
           }
@@ -270,13 +326,13 @@ export function SearchBar({
         />
         <button
           type="button"
-          className={`${styles.listBtn}${listMode ? ` ${styles.listBtnActive}` : ''}`}
-          onClick={toggleListMode}
-          aria-label={listMode ? 'Exit list search' : 'Enter list search'}
-          aria-pressed={listMode}
-          title={listMode ? 'Exit list search' : 'List search'}
+          className={styles.listBtn}
+          onClick={() => addOrTerm(trimmed)}
+          disabled={!canAddTerm}
+          aria-label="Add search term to list"
+          title="Add to list"
         >
-          <List size={15} />
+          <Plus size={15} />
         </button>
         <button
           type="button"
@@ -301,16 +357,20 @@ export function SearchBar({
         )}
       </div>
 
-      {listMode && hasOrTerms && (
+      {(hasOrTerms || undoSnapshot) && (
         <div className={styles.orChips} aria-label="List search terms">
-          <span className={styles.orCount}>
-            {orTerms.length} part{orTerms.length === 1 ? '' : 's'}
-          </span>
+          {hasOrTerms && (
+            <span className={styles.orCount}>
+              {orTerms.length} part{orTerms.length === 1 ? '' : 's'}
+            </span>
+          )}
           {orTerms.map((term) => (
             <button
               key={term}
               type="button"
-              className={styles.orChip}
+              className={`${styles.orChip}${
+                highlightedTerm === term ? ` ${styles.orChipFresh}` : ''
+              }`}
               onClick={() => removeOrTerm(term)}
               title={`Remove ${term}`}
               aria-label={`Remove ${term}`}
@@ -319,13 +379,17 @@ export function SearchBar({
               <X size={12} aria-hidden />
             </button>
           ))}
+          {undoSnapshot && (
+            <button
+              type="button"
+              className={styles.undoBtn}
+              onClick={undoLastChange}
+              aria-label="Undo last list change"
+            >
+              Undo
+            </button>
+          )}
         </div>
-      )}
-
-      {listMode && !hasOrTerms && !pasteOpen && (
-        <p className={styles.listModeHint}>
-          Press Enter to add each part. Paste a list anytime.
-        </p>
       )}
 
       {pasteOpen && (
