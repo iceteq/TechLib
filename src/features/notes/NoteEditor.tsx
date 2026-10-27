@@ -480,18 +480,23 @@ export function NoteEditor({
       body.style.paddingRight = `${scrollbarGap}px`;
     }
 
-    function isInsideDialog(target: EventTarget | null) {
-      return target instanceof Node && Boolean(dialogRef.current?.contains(target));
+    /** Allow scroll inside the editor and any portaled dialog (type/stock/labels). */
+    function isScrollAllowed(target: EventTarget | null) {
+      if (!(target instanceof Node)) return false;
+      if (dialogRef.current?.contains(target)) return true;
+      const el =
+        target instanceof Element ? target : target.parentElement;
+      return Boolean(el?.closest('[role="dialog"]'));
     }
 
     function onWheel(e: WheelEvent) {
-      if (!isInsideDialog(e.target)) {
+      if (!isScrollAllowed(e.target)) {
         e.preventDefault();
       }
     }
 
     function onTouchMove(e: TouchEvent) {
-      if (!isInsideDialog(e.target)) {
+      if (!isScrollAllowed(e.target)) {
         e.preventDefault();
       }
     }
