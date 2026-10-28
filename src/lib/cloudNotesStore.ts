@@ -70,6 +70,7 @@ type NoteRow = {
   pinned: boolean;
   archived: boolean;
   deleted_at: string | null;
+  deleted_by: string | null;
   created_at: string;
   updated_at: string;
   ask_items?: NoteAskItem[] | null;
@@ -135,6 +136,7 @@ function noteFromRow(
     pinned: row.pinned,
     archived: row.archived,
     deletedAt: row.deleted_at ? ms(row.deleted_at) : null,
+    deletedBy: row.deleted_by ?? null,
     createdAt: ms(row.created_at),
     updatedAt: ms(row.updated_at),
     updatedAtIso: row.updated_at,
@@ -451,6 +453,7 @@ async function hydrateRows(
       pinned: row.pinned,
       archived: row.archived,
       deletedAt: row.deleted_at ? ms(row.deleted_at) : null,
+      deletedBy: row.deleted_by ?? null,
       createdAt: ms(row.created_at),
       updatedAt: ms(row.updated_at),
       updatedAtIso: row.updated_at,
@@ -1179,34 +1182,42 @@ export async function updateNote(
   return getNote(id);
 }
 
-export async function softDeleteNotes(ids: string[]): Promise<void> {
+export async function listBinnedNotes(): Promise<NoteWithUrls[]> {
+  await requireUserId();
+  const { data, error } = await getSupabase()
+    .from('notes')
+    .select('*')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false });
+  throwIf(error);
+  return hydrateRows((data ?? []) as NoteRow[], 'wall');
+}
+
+export async function softDeleteNotes(
+  ids: string[],
+  _deletedBy?: string,
+): Promise<void> {
   if (ids.length === 0) return;
   await requireUserId();
-  const now = new Date().toISOString();
-  const { error } = await getSupabase()
-    .from('notes')
-    .update({ deleted_at: now, updated_at: now })
-    .in('id', ids)
-    .is('deleted_at', null);
+  const { error } = await getSupabase().rpc('bin_notes', { p_ids: ids });
   throwIf(error);
 }
 
-export async function restoreNotes(ids: string[]): Promise<void> {
+export async function restoreNotes(
+  ids: string[],
+  _options?: { actorId?: string; asAdmin?: boolean },
+): Promise<void> {
   if (ids.length === 0) return;
   await requireUserId();
-  const now = new Date().toISOString();
-  const { error } = await getSupabase()
-    .from('notes')
-    .update({ deleted_at: null, updated_at: now })
-    .in('id', ids);
+  const { error } = await getSupabase().rpc('restore_binned_notes', {
+    p_ids: ids,
+  });
   throwIf(error);
 }
 
-export async function purgeNotes(ids: string[]): Promise<void> {
+async function removeStorageForNotes(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
-  const ownerId = await requireLibraryOwnerId();
   const supabase = getSupabase();
-
   const { data: images, error: imgError } = await supabase
     .from('note_images')
     .select('storage_path')
@@ -1219,39 +1230,75 @@ export async function purgeNotes(ids: string[]): Promise<void> {
     const withWall = paths.flatMap((p) => [p, wallDerivativePath(p)]);
     await supabase.storage.from(BUCKET).remove(withWall);
   }
-
-  const { error } = await supabase
-    .from('notes')
-    .delete()
-    .in('id', ids)
-    .eq('owner_id', ownerId);
-  throwIf(error);
 }
 
-export async function purgeSoftDeletedNotes(): Promise<void> {
-  if (!(await canEditLibraryRpc())) return;
-  const userId = await requireUserId();
-  const { data: admin, error: adminError } = await getSupabase().rpc(
+/** Hard-delete notes. Admins use RLS delete; authors use discard_own_notes. */
+export async function purgeNotes(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await requireUserId();
+  const supabase = getSupabase();
+  await removeStorageForNotes(ids);
+
+  const { data: admin, error: adminError } = await supabase.rpc(
     'is_library_admin',
   );
   throwIf(adminError);
 
-  let query = getSupabase()
-    .from('notes')
-    .select('id')
-    .not('deleted_at', 'is', null);
-  // Editors only hard-delete their own soft-deleted notes (RLS + storage).
-  if (!admin) {
-    query = query.eq('created_by', userId);
+  if (admin) {
+    const ownerId = await requireLibraryOwnerId();
+    const { error } = await supabase
+      .from('notes')
+      .delete()
+      .in('id', ids)
+      .eq('owner_id', ownerId);
+    throwIf(error);
+    return;
   }
-  const { data, error } = await query;
+
+  const { error } = await supabase.rpc('discard_own_notes', { p_ids: ids });
   throwIf(error);
-  const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
-  await purgeNotes(ids);
+}
+
+/**
+ * Permanently delete every binned note. Admin-only; call after password reauth.
+ */
+export async function emptyNotesBin(): Promise<string[]> {
+  const { data, error } = await getSupabase().rpc('empty_notes_bin');
+  throwIf(error);
+  const ids = (data ?? []) as string[];
+  if (ids.length === 0) return [];
+  await removeStorageForNotes(ids);
+  const ownerId = await requireLibraryOwnerId();
+  const { error: delError } = await getSupabase()
+    .from('notes')
+    .delete()
+    .in('id', ids)
+    .eq('owner_id', ownerId);
+  throwIf(delError);
+  return ids;
+}
+
+/** @deprecated Prefer emptyNotesBin. */
+export async function purgeSoftDeletedNotes(): Promise<void> {
+  // No-op on login: binned notes stay until an admin empties the bin.
 }
 
 export async function deleteNote(id: string): Promise<void> {
   await purgeNotes([id]);
+}
+
+/** Re-auth with the account password (used before emptying the bin). */
+export async function confirmAdminPassword(password: string): Promise<void> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user?.email) {
+    throw new Error('Not signed in');
+  }
+  const { error: signError } = await supabase.auth.signInWithPassword({
+    email: data.user.email,
+    password,
+  });
+  if (signError) throw new Error('Incorrect password');
 }
 
 export async function addImage(

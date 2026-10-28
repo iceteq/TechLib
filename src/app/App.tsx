@@ -99,12 +99,14 @@ import {
   canEditLibrary,
   canManageSharedTaxonomy,
   canMutateNote,
+  canRestoreBinnedNote,
   ensureWorkspaceMembership,
   isLibraryAdmin,
   listLibraryMemberLabels,
   LOCAL_MEMBERSHIP,
   type WorkspaceMembership,
 } from '../lib/workspace';
+import { EmptyBinDialog } from '../features/notes/EmptyBinDialog';
 import { formatLockHolderLabel } from '../lib/noteEditLock';
 import { useNoteEditLock } from '../lib/useNoteEditLock';
 import { isNoteUpdateConflictError } from '../lib/noteUpdateConflict';
@@ -325,6 +327,8 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   const [notes, setNotes] = useState<NoteWithUrls[]>([]);
+  const [binnedNotes, setBinnedNotes] = useState<NoteWithUrls[]>([]);
+  const [emptyBinOpen, setEmptyBinOpen] = useState(false);
   const notesRef = useRef(notes);
   notesRef.current = notes;
   /** Cursor for incremental live sync (`notes.updated_at`). */
@@ -422,6 +426,12 @@ export default function App({ session }: { session: Session | null }) {
 
     const nextNotes = await notesPromise;
     setNotes(nextNotes);
+    try {
+      setBinnedNotes(await store.listBinnedNotes());
+    } catch (err) {
+      console.error('list binned notes failed', err);
+      setBinnedNotes([]);
+    }
     let maxIso = lastSyncIsoRef.current;
     for (const note of nextNotes) {
       if (note.updatedAtIso) {
@@ -503,9 +513,6 @@ export default function App({ session }: { session: Session | null }) {
           }
         } else {
           setMemberEmailByUserId(new Map());
-        }
-        if (canEditLibrary(nextMembership.role)) {
-          await store.purgeSoftDeletedNotes();
         }
         await refresh();
       } catch (err) {
@@ -689,10 +696,11 @@ export default function App({ session }: { session: Session | null }) {
     view === 'notes' ? wallSearch : { search: '', orTerms: [] as string[] };
 
   const visibleNotes = useMemo(() => {
-    let filtered = filterNotes(notes, labels, stockLocations, noteTypes, {
+    const source = view === 'bin' ? binnedNotes : notes;
+    let filtered = filterNotes(source, labels, stockLocations, noteTypes, {
       labelIds: view === 'notes' ? filterLabelIds : [],
-      search: wallSearch.search,
-      orTerms: wallSearch.orTerms,
+      search: view === 'bin' ? '' : wallSearch.search,
+      orTerms: view === 'bin' ? [] : wallSearch.orTerms,
       view: view === 'collection' ? 'notes' : view,
       disposition: view === 'notes' ? activeDispositionFilter : null,
       categoryId: view === 'notes' ? filterCategoryId : null,
@@ -710,6 +718,7 @@ export default function App({ session }: { session: Session | null }) {
     return sortWallNotes(filtered, viewPrefs.sort, openedAtById);
   }, [
     notes,
+    binnedNotes,
     labels,
     stockLocations,
     noteTypes,
@@ -858,7 +867,10 @@ export default function App({ session }: { session: Session | null }) {
     return map;
   }, [memberEmailByUserId, membership?.userId, notes]);
 
-  const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
+  const activeNote =
+    notes.find((n) => n.id === activeNoteId) ??
+    binnedNotes.find((n) => n.id === activeNoteId) ??
+    null;
   const canEditActiveNote = noteMutable(activeNote?.createdBy);
   const editLock = useNoteEditLock(
     activeNote?.id ?? null,
@@ -1055,17 +1067,9 @@ export default function App({ session }: { session: Session | null }) {
     );
   }
 
-  async function commitPendingDelete(action: UndoAction | null) {
-    if (action?.kind === 'delete' && action.ids.length > 0) {
-      await store.purgeNotes(action.ids);
-    }
-  }
-
   async function replaceUndoAction(next: UndoAction | null) {
-    const previous = undoActionRef.current;
     undoActionRef.current = next;
     setUndoAction(next);
-    await commitPendingDelete(previous);
   }
 
   
@@ -1255,10 +1259,8 @@ export default function App({ session }: { session: Session | null }) {
   }
 
   const dismissUndo = useCallback(() => {
-    const previous = undoActionRef.current;
     undoActionRef.current = null;
     setUndoAction(null);
-    void commitPendingDelete(previous);
   }, []);
 
   async function handleUndo() {
@@ -1327,9 +1329,51 @@ export default function App({ session }: { session: Session | null }) {
     }
 
     for (const id of ids) markLocalNoteTouch(id);
-    await store.softDeleteNotes(ids);
+    await store.softDeleteNotes(ids, membership?.userId ?? 'local');
     await replaceUndoAction({ kind: 'delete', ids });
     await refresh();
+  }
+
+  async function handleRestoreNotes(noteIds: string[]) {
+    const ids = [...new Set(noteIds)].filter((id) => {
+      const note = binnedNotes.find((n) => n.id === id);
+      return (
+        note &&
+        canRestoreBinnedNote(membership?.role, membership?.userId, note.deletedBy)
+      );
+    });
+    if (ids.length === 0) return;
+    for (const id of ids) markLocalNoteTouch(id);
+    await store.restoreNotes(ids, {
+      actorId: membership?.userId ?? 'local',
+      asAdmin: isAdmin,
+    });
+    if (activeNoteId && ids.includes(activeNoteId)) {
+      setActiveNoteId(null);
+    }
+    await refresh();
+    setNotice(
+      ids.length === 1
+        ? 'Restored note'
+        : `Restored ${ids.length} notes`,
+    );
+  }
+
+  async function handleEmptyBin(password: string) {
+    if (!isAdmin) throw new Error('Only admins can empty the bin');
+    if (isCloudConfigured()) {
+      await store.confirmAdminPassword(password);
+    }
+    const ids = await store.emptyNotesBin();
+    if (activeNoteId && ids.includes(activeNoteId)) {
+      setActiveNoteId(null);
+    }
+    await refresh();
+    setNotice(
+      ids.length === 0
+        ? 'Bin was already empty'
+        : `Permanently deleted ${ids.length} note${ids.length === 1 ? '' : 's'}`,
+    );
   }
 
   function handleNavigatePrev() {
@@ -2102,9 +2146,9 @@ export default function App({ session }: { session: Session | null }) {
             undoAction.ids.length === 1 ? '' : 's'
           } · on the wall`
         : undoAction.kind === 'delete'
-          ? `Deleted ${undoAction.ids.length} note${
+          ? `Moved ${undoAction.ids.length} note${
               undoAction.ids.length === 1 ? '' : 's'
-            }`
+            } to bin`
           : undoAction.kind === 'cart-clear'
             ? 'Cleared collection'
             : undoAction.kind === 'note-link'
@@ -2187,6 +2231,12 @@ export default function App({ session }: { session: Session | null }) {
             clearAllFilters();
             setSidebarOpen(false);
           }}
+          onSelectBin={() => {
+            setView('bin');
+            clearAllFilters();
+            setSidebarOpen(false);
+          }}
+          binCount={binnedNotes.length}
           onSelectCollection={() => {
             setView('collection');
             clearAllFilters();
@@ -2271,9 +2321,20 @@ export default function App({ session }: { session: Session | null }) {
       ) : (
         <NoteGrid
           canEdit={canEdit}
+          isAdmin={isAdmin}
           canMutateNote={(noteId) => {
             const note = notes.find((n) => n.id === noteId);
             return note ? noteMutable(note.createdBy) : false;
+          }}
+          canRestoreNote={(noteId) => {
+            const note = binnedNotes.find((n) => n.id === noteId);
+            return note
+              ? canRestoreBinnedNote(
+                  membership?.role,
+                  membership?.userId,
+                  note.deletedBy,
+                )
+              : false;
           }}
           notes={visibleNotes}
           labels={labels}
@@ -2325,6 +2386,10 @@ export default function App({ session }: { session: Session | null }) {
             setSidebarOpen(false);
           }}
           onDeleteNotes={handleDeleteNotes}
+          onRestoreNotes={handleRestoreNotes}
+          onEmptyBin={
+            isAdmin ? () => setEmptyBinOpen(true) : undefined
+          }
           onAddToCart={handleAddToCart}
           onLinkNotes={canEdit ? handleLinkNotes : undefined}
           onUpdateNotes={handleUpdateNotes}
@@ -2426,10 +2491,19 @@ export default function App({ session }: { session: Session | null }) {
         />
       )}
 
+      {emptyBinOpen && (
+        <EmptyBinDialog
+          count={binnedNotes.length}
+          requirePassword={isCloudConfigured()}
+          onConfirm={handleEmptyBin}
+          onClose={() => setEmptyBinOpen(false)}
+        />
+      )}
+
       {activeNote && (
         <NoteEditor
           key={`${activeNote.id}-${editorEpoch}`}
-          readOnly={editorReadOnly}
+          readOnly={editorReadOnly || view === 'bin'}
           canManageAsk={isAdmin && !editLockedByOther}
           note={activeNote}
           labels={labels}
@@ -2446,6 +2520,17 @@ export default function App({ session }: { session: Session | null }) {
           onRemoveImage={handleRemoveImage}
           onReorderImages={handleReorderImages}
           onDelete={handleDelete}
+          onRestore={
+            view === 'bin' &&
+            activeNote.deletedAt != null &&
+            canRestoreBinnedNote(
+              membership?.role,
+              membership?.userId,
+              activeNote.deletedBy,
+            )
+              ? () => handleRestoreNotes([activeNote.id])
+              : undefined
+          }
           onCreateLabel={handleCreateLabel}
           onAddToCart={handleAddActiveToCart}
           cartQuantity={cartQuantities[activeNote.id] ?? 0}

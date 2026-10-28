@@ -32,6 +32,9 @@ export const createNote = (...args: Parameters<typeof local.createNote>) =>
   api().createNote(...args);
 export const updateNote = (...args: Parameters<typeof local.updateNote>) =>
   api().updateNote(...args);
+export const listBinnedNotes = (
+  ...args: Parameters<typeof local.listBinnedNotes>
+) => api().listBinnedNotes(...args);
 export const softDeleteNotes = (
   ...args: Parameters<typeof local.softDeleteNotes>
 ) => api().softDeleteNotes(...args);
@@ -39,9 +42,15 @@ export const restoreNotes = (...args: Parameters<typeof local.restoreNotes>) =>
   api().restoreNotes(...args);
 export const purgeNotes = (...args: Parameters<typeof local.purgeNotes>) =>
   api().purgeNotes(...args);
+export const emptyNotesBin = (
+  ...args: Parameters<typeof local.emptyNotesBin>
+) => api().emptyNotesBin(...args);
 export const purgeSoftDeletedNotes = (
   ...args: Parameters<typeof local.purgeSoftDeletedNotes>
 ) => api().purgeSoftDeletedNotes(...args);
+export const confirmAdminPassword = (
+  ...args: Parameters<typeof local.confirmAdminPassword>
+) => api().confirmAdminPassword(...args);
 export const deleteNote = (...args: Parameters<typeof local.deleteNote>) =>
   api().deleteNote(...args);
 export const addImage = (...args: Parameters<typeof local.addImage>) =>

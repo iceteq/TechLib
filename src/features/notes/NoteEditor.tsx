@@ -97,6 +97,8 @@ interface NoteEditorProps {
   onRemoveImage: (imageId: string) => Promise<void>;
   onReorderImages: (orderedImageIds: string[]) => Promise<void>;
   onDelete: () => Promise<void>;
+  /** When set, show Restore instead of Move to bin (bin view). */
+  onRestore?: () => Promise<void>;
   onAddToCart: () => Promise<void>;
   cartQuantity: number;
   /** ✅ sorted / handled mark. */
@@ -141,6 +143,7 @@ export function NoteEditor({
   onRemoveImage,
   onReorderImages,
   onDelete,
+  onRestore,
   onAddToCart,
   cartQuantity,
   sorted = false,
@@ -1140,7 +1143,7 @@ export function NoteEditor({
                           : 'Add to collection'}
                       </span>
                     </button>
-                    {!readOnly && (
+                    {!readOnly && !onRestore && (
                     <button
                       type="button"
                       className={`${styles.moreItem} ${styles.moreDanger}`}
@@ -1151,7 +1154,21 @@ export function NoteEditor({
                       }}
                     >
                       <Trash2 size={16} />
-                      <span>Delete</span>
+                      <span>Move to bin</span>
+                    </button>
+                    )}
+                    {onRestore && (
+                    <button
+                      type="button"
+                      className={styles.moreItem}
+                      role="menuitem"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        void onRestore();
+                      }}
+                    >
+                      <ArchiveRestore size={16} />
+                      <span>Restore</span>
                     </button>
                     )}
                   </div>
@@ -1159,15 +1176,26 @@ export function NoteEditor({
               </div>
             )}
 
-            {!readOnly && !isNarrow && (
+            {!readOnly && !isNarrow && !onRestore && (
               <button
                 type="button"
                 className={`${styles.iconBtn} ${styles.danger}`}
                 onClick={() => void onDelete()}
-                aria-label="Delete note"
-                title="Delete"
+                aria-label="Move note to bin"
+                title="Move to bin"
               >
                 <Trash2 size={18} />
+              </button>
+            )}
+            {onRestore && !isNarrow && (
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={() => void onRestore()}
+                aria-label="Restore note"
+                title="Restore"
+              >
+                <ArchiveRestore size={18} />
               </button>
             )}
           </div>

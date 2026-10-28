@@ -45,6 +45,7 @@ export function loadFilterSession(): FilterSession {
     const rawView = parsed.view as string | undefined;
     const view: NotesView =
       rawView === 'archive' ||
+      rawView === 'bin' ||
       rawView === 'collection' ||
       rawView === 'notes'
         ? rawView

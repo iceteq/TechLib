@@ -126,15 +126,20 @@ interface NoteGridProps {
   /** When false, hide create/select/assign flows (viewers). */
   canEdit?: boolean;
   /**
-   * Per-note edit/delete rights (editors: own notes only; admins: all).
+   * Per-note edit/bin rights (editors: own notes only; admins: all).
    * Defaults to `canEdit` when omitted.
    */
   canMutateNote?: (noteId: string) => boolean;
+  /** Per-note restore rights in the bin (who binned it, or admin). */
+  canRestoreNote?: (noteId: string) => boolean;
   onCreateNote?: () => void;
   onPasteNotes?: () => void;
-  /** Leave archive / return to the notes wall. */
+  /** Leave archive / bin / return to the notes wall. */
   onBrowseNotes?: () => void;
   onDeleteNotes: (noteIds: string[]) => Promise<void>;
+  onRestoreNotes?: (noteIds: string[]) => Promise<void>;
+  onEmptyBin?: () => void;
+  isAdmin?: boolean;
   onAddToCart: (noteIds: string[]) => Promise<void>;
   /** Link selected notes to each other (undirected full mesh). */
   onLinkNotes?: (noteIds: string[]) => Promise<void>;
@@ -215,10 +220,14 @@ export function NoteGrid({
   onOpenNote,
   canEdit = true,
   canMutateNote,
+  canRestoreNote,
   onCreateNote,
   onPasteNotes,
   onBrowseNotes,
   onDeleteNotes,
+  onRestoreNotes,
+  onEmptyBin,
+  isAdmin = false,
   onAddToCart,
   onLinkNotes,
   onUpdateNotes,
@@ -272,6 +281,8 @@ export function NoteGrid({
   const selecting = selectedIds.size > 0;
   const imageBusy = imageBusyCount > 0;
   const mayMutate = canMutateNote ?? ((_noteId: string) => canEdit);
+  const mayRestore =
+    canRestoreNote ?? ((_noteId: string) => isAdmin || canEdit);
   const mutableSelectedIds = [...selectedIds].filter((id) => mayMutate(id));
   const hasMutableSelection = mutableSelectedIds.length > 0;
 
@@ -445,6 +456,16 @@ export function NoteGrid({
     await runBulk(() => onDeleteNotes(ids), { clearAfter: true });
   }
 
+  async function handleRestore() {
+    if (!onRestoreNotes) return;
+    const ids = [...selectedIds].filter((id) => mayRestore(id));
+    if (ids.length === 0) return;
+    await runBulk(() => onRestoreNotes(ids), { clearAfter: true });
+  }
+
+  const restorableSelectedIds = [...selectedIds].filter((id) => mayRestore(id));
+  const hasRestorableSelection = restorableSelectedIds.length > 0;
+
   async function applyDisposition(disposition: NoteDisposition) {
     const ids = mutableSelectedIds;
     if (ids.length === 0) return;
@@ -586,6 +607,7 @@ export function NoteGrid({
 
   let heading = 'All notes';
   if (view === 'archive') heading = 'Archive';
+  else if (view === 'bin') heading = 'Bin';
   else if (relatedPartKey) {
     heading = relatedPartLabel
       ? `Related · ${relatedPartLabel}`
@@ -598,19 +620,22 @@ export function NoteGrid({
   if (view === 'archive') {
     emptyTitle = 'Archive is empty';
     emptyText = 'Archived notes will show up here.';
+  } else if (view === 'bin') {
+    emptyTitle = 'Bin is empty';
+    emptyText = 'Notes you remove will stay here until an admin empties the bin.';
   } else if (hasFilters) {
     emptyTitle = 'No matching part numbers';
     emptyText = 'Clear filters to see more notes, or adjust search.';
   }
 
-  // Search/archive stay flat. Auto (`none`) uses the complementary axis
+  // Search/archive/bin stay flat. Auto (`none`) uses the complementary axis
   // when exactly one of type/stock filter is active.
   const effectiveGroupBy: WallGroupBy = resolveWallGroupBy({
     groupBy,
     filterCategoryId,
     filterStockId,
     searchActive: hasSearch,
-    archive: view === 'archive',
+    archive: view === 'archive' || view === 'bin',
   });
   const wallGroups = useMemo(
     () =>
@@ -683,6 +708,16 @@ export function NoteGrid({
             )}
           </p>
         </div>
+        {view === 'bin' && isAdmin && notes.length > 0 && onEmptyBin && (
+          <button
+            type="button"
+            className={styles.selectionDelete}
+            onClick={onEmptyBin}
+          >
+            <Trash2 size={16} />
+            Empty bin
+          </button>
+        )}
       </div>
 
       {createDefaultsSummary &&
@@ -823,7 +858,7 @@ export function NoteGrid({
               Add photo notes
             </button>
           )}
-          {view === 'archive' && onBrowseNotes && (
+          {(view === 'archive' || view === 'bin') && onBrowseNotes && (
             <button
               type="button"
               className={styles.emptyCta}
@@ -1051,14 +1086,18 @@ export function NoteGrid({
             <p className={styles.selectionCount}>
               {selectedIds.size} selected
             </p>
-            <p className={styles.selectionHint}>
-              {SHOW_GUIDELINES
-                ? 'Assign below, or drag onto Type, Stock, or Guideline'
-                : 'Assign below, or drag onto Type or Stock'}
-            </p>
+            {view !== 'bin' && (
+              <p className={styles.selectionHint}>
+                {SHOW_GUIDELINES
+                  ? 'Assign below, or drag onto Type, Stock, or Guideline'
+                  : 'Assign below, or drag onto Type or Stock'}
+              </p>
+            )}
           </div>
 
           <div className={styles.selectionActions}>
+            {view !== 'bin' && (
+            <>
             <div className={styles.menuWrap}>
               <button
                 type="button"
@@ -1230,43 +1269,62 @@ export function NoteGrid({
               </button>
             )}
 
-            <button
-              type="button"
-              className={`${styles.selectionAction} ${
-                archiveJuice.bursting ? styles.selectionActionJuice : ''
-              }`}
-              onClick={() => {
-                void handleArchiveSelected(view !== 'archive');
-              }}
-              disabled={busy || !hasMutableSelection}
-              title={
-                hasMutableSelection
-                  ? undefined
-                  : 'You can only edit notes you created'
-              }
-            >
-              {view === 'archive' ? (
-                <ArchiveRestore size={14} />
-              ) : (
-                <Archive size={14} />
-              )}
-              {view === 'archive' ? 'Unarchive' : 'Archive'}
-            </button>
+              <button
+                type="button"
+                className={`${styles.selectionAction} ${
+                  archiveJuice.bursting ? styles.selectionActionJuice : ''
+                }`}
+                onClick={() => {
+                  void handleArchiveSelected(view !== 'archive');
+                }}
+                disabled={busy || !hasMutableSelection}
+                title={
+                  hasMutableSelection
+                    ? undefined
+                    : 'You can only edit notes you created'
+                }
+              >
+                {view === 'archive' ? (
+                  <ArchiveRestore size={14} />
+                ) : (
+                  <Archive size={14} />
+                )}
+                {view === 'archive' ? 'Unarchive' : 'Archive'}
+              </button>
+            </>
+            )}
 
-            <button
-              type="button"
-              className={styles.selectionDelete}
-              onClick={() => void handleDelete()}
-              disabled={busy || !hasMutableSelection}
-              title={
-                hasMutableSelection
-                  ? undefined
-                  : 'You can only delete notes you created'
-              }
-            >
-              <Trash2 size={16} />
-              {busy ? 'Working…' : 'Delete'}
-            </button>
+            {view === 'bin' ? (
+              <button
+                type="button"
+                className={styles.selectionAction}
+                onClick={() => void handleRestore()}
+                disabled={busy || !hasRestorableSelection}
+                title={
+                  hasRestorableSelection
+                    ? undefined
+                    : 'You can only restore notes you moved to the bin'
+                }
+              >
+                <ArchiveRestore size={14} />
+                {busy ? 'Working…' : 'Restore'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.selectionDelete}
+                onClick={() => void handleDelete()}
+                disabled={busy || !hasMutableSelection}
+                title={
+                  hasMutableSelection
+                    ? undefined
+                    : 'You can only bin notes you created'
+                }
+              >
+                <Trash2 size={16} />
+                {busy ? 'Working…' : 'Move to bin'}
+              </button>
+            )}
           </div>
 
           <button
