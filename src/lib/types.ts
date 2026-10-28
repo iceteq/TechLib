@@ -91,8 +91,8 @@ export interface NoteAskItem {
 export interface Note {
   id: string;
   /**
-   * User id of the note author. Editors may only edit/delete their own notes;
-   * admins may edit/delete any. Local mode uses `"local"`.
+   * User id of the note author. Editors may only edit/bin their own notes;
+   * admins may edit/bin any. Local mode uses `"local"`.
    */
   createdBy: string;
   /** Warehouse part number (shown as “Part number” in the UI). */
@@ -119,8 +119,10 @@ export interface Note {
   specialCase: string;
   pinned: boolean;
   archived: boolean;
-  /** Soft-delete timestamp; null when active. */
+  /** Soft-delete (bin) timestamp; null when active. */
   deletedAt: number | null;
+  /** User who moved the note to the bin; null when active. */
+  deletedBy: string | null;
   createdAt: number;
   updatedAt: number;
   /**
@@ -171,7 +173,7 @@ export interface Reaction {
   mine?: boolean;
 }
 
-export type NotesView = 'notes' | 'archive' | 'collection';
+export type NotesView = 'notes' | 'archive' | 'bin' | 'collection';
 
 export interface CartItem {
   noteId: string;

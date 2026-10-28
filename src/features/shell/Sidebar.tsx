@@ -79,6 +79,8 @@ interface SidebarProps {
   onPinStock?: (stockId: string | null) => void;
   onSelectNotes: () => void;
   onSelectArchive: () => void;
+  onSelectBin: () => void;
+  binCount?: number;
   onSelectCollection: () => void;
   onSelectDisposition: (disposition: NoteDisposition) => void;
   onSelectCategoryId: (categoryId: string) => void;
@@ -181,6 +183,8 @@ export function Sidebar({
   onPinStock,
   onSelectNotes,
   onSelectArchive,
+  onSelectBin,
+  binCount = 0,
   onSelectCollection,
   onSelectDisposition,
   onSelectCategoryId,
@@ -1103,6 +1107,16 @@ export function Sidebar({
         >
           <Archive size={16} />
           <span>Archive</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.itemQuiet} ${
+            view === 'bin' ? styles.itemQuietActive : ''
+          }`}
+          onClick={onSelectBin}
+        >
+          <Trash2 size={16} />
+          <span>Bin{binCount > 0 ? ` (${binCount})` : ''}</span>
         </button>
         {isAdmin && onOpenMembers && (
           <button

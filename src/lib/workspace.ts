@@ -35,7 +35,7 @@ export function canManageSharedTaxonomy(
 }
 
 /**
- * Whether this member may edit/delete a specific note (and its images).
+ * Whether this member may edit/bin a specific note (and its images).
  * Admins: any note. Editors: only notes they created. Viewers: never.
  */
 export function canMutateNote(
@@ -47,6 +47,20 @@ export function canMutateNote(
   if (role === 'admin') return true;
   if (role === 'editor') return createdBy === userId;
   return false;
+}
+
+/**
+ * Whether this member may restore a binned note.
+ * Admins: any. Others: only notes they personally moved to the bin.
+ */
+export function canRestoreBinnedNote(
+  role: WorkspaceRole | null | undefined,
+  userId: string | null | undefined,
+  deletedBy: string | null | undefined,
+): boolean {
+  if (!role || !userId || !deletedBy) return false;
+  if (role === 'admin') return true;
+  return deletedBy === userId;
 }
 
 /** Local / non-cloud mode: full edit access, no membership. */

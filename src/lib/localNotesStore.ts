@@ -104,6 +104,7 @@ function normalizeNote(note: Note & { category?: string }): Note {
     pinned: Boolean(note.pinned),
     archived: Boolean(note.archived),
     deletedAt: note.deletedAt ?? null,
+    deletedBy: note.deletedBy ?? null,
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
     labelIds: note.labelIds ?? [],
@@ -222,6 +223,18 @@ export async function listNotes(): Promise<NoteWithUrls[]> {
   return sortNotes(hydrated);
 }
 
+/** Notes currently in the bin (soft-deleted). */
+export async function listBinnedNotes(): Promise<NoteWithUrls[]> {
+  await ensureDefaultNoteTypes();
+  const db = await getDb();
+  const notes = await db.getAll('notes');
+  const binned = notes
+    .map(normalizeNote)
+    .filter((note) => note.deletedAt != null)
+    .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
+  return Promise.all(binned.map(hydrateNote));
+}
+
 /** Local blob URLs are already full-resolution — nothing to upgrade. */
 export async function ensureFullImageUrls(
   _note: NoteWithUrls,
@@ -326,6 +339,7 @@ export async function createNote(input?: {
     pinned: false,
     archived: false,
     deletedAt: null,
+    deletedBy: null,
     createdAt: now,
     updatedAt: now,
     labelIds: input?.labelIds ?? [],
@@ -407,7 +421,11 @@ export async function updateNote(
   return hydrateNote(next);
 }
 
-export async function softDeleteNotes(ids: string[]): Promise<void> {
+/** Move notes to the bin. `deletedBy` defaults to local admin user. */
+export async function softDeleteNotes(
+  ids: string[],
+  deletedBy = 'local',
+): Promise<void> {
   if (ids.length === 0) return;
   const db = await getDb();
   const now = Date.now();
@@ -419,44 +437,75 @@ export async function softDeleteNotes(ids: string[]): Promise<void> {
     await db.put('notes', {
       ...normalized,
       deletedAt: now,
+      deletedBy,
       updatedAt: now,
     });
   }
 }
 
-export async function restoreNotes(ids: string[]): Promise<void> {
+/**
+ * Restore notes from the bin.
+ * When `actorId` is set, only notes binned by that actor are restored
+ * unless `asAdmin` is true.
+ */
+export async function restoreNotes(
+  ids: string[],
+  options?: { actorId?: string; asAdmin?: boolean },
+): Promise<void> {
   if (ids.length === 0) return;
   const db = await getDb();
   const now = Date.now();
+  const actorId = options?.actorId;
+  const asAdmin = options?.asAdmin ?? !actorId;
   for (const id of ids) {
     const existing = await db.get('notes', id);
     if (!existing) continue;
     const normalized = normalizeNote(existing);
     if (normalized.deletedAt == null) continue;
+    if (
+      !asAdmin &&
+      actorId &&
+      normalized.deletedBy != null &&
+      normalized.deletedBy !== actorId
+    ) {
+      continue;
+    }
     await db.put('notes', {
       ...normalized,
       deletedAt: null,
+      deletedBy: null,
       updatedAt: now,
     });
   }
 }
 
-/** Hard-delete notes (and images/reactions). Used after undo window expires. */
+/** Hard-delete notes (and images/reactions). */
 export async function purgeNotes(ids: string[]): Promise<void> {
   for (const id of ids) {
     await deleteNote(id);
   }
 }
 
-/** Remove any soft-deleted notes left behind (e.g. after a crash). */
-export async function purgeSoftDeletedNotes(): Promise<void> {
+/** Permanently delete every note in the bin (local = always allowed). */
+export async function emptyNotesBin(): Promise<string[]> {
   const db = await getDb();
   const notes = await db.getAll('notes');
-  for (const note of notes) {
-    if (normalizeNote(note).deletedAt != null) {
-      await deleteNote(note.id);
-    }
-  }
+  const ids = notes
+    .map(normalizeNote)
+    .filter((note) => note.deletedAt != null)
+    .map((note) => note.id);
+  await purgeNotes(ids);
+  return ids;
+}
+
+/** @deprecated Prefer emptyNotesBin — kept for call-site compatibility. */
+export async function purgeSoftDeletedNotes(): Promise<void> {
+  await emptyNotesBin();
+}
+
+/** Local mode has no password gate. */
+export async function confirmAdminPassword(_password: string): Promise<void> {
+  // no-op
 }
 
 export async function deleteNote(id: string): Promise<void> {

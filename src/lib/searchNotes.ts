@@ -218,8 +218,13 @@ export function filterNotes(
   const orTerms = options.orTerms ?? [];
   const filtered = notes.filter((note) => {
     if (options.view === 'collection') return false;
-    if (options.view === 'archive' ? !note.archived : note.archived) {
-      return false;
+    if (options.view === 'bin') {
+      if (note.deletedAt == null) return false;
+    } else {
+      if (note.deletedAt != null) return false;
+      if (options.view === 'archive' ? !note.archived : note.archived) {
+        return false;
+      }
     }
     if (
       options.labelIds.length > 0 &&

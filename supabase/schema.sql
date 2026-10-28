@@ -5,7 +5,9 @@
 -- and migrations/007_note_edit_locks.sql (soft edit locks / presence)
 -- and migrations/008_realtime_library_tables.sql (live wall sync publication)
 -- and migrations/009_team_reactions.sql (team-visible reactions)
--- and migrations/010_library_member_labels.sql (wall author labels).
+-- and migrations/010_library_member_labels.sql (wall author labels)
+-- and migrations/011_admin_taxonomy_mutate.sql (admin-only taxonomy mutate)
+-- and migrations/012_notes_bin.sql (bin / restore / empty bin + audit).
 -- Migration 002 is already included in this file for fresh installs.
 
 -- Stock locations (bay / shelf codes) — before notes so notes.stock_id can FK
@@ -57,6 +59,8 @@ create table if not exists public.notes (
   pinned boolean not null default false,
   archived boolean not null default false,
   deleted_at timestamptz,
+  -- Who moved the note to the bin (see migrations/012_notes_bin.sql).
+  deleted_by uuid references auth.users (id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
