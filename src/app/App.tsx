@@ -267,7 +267,7 @@ export default function App({ session }: { session: Session | null }) {
   );
   const membershipRef = useRef(membership);
   membershipRef.current = membership;
-  /** userId → email for wall author labels. */
+  /** userId → email for open-note author labels. */
   const [memberEmailByUserId, setMemberEmailByUserId] = useState<
     Map<string, string>
   >(() => new Map());
