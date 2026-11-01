@@ -62,3 +62,40 @@ export function mergeRemoteNotesIntoWall(
     return b.updatedAt - a.updatedAt;
   });
 }
+
+/**
+ * Merge remote snapshots into the admin Bin list.
+ * Soft-deleted remotes are upserted; restored (or hard-missing) drop out.
+ */
+export function mergeRemoteNotesIntoBin(
+  prev: NoteWithUrls[],
+  remoteBatch: NoteWithUrls[],
+  options?: { missingIds?: string[] },
+): NoteWithUrls[] {
+  const map = new Map(prev.map((n) => [n.id, n]));
+
+  for (const id of options?.missingIds ?? []) {
+    map.delete(id);
+  }
+
+  for (const remote of remoteBatch) {
+    if (remote.deletedAt == null) {
+      map.delete(remote.id);
+      continue;
+    }
+    const local = map.get(remote.id);
+    if (!local) {
+      map.set(remote.id, remote);
+      continue;
+    }
+    if (versionMs(local) > versionMs(remote)) {
+      continue;
+    }
+    map.set(remote.id, {
+      ...remote,
+      images: mergeImages(local.images, remote.images),
+    });
+  }
+
+  return [...map.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+}

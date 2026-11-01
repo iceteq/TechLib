@@ -4,6 +4,12 @@ export const NOTE_PREVIEW_IMAGE_LIMIT = 2;
 export const APP_NAME = 'TechLib';
 
 /**
+ * Client-side password required for admins to permanently empty the bin
+ * (all or selected). Temporary until a proper confirmation flow exists.
+ */
+export const EMPTY_BIN_PASSWORD = '123456';
+
+/**
  * When false, guideline / disposition UI is hidden (sidebar, cards, editor,
  * bulk assign, collection column). Data + APIs stay; flip to true to restore.
  */

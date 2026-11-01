@@ -11,6 +11,7 @@ import {
   Pin,
   Plus,
   Layers,
+  RotateCcw,
   Trash2,
   X,
 } from 'lucide-react';
@@ -132,9 +133,15 @@ interface NoteGridProps {
   canMutateNote?: (noteId: string) => boolean;
   onCreateNote?: () => void;
   onPasteNotes?: () => void;
-  /** Leave archive / return to the notes wall. */
+  /** Leave archive / bin / return to the notes wall. */
   onBrowseNotes?: () => void;
   onDeleteNotes: (noteIds: string[]) => Promise<void>;
+  /** Admin Bin: restore soft-deleted notes. */
+  onRestoreNotes?: (noteIds: string[]) => Promise<void>;
+  /** Admin Bin: permanently delete (password gated in App). */
+  onPurgeNotes?: (noteIds: string[]) => void;
+  /** Admin Bin: empty the entire bin (password gated in App). */
+  onEmptyBin?: () => void;
   onAddToCart: (noteIds: string[]) => Promise<void>;
   /** Link selected notes to each other (undirected full mesh). */
   onLinkNotes?: (noteIds: string[]) => Promise<void>;
@@ -219,6 +226,9 @@ export function NoteGrid({
   onPasteNotes,
   onBrowseNotes,
   onDeleteNotes,
+  onRestoreNotes,
+  onPurgeNotes,
+  onEmptyBin,
   onAddToCart,
   onLinkNotes,
   onUpdateNotes,
@@ -445,6 +455,20 @@ export function NoteGrid({
     await runBulk(() => onDeleteNotes(ids), { clearAfter: true });
   }
 
+  async function handleRestoreSelected() {
+    if (!onRestoreNotes) return;
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    await runBulk(() => onRestoreNotes(ids), { clearAfter: true });
+  }
+
+  function handlePurgeSelected() {
+    if (!onPurgeNotes) return;
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    onPurgeNotes(ids);
+  }
+
   async function applyDisposition(disposition: NoteDisposition) {
     const ids = mutableSelectedIds;
     if (ids.length === 0) return;
@@ -563,7 +587,9 @@ export function NoteGrid({
   const searchChipLabel = hasOrTerms
     ? `Search: ${orTerms.length} part${orTerms.length === 1 ? '' : 's'}`
     : `Search: ${search.trim()}`;
-  const canCreate = canEdit && view === 'notes' && !selecting && Boolean(onCreateNote);
+  const isBin = view === 'bin';
+  const canCreate =
+    canEdit && view === 'notes' && !selecting && Boolean(onCreateNote);
   const primaryCreateMeta = createFabMeta(primaryCreate);
   const PrimaryCreateIcon = primaryCreateMeta.Icon;
   const overflowCreate = CREATE_FAB_ACTIONS.filter(
@@ -586,6 +612,7 @@ export function NoteGrid({
 
   let heading = 'All notes';
   if (view === 'archive') heading = 'Archive';
+  else if (isBin) heading = 'Bin';
   else if (relatedPartKey) {
     heading = relatedPartLabel
       ? `Related · ${relatedPartLabel}`
@@ -598,12 +625,15 @@ export function NoteGrid({
   if (view === 'archive') {
     emptyTitle = 'Archive is empty';
     emptyText = 'Archived notes will show up here.';
+  } else if (isBin) {
+    emptyTitle = 'Bin is empty';
+    emptyText = 'Notes you remove will show up here until an admin empties the bin.';
   } else if (hasFilters) {
     emptyTitle = 'No matching part numbers';
     emptyText = 'Clear filters to see more notes, or adjust search.';
   }
 
-  // Search/archive stay flat. Auto (`none`) uses the complementary axis
+  // Search/archive/bin stay flat. Auto (`none`) uses the complementary axis
   // when exactly one of type/stock filter is active.
   const effectiveGroupBy: WallGroupBy = resolveWallGroupBy({
     groupBy,
@@ -611,6 +641,7 @@ export function NoteGrid({
     filterStockId,
     searchActive: hasSearch,
     archive: view === 'archive',
+    bin: isBin,
   });
   const wallGroups = useMemo(
     () =>
@@ -678,11 +709,27 @@ export function NoteGrid({
               : `${notes.length} note${notes.length === 1 ? '' : 's'}${
                   hasSearch || hasFilters ? ' found' : ''
                 }`}
-            {canEdit && view === 'notes' && !selecting && notes.length > 0 && (
-              <span className={styles.hint}> · Long-press a note to select</span>
-            )}
+            {canEdit &&
+              (view === 'notes' || isBin) &&
+              !selecting &&
+              notes.length > 0 && (
+                <span className={styles.hint}>
+                  {' '}
+                  · Long-press a note to select
+                </span>
+              )}
           </p>
         </div>
+        {isBin && notes.length > 0 && onEmptyBin && !selecting && (
+          <button
+            type="button"
+            className={styles.emptyBinBtn}
+            onClick={onEmptyBin}
+          >
+            <Trash2 size={14} />
+            Empty bin
+          </button>
+        )}
       </div>
 
       {createDefaultsSummary &&
@@ -823,7 +870,7 @@ export function NoteGrid({
               Add photo notes
             </button>
           )}
-          {view === 'archive' && onBrowseNotes && (
+          {(view === 'archive' || isBin) && onBrowseNotes && (
             <button
               type="button"
               className={styles.emptyCta}
@@ -1052,13 +1099,38 @@ export function NoteGrid({
               {selectedIds.size} selected
             </p>
             <p className={styles.selectionHint}>
-              {SHOW_GUIDELINES
-                ? 'Assign below, or drag onto Type, Stock, or Guideline'
-                : 'Assign below, or drag onto Type or Stock'}
+              {isBin
+                ? 'Restore notes or delete them forever'
+                : SHOW_GUIDELINES
+                  ? 'Assign below, or drag onto Type, Stock, or Guideline'
+                  : 'Assign below, or drag onto Type or Stock'}
             </p>
           </div>
 
           <div className={styles.selectionActions}>
+            {isBin ? (
+              <>
+                <button
+                  type="button"
+                  className={styles.selectionAction}
+                  onClick={() => void handleRestoreSelected()}
+                  disabled={busy || selectedIds.size === 0}
+                >
+                  <RotateCcw size={14} />
+                  Restore
+                </button>
+                <button
+                  type="button"
+                  className={styles.selectionDelete}
+                  onClick={handlePurgeSelected}
+                  disabled={busy || selectedIds.size === 0}
+                >
+                  <Trash2 size={16} />
+                  {busy ? 'Working…' : 'Delete forever'}
+                </button>
+              </>
+            ) : (
+              <>
             <div className={styles.menuWrap}>
               <button
                 type="button"
@@ -1261,12 +1333,14 @@ export function NoteGrid({
               title={
                 hasMutableSelection
                   ? undefined
-                  : 'You can only delete notes you created'
+                  : 'You can only bin notes you created'
               }
             >
               <Trash2 size={16} />
-              {busy ? 'Working…' : 'Delete'}
+              {busy ? 'Working…' : 'Bin'}
             </button>
+              </>
+            )}
           </div>
 
           <button

@@ -222,6 +222,17 @@ export async function listNotes(): Promise<NoteWithUrls[]> {
   return sortNotes(hydrated);
 }
 
+/** Soft-deleted notes for the admin Bin (not shown on the wall). */
+export async function listSoftDeletedNotes(): Promise<NoteWithUrls[]> {
+  const db = await getDb();
+  const notes = await db.getAll('notes');
+  const deleted = notes
+    .map(normalizeNote)
+    .filter((note) => note.deletedAt != null);
+  const hydrated = await Promise.all(deleted.map(hydrateNote));
+  return sortNotes(hydrated);
+}
+
 /** Local blob URLs are already full-resolution — nothing to upgrade. */
 export async function ensureFullImageUrls(
   _note: NoteWithUrls,

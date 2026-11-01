@@ -218,8 +218,11 @@ export function filterNotes(
   const orTerms = options.orTerms ?? [];
   const filtered = notes.filter((note) => {
     if (options.view === 'collection') return false;
-    if (options.view === 'archive' ? !note.archived : note.archived) {
-      return false;
+    // Bin shows soft-deleted notes regardless of archived flag.
+    if (options.view !== 'bin') {
+      if (options.view === 'archive' ? !note.archived : note.archived) {
+        return false;
+      }
     }
     if (
       options.labelIds.length > 0 &&

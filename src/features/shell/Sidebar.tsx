@@ -79,6 +79,8 @@ interface SidebarProps {
   onPinStock?: (stockId: string | null) => void;
   onSelectNotes: () => void;
   onSelectArchive: () => void;
+  /** Admins only — soft-deleted notes. */
+  onSelectBin?: () => void;
   onSelectCollection: () => void;
   onSelectDisposition: (disposition: NoteDisposition) => void;
   onSelectCategoryId: (categoryId: string) => void;
@@ -181,6 +183,7 @@ export function Sidebar({
   onPinStock,
   onSelectNotes,
   onSelectArchive,
+  onSelectBin,
   onSelectCollection,
   onSelectDisposition,
   onSelectCategoryId,
@@ -1104,6 +1107,18 @@ export function Sidebar({
           <Archive size={16} />
           <span>Archive</span>
         </button>
+        {isAdmin && onSelectBin && (
+          <button
+            type="button"
+            className={`${styles.itemQuiet} ${
+              view === 'bin' ? styles.itemQuietActive : ''
+            }`}
+            onClick={onSelectBin}
+          >
+            <Trash2 size={16} />
+            <span>Bin</span>
+          </button>
+        )}
         {isAdmin && onOpenMembers && (
           <button
             type="button"

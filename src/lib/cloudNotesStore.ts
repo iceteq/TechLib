@@ -999,6 +999,17 @@ export async function listNotes(): Promise<NoteWithUrls[]> {
   return hydrateRows((data ?? []) as NoteRow[], 'wall');
 }
 
+/** Soft-deleted notes for the admin Bin (not shown on the wall). */
+export async function listSoftDeletedNotes(): Promise<NoteWithUrls[]> {
+  await requireUserId();
+  const { data, error } = await getSupabase()
+    .from('notes')
+    .select('*')
+    .not('deleted_at', 'is', null);
+  throwIf(error);
+  return hydrateRows((data ?? []) as NoteRow[], 'wall');
+}
+
 export async function getNote(id: string): Promise<NoteWithUrls | undefined> {
   await requireUserId();
   const { data, error } = await getSupabase()

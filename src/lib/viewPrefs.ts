@@ -17,8 +17,10 @@ export function resolveWallGroupBy(input: {
   filterStockId: string | null;
   searchActive?: boolean;
   archive?: boolean;
+  /** Soft-deleted bin — always flat like archive. */
+  bin?: boolean;
 }): WallGroupBy {
-  if (input.searchActive || input.archive) return 'none';
+  if (input.searchActive || input.archive || input.bin) return 'none';
   if (input.groupBy !== 'none') return input.groupBy;
 
   const hasType = Boolean(input.filterCategoryId);

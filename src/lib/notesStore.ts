@@ -8,6 +8,9 @@ function api() {
 
 export const listNotes = (...args: Parameters<typeof local.listNotes>) =>
   api().listNotes(...args);
+export const listSoftDeletedNotes = (
+  ...args: Parameters<typeof local.listSoftDeletedNotes>
+) => api().listSoftDeletedNotes(...args);
 export const getNote = (...args: Parameters<typeof local.getNote>) =>
   api().getNote(...args);
 export const fetchNotesByIds = (

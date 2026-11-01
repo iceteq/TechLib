@@ -171,7 +171,7 @@ export interface Reaction {
   mine?: boolean;
 }
 
-export type NotesView = 'notes' | 'archive' | 'collection';
+export type NotesView = 'notes' | 'archive' | 'collection' | 'bin';
 
 export interface CartItem {
   noteId: string;

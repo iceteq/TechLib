@@ -14,6 +14,7 @@ import {
   Pin,
   PinOff,
   Layers,
+  RotateCcw,
   Trash2,
   X,
 } from 'lucide-react';
@@ -97,6 +98,8 @@ interface NoteEditorProps {
   onRemoveImage: (imageId: string) => Promise<void>;
   onReorderImages: (orderedImageIds: string[]) => Promise<void>;
   onDelete: () => Promise<void>;
+  /** Soft-deleted note in Bin — restore instead of bin again. */
+  onRestore?: () => Promise<void>;
   onAddToCart: () => Promise<void>;
   cartQuantity: number;
   /** ✅ sorted / handled mark. */
@@ -141,6 +144,7 @@ export function NoteEditor({
   onRemoveImage,
   onReorderImages,
   onDelete,
+  onRestore,
   onAddToCart,
   cartQuantity,
   sorted = false,
@@ -1140,7 +1144,21 @@ export function NoteEditor({
                           : 'Add to collection'}
                       </span>
                     </button>
-                    {!readOnly && (
+                    {note.deletedAt != null && onRestore ? (
+                    <button
+                      type="button"
+                      className={styles.moreItem}
+                      role="menuitem"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        void onRestore();
+                      }}
+                    >
+                      <RotateCcw size={16} />
+                      <span>Restore</span>
+                    </button>
+                    ) : (
+                      !readOnly && (
                     <button
                       type="button"
                       className={`${styles.moreItem} ${styles.moreDanger}`}
@@ -1151,24 +1169,37 @@ export function NoteEditor({
                       }}
                     >
                       <Trash2 size={16} />
-                      <span>Delete</span>
+                      <span>Bin</span>
                     </button>
+                      )
                     )}
                   </div>
                 )}
               </div>
             )}
 
-            {!readOnly && !isNarrow && (
+            {note.deletedAt != null && onRestore && !isNarrow ? (
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={() => void onRestore()}
+                aria-label="Restore note"
+                title="Restore"
+              >
+                <RotateCcw size={18} />
+              </button>
+            ) : (
+              !readOnly && !isNarrow && (
               <button
                 type="button"
                 className={`${styles.iconBtn} ${styles.danger}`}
                 onClick={() => void onDelete()}
-                aria-label="Delete note"
-                title="Delete"
+                aria-label="Move note to bin"
+                title="Bin"
               >
                 <Trash2 size={18} />
               </button>
+              )
             )}
           </div>
         </div>

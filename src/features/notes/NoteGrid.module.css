@@ -49,6 +49,24 @@
   gap: 1rem;
 }
 
+.emptyBinBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  border: none;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(217, 48, 37, 0.12);
+  color: #c5221f;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.emptyBinBtn:hover {
+  background: rgba(217, 48, 37, 0.18);
+}
+
 .heading {
   margin: 0;
   font-size: 1.55rem;
