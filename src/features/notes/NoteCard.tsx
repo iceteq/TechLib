@@ -3,10 +3,12 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent,
   type ReactNode,
 } from 'react';
 import {
   Check,
+  Copy,
   Layers,
 } from 'lucide-react';
 import {
@@ -247,15 +249,43 @@ export const NoteCard = memo(function NoteCard({
   const overflow = Math.max(0, note.images.length - NOTE_PREVIEW_IMAGE_LIMIT);
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const stock = stockLocations.find((s) => s.id === note.stockId);
-  const title = note.title.trim() || 'No part number';
+  const partNumber = note.title.trim();
+  const title = partNumber || 'No part number';
   const noteType = noteTypeById(noteTypes, note.categoryId);
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
+  const [copiedPart, setCopiedPart] = useState(false);
+  const copiedPartTimer = useRef<number | null>(null);
 
   function openAssign(field: MetaAssignField) {
     if (selecting) return;
     setAssignField((current) => (current === field ? null : field));
   }
 
+  useEffect(() => {
+    return () => {
+      if (copiedPartTimer.current != null) {
+        window.clearTimeout(copiedPartTimer.current);
+      }
+    };
+  }, []);
+
+  async function copyPartNumber(e: MouseEvent) {
+    e.stopPropagation();
+    if (!partNumber) return;
+    try {
+      await navigator.clipboard.writeText(partNumber);
+      setCopiedPart(true);
+      if (copiedPartTimer.current != null) {
+        window.clearTimeout(copiedPartTimer.current);
+      }
+      copiedPartTimer.current = window.setTimeout(() => {
+        setCopiedPart(false);
+        copiedPartTimer.current = null;
+      }, 1500);
+    } catch {
+      // Clipboard may be blocked; leave UI unchanged.
+    }
+  }
 
   const cardRef = useRef<HTMLElement | null>(null);
   const longPressTimer = useRef<number | null>(null);
@@ -534,8 +564,29 @@ export const NoteCard = memo(function NoteCard({
                 {relatedCount} related
               </button>
             )}
-            {(authorLabel || showAge) && (
+            {(partNumber || authorLabel || showAge) && (
               <div className={styles.titleMeta}>
+                {partNumber ? (
+                  <button
+                    type="button"
+                    className={`${styles.copyPart} ${copiedPart ? styles.copyPartDone : ''}`}
+                    title={copiedPart ? 'Copied' : 'Copy part number'}
+                    aria-label={
+                      copiedPart
+                        ? 'Part number copied'
+                        : `Copy part number ${partNumber}`
+                    }
+                    onClick={copyPartNumber}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    {copiedPart ? (
+                      <Check size={12} strokeWidth={2.5} aria-hidden />
+                    ) : (
+                      <Copy size={12} strokeWidth={2.25} aria-hidden />
+                    )}
+                    <span>{copiedPart ? 'Copied' : 'Copy'}</span>
+                  </button>
+                ) : null}
                 {authorLabel ? (
                   <span
                     className={styles.author}

@@ -318,6 +318,42 @@
   max-width: 40%;
 }
 
+.copyPart {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  margin: 0;
+  padding: 0.1rem 0.28rem;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.copyPart:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  opacity: 1;
+}
+
+.copyPart:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.copyPartDone {
+  color: var(--accent);
+  opacity: 1;
+}
+
 .author,
 .age {
   font-size: 0.68rem;
