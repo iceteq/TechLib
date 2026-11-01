@@ -690,11 +690,6 @@ export function NoteGrid({
       onDragOver={handleImageDragOver}
       onDrop={handleImageDrop}
     >
-      {imageBusyCount > 0 && (
-        <div className={styles.imageBusyBanner} role="status" aria-live="polite">
-          Adding {imageBusyCount} image{imageBusyCount === 1 ? '' : 's'}…
-        </div>
-      )}
       {imageDropActive && (
         <div className={styles.dropBanner} aria-live="polite">
           Drop images to create a note

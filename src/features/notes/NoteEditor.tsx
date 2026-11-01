@@ -201,7 +201,6 @@ export function NoteEditor({
   const moreOpenRef = useRef(moreOpen);
   const colorOpenRef = useRef(colorOpen);
   const assignFieldRef = useRef(assignField);
-  const imageBusyRef = useRef(false);
   const saveInflightRef = useRef(0);
   const saveHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   moreOpenRef.current = moreOpen;
@@ -259,7 +258,6 @@ export function NoteEditor({
   const existingPartCount = draftPartIds.length;
 
   const imageBusy = imageBusyCount > 0;
-  imageBusyRef.current = imageBusy;
 
   // Last props we adopted into local draft state. Used so image/meta refreshes
   // do not wipe in-progress typing when only unrelated note fields change.
@@ -728,13 +726,13 @@ export function NoteEditor({
   }
 
   function goPrev() {
-    if (!canNavigatePrev || imageBusy || assignField) return;
+    if (!canNavigatePrev || assignField) return;
     void persistAll();
     onNavigatePrev?.();
   }
 
   function goNext() {
-    if (!canNavigateNext || imageBusy || assignField) return;
+    if (!canNavigateNext || assignField) return;
     void persistAll();
     onNavigateNext?.();
   }
@@ -792,7 +790,7 @@ export function NoteEditor({
         return;
       }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        if (imageBusy || assignField || colorOpen || moreOpen) return;
+        if (assignField || colorOpen || moreOpen) return;
         if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
         if (isTextEntryTarget(e.target)) return;
         if (e.key === 'ArrowLeft') {
@@ -861,7 +859,7 @@ export function NoteEditor({
                   type="button"
                   className={styles.iconBtn}
                   onClick={() => void goPrev()}
-                  disabled={!canNavigatePrev || imageBusy}
+                  disabled={!canNavigatePrev}
                   aria-label="Previous note"
                   title="Previous note (←)"
                 >
@@ -876,7 +874,7 @@ export function NoteEditor({
                   type="button"
                   className={styles.iconBtn}
                   onClick={() => void goNext()}
-                  disabled={!canNavigateNext || imageBusy}
+                  disabled={!canNavigateNext}
                   aria-label="Next note"
                   title="Next note (→)"
                 >
@@ -1247,15 +1245,6 @@ export function NoteEditor({
             onRemove={readOnly ? undefined : (id) => void onRemoveImage(id)}
             onReorder={readOnly ? undefined : (ids) => void onReorderImages(ids)}
           />
-          {imageBusy && (
-            <div className={styles.imageBusy} role="status" aria-live="polite">
-              <Loader2 size={16} className={styles.spinner} aria-hidden />
-              <span>
-                Adding {imageBusyCount} image
-                {imageBusyCount === 1 ? '' : 's'}…
-              </span>
-            </div>
-          )}
 
           <div className={styles.fields}>
             <input
@@ -1520,9 +1509,12 @@ export function NoteEditor({
             </>
           )}
           {imageBusy ? (
-            <span className={styles.imageBusyInline} role="status">
+            <span
+              className={styles.imageBusyInline}
+              role="status"
+              aria-label="Adding images"
+            >
               <Loader2 size={15} className={styles.spinner} aria-hidden />
-              Adding…
             </span>
           ) : (
             dropActive && (

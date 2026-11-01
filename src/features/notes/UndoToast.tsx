@@ -5,9 +5,11 @@ import styles from './UndoToast.module.css';
 interface UndoToastProps {
   message: string;
   onUndo?: () => void;
-  onDismiss: () => void;
-  /** Auto-dismiss after this many ms. */
+  onDismiss?: () => void;
+  /** Auto-dismiss after this many ms. `0` keeps the toast until unmounted. */
   durationMs?: number;
+  /** Hide the dismiss control (progress / sticky status toasts). */
+  hideDismiss?: boolean;
   /** Subtle success chrome for import delight. */
   tone?: 'default' | 'success';
 }
@@ -17,9 +19,11 @@ export function UndoToast({
   onUndo,
   onDismiss,
   durationMs = 20000,
+  hideDismiss = false,
   tone = 'default',
 }: UndoToastProps) {
   useEffect(() => {
+    if (!onDismiss || durationMs <= 0) return;
     const timer = window.setTimeout(onDismiss, durationMs);
     return () => window.clearTimeout(timer);
   }, [message, durationMs, onDismiss]);
@@ -36,14 +40,16 @@ export function UndoToast({
           Undo
         </button>
       )}
-      <button
-        type="button"
-        className={styles.dismiss}
-        onClick={onDismiss}
-        aria-label="Dismiss"
-      >
-        <X size={16} />
-      </button>
+      {!hideDismiss && onDismiss && (
+        <button
+          type="button"
+          className={styles.dismiss}
+          onClick={onDismiss}
+          aria-label="Dismiss"
+        >
+          <X size={16} />
+        </button>
+      )}
     </div>
   );
 }

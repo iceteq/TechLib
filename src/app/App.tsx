@@ -388,6 +388,8 @@ export default function App({ session }: { session: Session | null }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectionClearNonce, setSelectionClearNonce] = useState(0);
   const [imageBusyCount, setImageBusyCount] = useState(0);
+  /** Note currently receiving uploads — editor UI is scoped to this id. */
+  const [imageBusyNoteId, setImageBusyNoteId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [viewPrefs, setViewPrefs] = useState(loadViewPrefs);
   const [createDefaults, setCreateDefaults] = useState(loadCreateDefaults);
@@ -1223,7 +1225,9 @@ export default function App({ session }: { session: Session | null }) {
         });
       });
 
-      if (isBlankNote(merged) && imageBusyCount === 0) {
+      const uploadingIntoThis =
+        imageBusyNoteId === activeNote.id && imageBusyCount > 0;
+      if (isBlankNote(merged) && !uploadingIntoThis) {
         pendingWallPulseIds.current.delete(activeNote.id);
         await store.deleteNote(activeNote.id);
         setActiveNoteId(null);
@@ -1242,7 +1246,7 @@ export default function App({ session }: { session: Session | null }) {
       canMutateOpenNote &&
       activeNote &&
       isBlankNote(activeNote) &&
-      imageBusyCount === 0
+      !(imageBusyNoteId === activeNote.id && imageBusyCount > 0)
     ) {
       pendingWallPulseIds.current.delete(activeNote.id);
       await store.deleteNote(activeNote.id);
@@ -1607,31 +1611,33 @@ export default function App({ session }: { session: Session | null }) {
     const list = Array.from(files);
     if (list.length === 0) return;
     const noteId = activeNoteId;
+    setImageBusyNoteId(noteId);
     setImageBusyCount(list.length);
     try {
-      let updated: NoteWithUrls | undefined;
       for (const file of list) {
-        updated = await store.addImage(noteId, file);
-      }
-      if (updated) {
-        markLocalNoteTouch(updated.id);
-        rememberNoteVersion(updated);
-        // Merge images only — keep any optimistic title/description already in state.
-        setNotes((prev) =>
-          prev.map((n) =>
-            n.id === updated!.id
-              ? {
-                  ...n,
-                  images: updated!.images,
-                  updatedAt: updated!.updatedAt,
-                  updatedAtIso: updated!.updatedAtIso,
-                }
-              : n,
-          ),
-        );
+        const updated = await store.addImage(noteId, file);
+        if (updated) {
+          markLocalNoteTouch(updated.id);
+          rememberNoteVersion(updated);
+          // Merge images only — keep any optimistic title/description already in state.
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === updated.id
+                ? {
+                    ...n,
+                    images: updated.images,
+                    updatedAt: updated.updatedAt,
+                    updatedAtIso: updated.updatedAtIso,
+                  }
+                : n,
+            ),
+          );
+        }
+        setImageBusyCount((count) => Math.max(0, count - 1));
       }
     } finally {
       setImageBusyCount(0);
+      setImageBusyNoteId(null);
     }
   }
 
@@ -1639,7 +1645,7 @@ export default function App({ session }: { session: Session | null }) {
     if (!canEdit) return;
     if (files.length === 0) return;
     try {
-      // Create + open first (no wall "Adding…" wait). Upload afterward.
+      // Create + open first; uploads continue in the background with a toast.
       const note = await store.createNote({
         ...createMetaFromDefaults(createDefaults),
         labelIds: [],
@@ -1651,6 +1657,7 @@ export default function App({ session }: { session: Session | null }) {
       openNote(note.id);
       setSidebarOpen(false);
 
+      setImageBusyNoteId(note.id);
       setImageBusyCount(files.length);
       for (const file of files) {
         const updated = await store.addImage(note.id, file);
@@ -1671,6 +1678,7 @@ export default function App({ session }: { session: Session | null }) {
       }
     } finally {
       setImageBusyCount(0);
+      setImageBusyNoteId(null);
     }
   }
 
@@ -2539,7 +2547,17 @@ export default function App({ session }: { session: Session | null }) {
         />
       )}
 
-      {notice && !undoToastVisible && (
+      {imageBusyCount > 0 && !undoToastVisible && (
+        <UndoToast
+          message={`Adding ${imageBusyCount} image${
+            imageBusyCount === 1 ? '' : 's'
+          }…`}
+          durationMs={0}
+          hideDismiss
+        />
+      )}
+
+      {notice && !undoToastVisible && imageBusyCount === 0 && (
         <UndoToast
           message={notice}
           onDismiss={() => setNotice(null)}
@@ -2622,7 +2640,9 @@ export default function App({ session }: { session: Session | null }) {
               ? () => void handleToggleSorted(activeNote.id)
               : undefined
           }
-          imageBusyCount={imageBusyCount}
+          imageBusyCount={
+            imageBusyNoteId === activeNote.id ? imageBusyCount : 0
+          }
           notes={notes}
           relatedNotes={activeRelatedNotes}
           onOpenRelated={(noteId) => openNote(noteId)}
