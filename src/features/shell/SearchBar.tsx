@@ -55,6 +55,24 @@ export function SearchBar({
     };
   }, []);
 
+  // Ctrl/Cmd+F → app search (not browser find).
+  useEffect(() => {
+    function onFindShortcut(e: KeyboardEvent) {
+      if (e.defaultPrevented) return;
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      if (e.key.toLowerCase() !== 'f') return;
+      e.preventDefault();
+      const input = inputRef.current;
+      if (!input) return;
+      setPasteOpen(false);
+      input.focus();
+      input.select();
+    }
+
+    window.addEventListener('keydown', onFindShortcut);
+    return () => window.removeEventListener('keydown', onFindShortcut);
+  }, []);
+
   useEffect(() => {
     if (!pasteOpen) return;
     textareaRef.current?.focus();
