@@ -35,6 +35,8 @@ interface CollectionViewProps {
   showTypeChip: boolean;
   showStock: boolean;
   onOpenNote: (noteId: string) => void;
+  /** Toast host: part number was copied from a collection card title. */
+  onPartNumberCopied?: (partNumber: string) => void;
   onChangeQuantity: (noteId: string, quantity: number) => void;
   onRemove: (noteId: string) => void;
   onClear: () => void;
@@ -57,6 +59,7 @@ export function CollectionView({
   showTypeChip,
   showStock,
   onOpenNote,
+  onPartNumberCopied,
   onChangeQuantity,
   onRemove,
   onClear,
@@ -157,6 +160,7 @@ export function CollectionView({
                     showTypeChip={showTypeChip}
                     showStock={showStock}
                     onOpen={onOpenNote}
+                    onPartNumberCopied={onPartNumberCopied}
                     onToggleSelect={() => {}}
                     onEnterSelect={() => {}}
                     onRangeSelect={() => {}}

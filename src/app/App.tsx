@@ -2395,6 +2395,7 @@ export default function App({ session }: { session: Session | null }) {
           showTypeChip={viewPrefs.typeChip}
           showStock={viewPrefs.stock}
           onOpenNote={openNote}
+          onPartNumberCopied={() => setNotice('Part number copied')}
           onChangeQuantity={(noteId, quantity) =>
             void handleCartQuantity(noteId, quantity)
           }
@@ -2493,6 +2494,7 @@ export default function App({ session }: { session: Session | null }) {
           }}
           relatedCountByNoteId={relatedCountByNoteId}
           onShowRelated={showRelatedForNote}
+          onPartNumberCopied={() => setNotice('Part number copied')}
           onRequestWallImageUrl={(imageId) => {
             store.prioritizeWallImages([imageId]);
           }}

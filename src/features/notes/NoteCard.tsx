@@ -8,7 +8,6 @@ import {
 } from 'react';
 import {
   Check,
-  Copy,
   Layers,
 } from 'lucide-react';
 import {
@@ -197,6 +196,8 @@ interface NoteCardProps {
   /** Notes sharing this part number (incl. self). Show when > 1. */
   relatedCount?: number;
   onShowRelated?: (noteId: string) => void;
+  /** After tapping the part number copies it (host shows a toast). */
+  onPartNumberCopied?: (partNumber: string) => void;
   /** Eager-load wall thumbs for above-the-fold cards. */
   priorityImage?: boolean;
   /** Ask the store to sign this image next (viewport-visible, still waiting). */
@@ -238,6 +239,7 @@ export const NoteCard = memo(function NoteCard({
   searchQuery = '',
   relatedCount = 0,
   onShowRelated,
+  onPartNumberCopied,
   priorityImage = false,
   onRequestWallImageUrl,
 }: NoteCardProps) {
@@ -250,35 +252,19 @@ export const NoteCard = memo(function NoteCard({
   const title = partNumber || 'No part number';
   const noteType = noteTypeById(noteTypes, note.categoryId);
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
-  const [copiedPart, setCopiedPart] = useState(false);
-  const copiedPartTimer = useRef<number | null>(null);
 
   function openAssign(field: MetaAssignField) {
     if (selecting) return;
     setAssignField((current) => (current === field ? null : field));
   }
 
-  useEffect(() => {
-    return () => {
-      if (copiedPartTimer.current != null) {
-        window.clearTimeout(copiedPartTimer.current);
-      }
-    };
-  }, []);
-
-  async function copyPartNumber(e: MouseEvent) {
+  async function handleTitleClick(e: MouseEvent) {
+    if (selecting || !partNumber) return;
     e.stopPropagation();
-    if (!partNumber) return;
+    e.preventDefault();
     try {
       await navigator.clipboard.writeText(partNumber);
-      setCopiedPart(true);
-      if (copiedPartTimer.current != null) {
-        window.clearTimeout(copiedPartTimer.current);
-      }
-      copiedPartTimer.current = window.setTimeout(() => {
-        setCopiedPart(false);
-        copiedPartTimer.current = null;
-      }, 1500);
+      onPartNumberCopied?.(partNumber);
     } catch {
       // Clipboard may be blocked; leave UI unchanged.
     }
@@ -544,7 +530,20 @@ export const NoteCard = memo(function NoteCard({
       >
         <div className={styles.identity}>
           <div className={styles.titleRow}>
-            <h3 className={styles.title}>
+            <h3
+              className={`${styles.title} ${
+                partNumber && !selecting ? styles.titleCopyable : ''
+              }`}
+              title={
+                partNumber && !selecting ? 'Copy part number' : undefined
+              }
+              onClick={handleTitleClick}
+              onPointerDown={
+                partNumber && !selecting
+                  ? (e) => e.stopPropagation()
+                  : undefined
+              }
+            >
               {highlightMatches(title, searchQuery)}
             </h3>
             {relatedCount > 1 && onShowRelated && (
@@ -561,38 +560,15 @@ export const NoteCard = memo(function NoteCard({
                 {relatedCount} related
               </button>
             )}
-            {(partNumber || showAge) && (
+            {showAge && (
               <div className={styles.titleMeta}>
-                {partNumber ? (
-                  <button
-                    type="button"
-                    className={`${styles.copyPart} ${copiedPart ? styles.copyPartDone : ''}`}
-                    title={copiedPart ? 'Copied' : 'Copy part number'}
-                    aria-label={
-                      copiedPart
-                        ? 'Part number copied'
-                        : `Copy part number ${partNumber}`
-                    }
-                    onClick={copyPartNumber}
-                    onPointerDown={(e) => e.stopPropagation()}
-                  >
-                    {copiedPart ? (
-                      <Check size={12} strokeWidth={2.5} aria-hidden />
-                    ) : (
-                      <Copy size={12} strokeWidth={2.25} aria-hidden />
-                    )}
-                    <span>{copiedPart ? 'Copied' : 'Copy'}</span>
-                  </button>
-                ) : null}
-                {showAge && (
-                  <time
-                    className={styles.age}
-                    dateTime={new Date(note.createdAt).toISOString()}
-                    title={`Created ${new Date(note.createdAt).toLocaleString()}`}
-                  >
-                    {formatNoteAge(note.createdAt)}
-                  </time>
-                )}
+                <time
+                  className={styles.age}
+                  dateTime={new Date(note.createdAt).toISOString()}
+                  title={`Created ${new Date(note.createdAt).toLocaleString()}`}
+                >
+                  {formatNoteAge(note.createdAt)}
+                </time>
               </div>
             )}
           </div>

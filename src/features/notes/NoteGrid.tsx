@@ -174,6 +174,8 @@ interface NoteGridProps {
   /** Family size by note id (same part number). */
   relatedCountByNoteId?: Record<string, number>;
   onShowRelated?: (noteId: string) => void;
+  /** Toast host: part number was copied from a wall card title. */
+  onPartNumberCopied?: (partNumber: string) => void;
   /** Prioritize signing wall preview URLs for viewport-visible images. */
   onRequestWallImageUrl?: (imageId: string) => void;
   /** Bump to clear selection after sidebar drop-assign. */
@@ -243,6 +245,7 @@ export function NoteGrid({
   onClearRelatedPart,
   relatedCountByNoteId = {},
   onShowRelated,
+  onPartNumberCopied,
   onRequestWallImageUrl,
   selectionClearNonce = 0,
   onNotesDragStart,
@@ -972,6 +975,7 @@ export function NoteGrid({
                       searchQuery={searchQuery}
                       relatedCount={relatedCountByNoteId[note.id] ?? 0}
                       onShowRelated={onShowRelated}
+                      onPartNumberCopied={onPartNumberCopied}
                       priorityImage={priorityImageIds.has(note.id)}
                       onRequestWallImageUrl={onRequestWallImageUrl}
                     />
@@ -1068,6 +1072,7 @@ export function NoteGrid({
               searchQuery={searchQuery}
               relatedCount={relatedCountByNoteId[note.id] ?? 0}
               onShowRelated={onShowRelated}
+              onPartNumberCopied={onPartNumberCopied}
               priorityImage={priorityImageIds.has(note.id)}
               onRequestWallImageUrl={onRequestWallImageUrl}
             />

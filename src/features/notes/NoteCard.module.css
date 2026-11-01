@@ -304,6 +304,17 @@
   line-height: 1.25;
 }
 
+.titleCopyable {
+  cursor: copy;
+  border-radius: 0.2rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .titleCopyable:hover {
+    color: var(--accent);
+  }
+}
+
 .bodyImageFirst .title {
   font-size: 0.95rem;
 }
@@ -316,67 +327,6 @@
   gap: 0.08rem;
   margin-top: 0.12rem;
   max-width: 40%;
-}
-
-.copyPart {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.22rem;
-  margin: 0;
-  padding: 0.1rem 0.28rem;
-  border: 1px solid transparent;
-  border-radius: 0.35rem;
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 0.68rem;
-  font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
-  cursor: pointer;
-  opacity: 0.9;
-  transition: opacity var(--transition), color var(--transition),
-    background-color var(--transition), border-color var(--transition);
-}
-
-.copyPart:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-  border-color: color-mix(in srgb, var(--border) 80%, transparent);
-  opacity: 1;
-}
-
-.copyPart:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-  opacity: 1;
-}
-
-.copyPartDone {
-  color: var(--accent);
-  opacity: 1;
-}
-
-/* Desktop: reveal on card hover / focus; stay visible after copy. */
-@media (hover: hover) and (pointer: fine) {
-  .copyPart:not(.copyPartDone) {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .card:hover .copyPart,
-  .card:focus-within .copyPart,
-  .copyPart:focus-visible {
-    opacity: 0.9;
-    pointer-events: auto;
-  }
-
-  .card:hover .copyPart:hover,
-  .card:focus-within .copyPart:hover,
-  .copyPartDone {
-    opacity: 1;
-    pointer-events: auto;
-  }
 }
 
 .age {
