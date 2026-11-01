@@ -201,8 +201,6 @@ interface NoteCardProps {
   priorityImage?: boolean;
   /** Ask the store to sign this image next (viewport-visible, still waiting). */
   onRequestWallImageUrl?: (imageId: string) => void;
-  /** Short author label (“you” / email local-part). Hidden when null. */
-  authorLabel?: string | null;
 }
 
 export const NoteCard = memo(function NoteCard({
@@ -242,7 +240,6 @@ export const NoteCard = memo(function NoteCard({
   onShowRelated,
   priorityImage = false,
   onRequestWallImageUrl,
-  authorLabel = null,
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
@@ -564,7 +561,7 @@ export const NoteCard = memo(function NoteCard({
                 {relatedCount} related
               </button>
             )}
-            {(partNumber || authorLabel || showAge) && (
+            {(partNumber || showAge) && (
               <div className={styles.titleMeta}>
                 {partNumber ? (
                   <button
@@ -586,18 +583,6 @@ export const NoteCard = memo(function NoteCard({
                     )}
                     <span>{copiedPart ? 'Copied' : 'Copy'}</span>
                   </button>
-                ) : null}
-                {authorLabel ? (
-                  <span
-                    className={styles.author}
-                    title={
-                      authorLabel === 'you'
-                        ? 'Created by you'
-                        : `Created by ${authorLabel}`
-                    }
-                  >
-                    {authorLabel}
-                  </span>
                 ) : null}
                 {showAge && (
                   <time

@@ -22,8 +22,8 @@ export const SHOW_GUIDELINES = false;
 export const SHOW_REACTIONS = false;
 
 /**
- * When true, wall cards show a short author label from `createdBy`
- * (email local-part, or “you” for the current user).
+ * When true, the open note editor shows a short author label from
+ * `createdBy` (email local-part, or “you” for the current user).
  */
 export const SHOW_NOTE_AUTHOR = true;
 

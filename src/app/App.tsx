@@ -904,26 +904,18 @@ export default function App({ session }: { session: Session | null }) {
     return map;
   }, [notes]);
 
-  const authorLabelByUserId = useMemo(() => {
-    const map = new Map<string, string>();
-    if (!SHOW_NOTE_AUTHOR) return map;
-    const currentId = membership?.userId ?? null;
-    const ids = new Set<string>();
-    for (const note of notes) {
-      if (note.createdBy) ids.add(note.createdBy);
-    }
-    if (currentId) ids.add(currentId);
-    for (const id of ids) {
-      const label = authorLabelForUser(id, memberEmailByUserId, currentId);
-      if (label) map.set(id, label);
-    }
-    return map;
-  }, [memberEmailByUserId, membership?.userId, notes]);
-
   const activeNote =
     notes.find((n) => n.id === activeNoteId) ??
     binnedNotes.find((n) => n.id === activeNoteId) ??
     null;
+  const activeAuthorLabel =
+    SHOW_NOTE_AUTHOR && activeNote
+      ? authorLabelForUser(
+          activeNote.createdBy,
+          memberEmailByUserId,
+          membership?.userId ?? null,
+        )
+      : null;
   const activeNoteIsBinned = activeNote?.deletedAt != null;
   const canEditActiveNote = noteMutable(activeNote?.createdBy);
   const editLock = useNoteEditLock(
@@ -2452,7 +2444,6 @@ export default function App({ session }: { session: Session | null }) {
               : undefined
           }
           sortedNoteIds={sortedNoteIds}
-          authorLabelByUserId={authorLabelByUserId}
           showBarcodes={viewPrefs.barcodes}
           showPhotos={viewPrefs.photos}
           showDescription={viewPrefs.description}
@@ -2612,6 +2603,7 @@ export default function App({ session }: { session: Session | null }) {
           readOnly={editorReadOnly || activeNoteIsBinned}
           canManageAsk={isAdmin && !editLockedByOther && !activeNoteIsBinned}
           note={activeNote}
+          authorLabel={activeAuthorLabel}
           labels={labels}
           noteTypes={noteTypes}
           stockLocations={stockLocations}

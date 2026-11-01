@@ -354,7 +354,6 @@
   opacity: 1;
 }
 
-.author,
 .age {
   font-size: 0.68rem;
   font-weight: 500;
@@ -364,11 +363,6 @@
   text-overflow: ellipsis;
   max-width: 100%;
   opacity: 0.85;
-}
-
-.author {
-  font-weight: 600;
-  opacity: 0.9;
 }
 
 .relatedBtn {

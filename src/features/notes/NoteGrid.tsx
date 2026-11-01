@@ -111,8 +111,6 @@ interface NoteGridProps {
   onUnpinCreateStock?: () => void;
   /** Note ids marked ✅ sorted. */
   sortedNoteIds?: Set<string>;
-  /** createdBy user id → short author label for wall cards. */
-  authorLabelByUserId?: ReadonlyMap<string, string>;
   showBarcodes: boolean;
   showPhotos: boolean;
   showDescription: boolean;
@@ -209,7 +207,6 @@ export function NoteGrid({
   onUnpinCreateType,
   onUnpinCreateStock,
   sortedNoteIds,
-  authorLabelByUserId,
   showBarcodes,
   showPhotos,
   showDescription,
@@ -922,9 +919,6 @@ export function NoteGrid({
                       showAge={showAge}
                       showTypeChip={showTypeChip}
                       showStock={showStock}
-                      authorLabel={
-                        authorLabelByUserId?.get(note.createdBy) ?? null
-                      }
                       onOpen={onOpenNote}
                       onToggleSelect={canEdit ? toggleSelect : () => {}}
                       onEnterSelect={canEdit ? enterSelect : () => {}}
@@ -1029,7 +1023,6 @@ export function NoteGrid({
               showAge={showAge}
               showTypeChip={showTypeChip}
               showStock={showStock}
-              authorLabel={authorLabelByUserId?.get(note.createdBy) ?? null}
               onOpen={onOpenNote}
               onToggleSelect={canEdit ? toggleSelect : () => {}}
               onEnterSelect={canEdit ? enterSelect : () => {}}

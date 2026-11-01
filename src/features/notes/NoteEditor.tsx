@@ -66,6 +66,8 @@ interface NoteEditorProps {
   /** Admins can manage AI ask Q&A (generate + edit). */
   canManageAsk?: boolean;
   note: NoteWithUrls;
+  /** Short author label (“you” / email local-part). Hidden when null. */
+  authorLabel?: string | null;
   labels: Label[];
   noteTypes: NoteType[];
   stockLocations: StockLocation[];
@@ -130,6 +132,7 @@ export function NoteEditor({
   readOnly = false,
   canManageAsk = false,
   note,
+  authorLabel = null,
   labels,
   noteTypes,
   stockLocations,
@@ -1257,6 +1260,20 @@ export function NoteEditor({
               aria-label="Part number"
               readOnly={readOnly}
             />
+            {authorLabel ? (
+              <p
+                className={styles.author}
+                title={
+                  authorLabel === 'you'
+                    ? 'Created by you'
+                    : `Created by ${authorLabel}`
+                }
+              >
+                {authorLabel === 'you'
+                  ? 'Created by you'
+                  : `Created by ${authorLabel}`}
+              </p>
+            ) : null}
             {existingPartCount > 0 && (
               <p className={styles.partExists} role="status" aria-live="polite">
                 <span>

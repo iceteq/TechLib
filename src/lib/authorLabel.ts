@@ -1,4 +1,4 @@
-/** Short wall label from an email (local-part before @). */
+/** Short author label from an email (local-part before @). */
 export function shortEmailLabel(email: string | null | undefined): string {
   const trimmed = (email ?? '').trim();
   if (!trimmed) return '';
@@ -7,7 +7,7 @@ export function shortEmailLabel(email: string | null | undefined): string {
 }
 
 /**
- * Display label for a note's `createdBy` on the wall.
+ * Display label for a note's `createdBy` in the open editor.
  * Current user → "you"; others → email local-part when known.
  */
 export function authorLabelForUser(

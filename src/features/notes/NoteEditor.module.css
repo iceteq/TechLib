@@ -427,6 +427,14 @@
   outline: none;
 }
 
+.author {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
 .partExists {
   display: flex;
   flex-wrap: wrap;
