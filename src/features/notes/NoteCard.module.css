@@ -335,6 +335,8 @@
   white-space: nowrap;
   cursor: pointer;
   opacity: 0.9;
+  transition: opacity var(--transition), color var(--transition),
+    background-color var(--transition), border-color var(--transition);
 }
 
 .copyPart:hover {
@@ -347,11 +349,34 @@
 .copyPart:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+  opacity: 1;
 }
 
 .copyPartDone {
   color: var(--accent);
   opacity: 1;
+}
+
+/* Desktop: reveal on card hover / focus; stay visible after copy. */
+@media (hover: hover) and (pointer: fine) {
+  .copyPart:not(.copyPartDone) {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .card:hover .copyPart,
+  .card:focus-within .copyPart,
+  .copyPart:focus-visible {
+    opacity: 0.9;
+    pointer-events: auto;
+  }
+
+  .card:hover .copyPart:hover,
+  .card:focus-within .copyPart:hover,
+  .copyPartDone {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .age {
