@@ -23,7 +23,12 @@ import type {
   NoteWithUrls,
   StockLocation,
 } from '../../lib/types';
-import { categoryLabel, dispositionLabel, stockLabel } from '../../lib/searchNotes';
+import {
+  categoryLabel,
+  dispositionLabel,
+  resolveListSearch,
+  stockLabel,
+} from '../../lib/searchNotes';
 import { childNoteTypes, rootNoteTypes } from '../../lib/noteTypes';
 import { dataTransferImageFiles } from '../../lib/imageFiles';
 import {
@@ -583,7 +588,12 @@ export function NoteGrid({
   const filterLabels = labels.filter((l) => filterLabelIds.includes(l.id));
   const hasOrTerms = orTerms.length > 0;
   const hasSearch = search.trim().length > 0 || hasOrTerms;
-  const searchQuery = hasOrTerms ? orTerms.join(' ') : search;
+  // Match filtering: include the live draft while list (OR) chips are active.
+  const resolvedSearch = resolveListSearch(search, orTerms);
+  const searchQuery =
+    resolvedSearch.orTerms.length > 0
+      ? resolvedSearch.orTerms.join(' ')
+      : resolvedSearch.search;
   const searchChipLabel = hasOrTerms
     ? `Search: ${orTerms.length} part${orTerms.length === 1 ? '' : 's'}`
     : `Search: ${search.trim()}`;
