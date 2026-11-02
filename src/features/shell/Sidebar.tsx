@@ -1,4 +1,11 @@
-import { useState, type DragEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from 'react';
 import {
   Archive,
   ChevronDown,
@@ -11,6 +18,7 @@ import {
   Package,
   Minus,
   Plus,
+  Search,
   Settings2,
   Layers,
   Tag,
@@ -92,6 +100,8 @@ interface SidebarProps {
   onDeleteLabel?: (labelId: string) => Promise<void>;
   onDeleteType?: (typeId: string) => Promise<void>;
   onSignOut?: () => void;
+  /** Open the mobile drawer so section search is visible. */
+  onEnsureVisible?: () => void;
   onAssignNotes?: (
     noteIds: string[],
     target: NoteAssignTarget,
@@ -109,7 +119,21 @@ function filterEmpty(count: number, active: boolean): boolean {
 
 const FILTER_EMPTY_TITLE = 'No matching notes with current filters';
 
-  function confirmDelete(
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (target.isContentEditable) return true;
+  return Boolean(target.closest('[contenteditable="true"]'));
+}
+
+function matchesQuery(text: string, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return text.toLowerCase().includes(q);
+}
+
+function confirmDelete(
   kind: 'label' | 'type' | 'stock location',
   name: string,
   noteCount: number,
@@ -195,6 +219,7 @@ export function Sidebar({
   onDeleteLabel,
   onDeleteType,
   onSignOut,
+  onEnsureVisible,
   onAssignNotes,
 }: SidebarProps) {
   const [sections, setSections] =
@@ -211,8 +236,14 @@ export function Sidebar({
   const [creatingStock, setCreatingStock] = useState(false);
   const [newStockName, setNewStockName] = useState('');
   const [creatingBusy, setCreatingBusy] = useState(false);
+  const [typeQuery, setTypeQuery] = useState('');
+  const [stockQuery, setStockQuery] = useState('');
 
   const [dropKey, setDropKey] = useState<string | null>(null);
+  const typeSearchRef = useRef<HTMLInputElement>(null);
+  const stockSearchRef = useRef<HTMLInputElement>(null);
+  const pendingSearchFocus = useRef<'type' | 'stock' | null>(null);
+  const [searchFocusToken, setSearchFocusToken] = useState(0);
 
   const unsetTypeActive =
     view === 'notes' && activeCategoryId === UNSET_TYPE_FILTER;
@@ -296,6 +327,56 @@ export function Sidebar({
       return next;
     });
   }
+
+  function focusSectionSearch(id: 'type' | 'stock') {
+    onEnsureVisible?.();
+    pendingSearchFocus.current = id;
+    openSection(id);
+    setSearchFocusToken((token) => token + 1);
+  }
+
+  useLayoutEffect(() => {
+    const pending = pendingSearchFocus.current;
+    if (!pending) return;
+    if (!sections[pending]) return;
+    const input =
+      pending === 'type' ? typeSearchRef.current : stockSearchRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+    pendingSearchFocus.current = null;
+  }, [searchFocusToken, sections]);
+
+  useEffect(() => {
+    if (!sections.type) setTypeQuery('');
+  }, [sections.type]);
+
+  useEffect(() => {
+    if (!sections.stock) setStockQuery('');
+  }, [sections.stock]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isEditableTarget(e.target)) return;
+      const key = e.key.toLowerCase();
+      if (key === 't') {
+        e.preventDefault();
+        focusSectionSearch('type');
+        return;
+      }
+      if (key === 's') {
+        e.preventDefault();
+        focusSectionSearch('stock');
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // focusSectionSearch / openSection use functional state updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable shortcut wiring
+  }, [onEnsureVisible]);
 
   async function submitNewLabel(e: React.FormEvent) {
     e.preventDefault();
@@ -511,6 +592,53 @@ export function Sidebar({
 
   const showCollection = collectionCount > 0 || view === 'collection';
 
+  const typeQueryActive = typeQuery.trim().length > 0;
+  const stockQueryActive = stockQuery.trim().length > 0;
+
+  const filteredRootTypes = rootNoteTypes(noteTypes).flatMap((type) => {
+    const subtypes = childNoteTypes(noteTypes, type.id);
+    if (!typeQueryActive) {
+      return [{ type, subtypes }];
+    }
+    const parentMatch = matchesQuery(type.name, typeQuery);
+    const matchedSubtypes = subtypes.filter((subtype) =>
+      matchesQuery(subtype.name, typeQuery),
+    );
+    if (!parentMatch && matchedSubtypes.length === 0) return [];
+    return [
+      {
+        type,
+        subtypes: parentMatch ? subtypes : matchedSubtypes,
+      },
+    ];
+  });
+
+  const filteredStockLocations = stockQueryActive
+    ? stockLocations.filter((stock) => matchesQuery(stock.name, stockQuery))
+    : stockLocations;
+
+  function handleSectionSearchKeyDown(
+    e: React.KeyboardEvent<HTMLInputElement>,
+    section: 'type' | 'stock',
+  ) {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (section === 'type') {
+      if (typeQuery) {
+        setTypeQuery('');
+        return;
+      }
+      typeSearchRef.current?.blur();
+      return;
+    }
+    if (stockQuery) {
+      setStockQuery('');
+      return;
+    }
+    stockSearchRef.current?.blur();
+  }
+
   return (
     <nav className={styles.nav} aria-label="Notes navigation">
       <button
@@ -667,40 +795,68 @@ export function Sidebar({
             </button>
           </form>
         )}
-        <ul className={styles.list}>
-          <li>
+        <label className={styles.sectionSearch}>
+          <Search size={14} strokeWidth={2.25} aria-hidden />
+          <input
+            ref={typeSearchRef}
+            className={styles.sectionSearchInput}
+            value={typeQuery}
+            onChange={(e) => setTypeQuery(e.target.value)}
+            onKeyDown={(e) => handleSectionSearchKeyDown(e, 'type')}
+            placeholder="Find type…"
+            aria-label="Find type (press T)"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {typeQueryActive && (
             <button
               type="button"
-              className={`${styles.item} ${
-                unsetTypeActive ? styles.active : ''
-              }${unsetTypeEmpty ? ` ${styles.itemEmpty}` : ''}${dropClass('category:unset')}`}
+              className={styles.sectionSearchClear}
+              aria-label="Clear type search"
               onClick={() => {
-                if (unsetTypeEmpty) return;
-                onSelectCategoryId(UNSET_TYPE_FILTER);
+                setTypeQuery('');
+                typeSearchRef.current?.focus();
               }}
-              aria-pressed={unsetTypeActive}
-              aria-disabled={unsetTypeEmpty || undefined}
-              title={unsetTypeEmpty ? FILTER_EMPTY_TITLE : undefined}
-              {...noteDropHandlers('category:unset', {
-                field: 'categoryId',
-                value: null,
-                label: 'No type',
-              })}
             >
-              <CircleOff size={18} />
-              <span className={styles.itemText}>No type</span>
-              {showCounts.type && (
-                <span className={styles.itemCount}>{unsetCount}</span>
-              )}
+              <X size={13} strokeWidth={2.25} />
             </button>
-          </li>
-          {rootNoteTypes(noteTypes).map((type) => {
+          )}
+        </label>
+        <ul className={styles.list}>
+          {!typeQueryActive && (
+            <li>
+              <button
+                type="button"
+                className={`${styles.item} ${
+                  unsetTypeActive ? styles.active : ''
+                }${unsetTypeEmpty ? ` ${styles.itemEmpty}` : ''}${dropClass('category:unset')}`}
+                onClick={() => {
+                  if (unsetTypeEmpty) return;
+                  onSelectCategoryId(UNSET_TYPE_FILTER);
+                }}
+                aria-pressed={unsetTypeActive}
+                aria-disabled={unsetTypeEmpty || undefined}
+                title={unsetTypeEmpty ? FILTER_EMPTY_TITLE : undefined}
+                {...noteDropHandlers('category:unset', {
+                  field: 'categoryId',
+                  value: null,
+                  label: 'No type',
+                })}
+              >
+                <CircleOff size={18} />
+                <span className={styles.itemText}>No type</span>
+                {showCounts.type && (
+                  <span className={styles.itemCount}>{unsetCount}</span>
+                )}
+              </button>
+            </li>
+          )}
+          {filteredRootTypes.map(({ type, subtypes }) => {
             const Icon = noteTypeIcon(type.icon);
             const colors = typeColorVars(type.color);
             const active =
               view === 'notes' && activeCategoryId === type.id;
             const pinned = defaultCategoryId === type.id;
-            const subtypes = childNoteTypes(noteTypes, type.id);
             const count = rolledTypeCount(type.id, typeCounts, noteTypes);
             const empty = filterEmpty(count, active);
             return (
@@ -769,7 +925,10 @@ export function Sidebar({
                         for (const removeId of removeIds) {
                           affected += typeCounts[removeId] ?? 0;
                         }
-                        const subtypeCount = subtypes.length;
+                        const subtypeCount = childNoteTypes(
+                          noteTypes,
+                          type.id,
+                        ).length;
                         const extra =
                           subtypeCount > 0
                             ? `\n\nAlso deletes ${subtypeCount} subtype${subtypeCount === 1 ? '' : 's'}.`
@@ -895,6 +1054,11 @@ export function Sidebar({
         {noteTypes.length === 0 && !creatingType && (
           <p className={styles.empty}>Tap + to add product types.</p>
         )}
+        {noteTypes.length > 0 &&
+          typeQueryActive &&
+          filteredRootTypes.length === 0 && (
+            <p className={styles.empty}>No types match “{typeQuery.trim()}”.</p>
+          )}
       </CollapsibleSection>
 
       <CollapsibleSection
@@ -934,34 +1098,63 @@ export function Sidebar({
             </button>
           </form>
         )}
-        <ul className={styles.list}>
-          <li>
+        <label className={styles.sectionSearch}>
+          <Search size={14} strokeWidth={2.25} aria-hidden />
+          <input
+            ref={stockSearchRef}
+            className={styles.sectionSearchInput}
+            value={stockQuery}
+            onChange={(e) => setStockQuery(e.target.value)}
+            onKeyDown={(e) => handleSectionSearchKeyDown(e, 'stock')}
+            placeholder="Find stock…"
+            aria-label="Find stock (press S)"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {stockQueryActive && (
             <button
               type="button"
-              className={`${styles.item} ${
-                unsetStockActive ? styles.active : ''
-              }${unsetStockEmpty ? ` ${styles.itemEmpty}` : ''}${dropClass('stock:unset')}`}
+              className={styles.sectionSearchClear}
+              aria-label="Clear stock search"
               onClick={() => {
-                if (unsetStockEmpty) return;
-                onSelectStock(UNSET_STOCK_FILTER);
+                setStockQuery('');
+                stockSearchRef.current?.focus();
               }}
-              aria-pressed={unsetStockActive}
-              aria-disabled={unsetStockEmpty || undefined}
-              title={unsetStockEmpty ? FILTER_EMPTY_TITLE : undefined}
-              {...noteDropHandlers('stock:unset', {
-                field: 'stockId',
-                value: null,
-                label: 'No stock',
-              })}
             >
-              <CircleOff size={18} />
-              <span className={styles.itemText}>No stock</span>
-              {showCounts.stock && (
-                <span className={styles.itemCount}>{unsetStockCount}</span>
-              )}
+              <X size={13} strokeWidth={2.25} />
             </button>
-          </li>
-          {stockLocations.map((stock) => {
+          )}
+        </label>
+        <ul className={styles.list}>
+          {!stockQueryActive && (
+            <li>
+              <button
+                type="button"
+                className={`${styles.item} ${
+                  unsetStockActive ? styles.active : ''
+                }${unsetStockEmpty ? ` ${styles.itemEmpty}` : ''}${dropClass('stock:unset')}`}
+                onClick={() => {
+                  if (unsetStockEmpty) return;
+                  onSelectStock(UNSET_STOCK_FILTER);
+                }}
+                aria-pressed={unsetStockActive}
+                aria-disabled={unsetStockEmpty || undefined}
+                title={unsetStockEmpty ? FILTER_EMPTY_TITLE : undefined}
+                {...noteDropHandlers('stock:unset', {
+                  field: 'stockId',
+                  value: null,
+                  label: 'No stock',
+                })}
+              >
+                <CircleOff size={18} />
+                <span className={styles.itemText}>No stock</span>
+                {showCounts.stock && (
+                  <span className={styles.itemCount}>{unsetStockCount}</span>
+                )}
+              </button>
+            </li>
+          )}
+          {filteredStockLocations.map((stock) => {
             const active = view === 'notes' && activeStockId === stock.id;
             const count = stockCounts[stock.id] ?? 0;
             const empty = filterEmpty(count, active);
@@ -1007,6 +1200,13 @@ export function Sidebar({
         {stockLocations.length === 0 && !creatingStock && (
           <p className={styles.empty}>Tap + to add stock locations.</p>
         )}
+        {stockLocations.length > 0 &&
+          stockQueryActive &&
+          filteredStockLocations.length === 0 && (
+            <p className={styles.empty}>
+              No stock matches “{stockQuery.trim()}”.
+            </p>
+          )}
       </CollapsibleSection>
 
       <CollapsibleSection
