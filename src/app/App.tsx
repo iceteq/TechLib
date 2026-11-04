@@ -2272,6 +2272,7 @@ export default function App({ session }: { session: Session | null }) {
         <Sidebar
           canEdit={canEdit}
           isAdmin={isAdmin}
+          onEnsureVisible={() => setSidebarOpen(true)}
           onOpenMembers={isAdmin ? () => setMembersOpen(true) : undefined}
           onBackfillWallThumbs={
             isAdmin ? () => void handleBackfillWallThumbs() : undefined
