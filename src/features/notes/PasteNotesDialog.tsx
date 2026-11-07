@@ -18,10 +18,13 @@ import {
   type PasteGridRow,
   type PastedNoteDraft,
 } from '../../lib/parsePastedNotes';
+import { normalizePartNumber } from '../../lib/partNumber';
 import styles from './PasteNotesDialog.module.css';
 
 interface PasteNotesDialogProps {
   filterSummary: string;
+  /** Normalized part numbers already present on non-deleted library notes. */
+  existingPartKeys: ReadonlySet<string>;
   onClose: () => void;
   onImport: (drafts: PastedNoteDraft[]) => Promise<void>;
 }
@@ -58,6 +61,7 @@ function mergeRows(
 
 export function PasteNotesDialog({
   filterSummary,
+  existingPartKeys,
   onClose,
   onImport,
 }: PasteNotesDialogProps) {
@@ -77,6 +81,15 @@ export function PasteNotesDialog({
 
   const gridRows = useMemo(() => rows.map((row) => row.cells), [rows]);
   const drafts = useMemo(() => draftsFromGrid(gridRows), [gridRows]);
+  const existingRowIndexes = useMemo(() => {
+    const indexes = new Set<number>();
+    rows.forEach((row, index) => {
+      const key = normalizePartNumber(row.cells[0]);
+      if (key && existingPartKeys.has(key)) indexes.add(index);
+    });
+    return indexes;
+  }, [rows, existingPartKeys]);
+  const existingCount = existingRowIndexes.size;
   const canImport = drafts.length > 0 && !busy;
   const hiddenCount = Math.max(0, rows.length - visibleLimit);
   const visibleRows = rows.slice(0, visibleLimit);
@@ -191,6 +204,18 @@ export function PasteNotesDialog({
     setError(null);
     const nextFocusRow = Math.max(0, rowIndex > 0 ? rowIndex - 1 : 0);
     queueFocus(nextFocusRow, 0);
+  }
+
+  function removeExistingRows() {
+    setRows((current) => {
+      const next = current.filter((row) => {
+        const key = normalizePartNumber(row.cells[0]);
+        return !key || !existingPartKeys.has(key);
+      });
+      return next.length > 0 ? next : [makeRow()];
+    });
+    setError(null);
+    queueFocus(0, 0);
   }
 
   function moveFocus(row: number, col: number) {
@@ -347,56 +372,84 @@ export function PasteNotesDialog({
               <span className={styles.headerSpacer} aria-hidden />
             </div>
 
-            {visibleRows.map((row, rowIndex) => (
-              <div key={row.id} className={styles.row} role="row">
-                {PASTE_NOTE_COLUMNS.map((column, col) => (
-                  <input
-                    key={column.key}
-                    ref={(el) => setCellRef(row.id, col, el)}
-                    className={styles.cell}
-                    role="gridcell"
-                    type="text"
-                    value={row.cells[col]}
-                    title={row.cells[col] || undefined}
-                    placeholder={col === 0 ? 'Part number' : undefined}
-                    disabled={busy}
-                    spellCheck={false}
-                    aria-label={`${column.label}, row ${rowIndex + 1}`}
-                    onChange={(e) => updateCell(rowIndex, col, e.target.value)}
-                    onPaste={(e) => handlePaste(e, rowIndex, col)}
-                    onKeyDown={(e) => handleCellKeyDown(e, rowIndex, col)}
-                  />
-                ))}
-                <button
-                  type="button"
-                  className={styles.removeBtn}
-                  onClick={() => removeRow(rowIndex)}
-                  disabled={
-                    busy || (rows.length === 1 && !row.cells.some(Boolean))
+            {visibleRows.map((row, rowIndex) => {
+              const existsInLibrary = existingRowIndexes.has(rowIndex);
+              return (
+                <div
+                  key={row.id}
+                  className={`${styles.row}${existsInLibrary ? ` ${styles.rowExisting}` : ''}`}
+                  role="row"
+                  aria-label={
+                    existsInLibrary
+                      ? `Row ${rowIndex + 1}, part number already in library`
+                      : undefined
                   }
-                  aria-label={`Remove row ${rowIndex + 1}`}
-                  title="Remove row"
                 >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
+                  {PASTE_NOTE_COLUMNS.map((column, col) => (
+                    <input
+                      key={column.key}
+                      ref={(el) => setCellRef(row.id, col, el)}
+                      className={styles.cell}
+                      role="gridcell"
+                      type="text"
+                      value={row.cells[col]}
+                      title={row.cells[col] || undefined}
+                      placeholder={col === 0 ? 'Part number' : undefined}
+                      disabled={busy}
+                      spellCheck={false}
+                      aria-label={`${column.label}, row ${rowIndex + 1}${
+                        existsInLibrary ? ', already in library' : ''
+                      }`}
+                      onChange={(e) => updateCell(rowIndex, col, e.target.value)}
+                      onPaste={(e) => handlePaste(e, rowIndex, col)}
+                      onKeyDown={(e) => handleCellKeyDown(e, rowIndex, col)}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    className={styles.removeBtn}
+                    onClick={() => removeRow(rowIndex)}
+                    disabled={
+                      busy || (rows.length === 1 && !row.cells.some(Boolean))
+                    }
+                    aria-label={`Remove row ${rowIndex + 1}`}
+                    title="Remove row"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
-          {hiddenCount > 0 && (
-            <button
-              type="button"
-              className={styles.moreBtn}
-              onClick={() =>
-                setVisibleLimit((limit) =>
-                  Math.min(rows.length, limit + PREVIEW_STEP),
-                )
-              }
-              disabled={busy}
-            >
-              +{Math.min(PREVIEW_STEP, hiddenCount)} more row
-              {Math.min(PREVIEW_STEP, hiddenCount) === 1 ? '' : 's'}
-            </button>
+          {(hiddenCount > 0 || existingCount > 0) && (
+            <div className={styles.gridActions}>
+              {hiddenCount > 0 && (
+                <button
+                  type="button"
+                  className={styles.moreBtn}
+                  onClick={() =>
+                    setVisibleLimit((limit) =>
+                      Math.min(rows.length, limit + PREVIEW_STEP),
+                    )
+                  }
+                  disabled={busy}
+                >
+                  +{Math.min(PREVIEW_STEP, hiddenCount)} more row
+                  {Math.min(PREVIEW_STEP, hiddenCount) === 1 ? '' : 's'}
+                </button>
+              )}
+              {existingCount > 0 && (
+                <button
+                  type="button"
+                  className={styles.removeExistingBtn}
+                  onClick={removeExistingRows}
+                  disabled={busy}
+                >
+                  Remove {existingCount} existing
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -410,6 +463,12 @@ export function PasteNotesDialog({
             {drafts.length === 0
               ? 'No part numbers yet'
               : `${drafts.length} note${drafts.length === 1 ? '' : 's'} will be created`}
+            {existingCount > 0 && (
+              <>
+                <span className={styles.dot}>·</span>
+                {existingCount} already in library
+              </>
+            )}
             <span className={styles.dot}>·</span>
             {filterSummary}
           </p>

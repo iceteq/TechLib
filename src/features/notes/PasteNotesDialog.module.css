@@ -107,6 +107,17 @@
   min-width: 0;
 }
 
+.rowExisting .cell {
+  background: color-mix(in srgb, #c9851a 12%, white);
+  border-color: color-mix(in srgb, #c9851a 32%, var(--border));
+}
+
+.rowExisting .cell:focus {
+  background: color-mix(in srgb, #c9851a 8%, white);
+  border-color: color-mix(in srgb, #c9851a 45%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, #c9851a 18%, transparent);
+}
+
 .columnHeader {
   padding: 0 0.35rem;
   font-size: 0.72rem;
@@ -174,19 +185,34 @@
   color: var(--danger, #c5221f);
 }
 
-.moreBtn {
-  align-self: flex-start;
+.gridActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+}
+
+.moreBtn,
+.removeExistingBtn {
   padding: 0.35rem 0.15rem;
   border: none;
   background: none;
-  color: var(--accent);
   font: inherit;
   font-size: 0.84rem;
   font-weight: 560;
   cursor: pointer;
 }
 
-.moreBtn:hover:not(:disabled) {
+.moreBtn {
+  color: var(--accent);
+}
+
+.removeExistingBtn {
+  color: color-mix(in srgb, #c9851a 75%, var(--text));
+}
+
+.moreBtn:hover:not(:disabled),
+.removeExistingBtn:hover:not(:disabled) {
   text-decoration: underline;
 }
 
@@ -248,7 +274,8 @@
 .cancel:disabled,
 .iconBtn:disabled,
 .removeBtn:disabled,
-.moreBtn:disabled {
+.moreBtn:disabled,
+.removeExistingBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

@@ -1007,6 +1007,17 @@ export default function App({ session }: { session: Session | null }) {
     stockLocations,
   ]);
 
+  /** Normalized part numbers already in the library (non-deleted). */
+  const existingPartKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const note of notes) {
+      if (note.deletedAt != null) continue;
+      const key = normalizePartNumber(note.title);
+      if (key) keys.add(key);
+    }
+    return keys;
+  }, [notes]);
+
   const createDefaultsSummary = useMemo(() => {
     const type = categoryLabel(createDefaults.categoryId, noteTypes);
     const stock = stockLabel(createDefaults.stockId, stockLocations);
@@ -2518,6 +2529,7 @@ export default function App({ session }: { session: Session | null }) {
       {pasteOpen && (
         <PasteNotesDialog
           filterSummary={pasteFilterSummary}
+          existingPartKeys={existingPartKeys}
           onClose={() => setPasteOpen(false)}
           onImport={handlePasteImport}
         />
