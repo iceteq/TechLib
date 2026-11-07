@@ -1,7 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { X } from 'lucide-react';
 import {
-  parsePastedNotes,
+  applyPasteToGrid,
+  draftsFromGrid,
+  EMPTY_PASTE_ROW,
+  PASTE_COL_COUNT,
+  PASTE_NOTE_COLUMNS,
+  type PasteGridRow,
   type PastedNoteDraft,
 } from '../../lib/parsePastedNotes';
 import styles from './PasteNotesDialog.module.css';
@@ -12,8 +26,34 @@ interface PasteNotesDialogProps {
   onImport: (drafts: PastedNoteDraft[]) => Promise<void>;
 }
 
-function secondaryLine(draft: PastedNoteDraft): string {
-  return [draft.description, draft.specialCase].filter(Boolean).join(' · ');
+type GridRowModel = {
+  id: string;
+  cells: PasteGridRow;
+};
+
+const PREVIEW_STEP = 12;
+
+function newRowId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function makeRow(cells: PasteGridRow = EMPTY_PASTE_ROW()): GridRowModel {
+  return { id: newRowId(), cells };
+}
+
+function hasStructuredPaste(text: string): boolean {
+  return /[\t\r\n]/.test(text);
+}
+
+function mergeRows(
+  current: GridRowModel[],
+  nextCells: PasteGridRow[],
+): GridRowModel[] {
+  return nextCells.map((cells, index) => {
+    const existing = current[index];
+    if (existing) return { ...existing, cells };
+    return makeRow(cells);
+  });
 }
 
 export function PasteNotesDialog({
@@ -21,23 +61,60 @@ export function PasteNotesDialog({
   onClose,
   onImport,
 }: PasteNotesDialogProps) {
-  const [text, setText] = useState('');
-  const [removed, setRemoved] = useState<Set<number>>(() => new Set());
+  const titleId = useId();
+  const [rows, setRows] = useState<GridRowModel[]>(() => [makeRow()]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [visibleLimit, setVisibleLimit] = useState(PREVIEW_STEP);
+  const [focusTarget, setFocusTarget] = useState<{
+    row: number;
+    col: number;
+  } | null>({ row: 0, col: 0 });
   const overlayRef = useRef<HTMLDivElement>(null);
+  const cellRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
 
-  const parsed = useMemo(() => parsePastedNotes(text), [text]);
-  const drafts = useMemo(
-    () => parsed.filter((_, index) => !removed.has(index)),
-    [parsed, removed],
-  );
+  const gridRows = useMemo(() => rows.map((row) => row.cells), [rows]);
+  const drafts = useMemo(() => draftsFromGrid(gridRows), [gridRows]);
   const canImport = drafts.length > 0 && !busy;
+  const hiddenCount = Math.max(0, rows.length - visibleLimit);
+  const visibleRows = rows.slice(0, visibleLimit);
 
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
+  function cellKey(rowId: string, col: number): string {
+    return `${rowId}:${col}`;
+  }
+
+  function setCellRef(rowId: string, col: number, el: HTMLInputElement | null) {
+    const key = cellKey(rowId, col);
+    if (el) cellRefs.current.set(key, el);
+    else cellRefs.current.delete(key);
+  }
+
+  function queueFocus(row: number, col: number) {
+    setFocusTarget({ row, col });
+  }
+
+  useLayoutEffect(() => {
+    if (!focusTarget) return;
+    const list = rowsRef.current;
+    const row = Math.max(0, Math.min(focusTarget.row, list.length - 1));
+    const col = Math.max(0, Math.min(focusTarget.col, PASTE_COL_COUNT - 1));
+    if (row >= visibleLimit) {
+      setVisibleLimit((limit) =>
+        Math.min(list.length, Math.max(limit + PREVIEW_STEP, row + 1)),
+      );
+      return;
+    }
+    const model = list[row];
+    if (!model) return;
+    const el = cellRefs.current.get(cellKey(model.id, col));
+    if (!el) return;
+    el.focus();
+    const len = el.value.length;
+    el.setSelectionRange(len, len);
+    setFocusTarget(null);
+  }, [focusTarget, rows, visibleLimit]);
 
   // Keep the sheet inside the visual viewport so Import stays above the keyboard.
   useEffect(() => {
@@ -69,29 +146,132 @@ export function PasteNotesDialog({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [busy, onClose]);
 
-  function handleTextChange(next: string) {
-    setText(next);
-    setRemoved(new Set());
+  function updateCell(rowIndex: number, col: number, value: string) {
+    setRows((current) =>
+      current.map((row, index) => {
+        if (index !== rowIndex) return row;
+        const cells: PasteGridRow = [row.cells[0], row.cells[1], row.cells[2]];
+        cells[col] = value;
+        return { ...row, cells };
+      }),
+    );
     setError(null);
   }
 
-  function removeDraft(index: number) {
-    setRemoved((current) => {
-      const next = new Set(current);
-      next.add(index);
-      return next;
+  function handlePaste(
+    e: ClipboardEvent<HTMLInputElement>,
+    rowIndex: number,
+    col: number,
+  ) {
+    const text = e.clipboardData.getData('text/plain');
+    if (!hasStructuredPaste(text)) return;
+
+    e.preventDefault();
+    const nextCells = applyPasteToGrid(gridRows, rowIndex, col, text);
+    setRows((current) => mergeRows(current, nextCells));
+    // Keep a capped window; overflow uses “+N more rows”. Import still uses all rows.
+    setVisibleLimit((limit) =>
+      Math.max(
+        PREVIEW_STEP,
+        Math.min(
+          nextCells.length,
+          Math.max(limit, Math.min(rowIndex + PREVIEW_STEP, nextCells.length)),
+        ),
+      ),
+    );
+    setError(null);
+    queueFocus(rowIndex, col);
+  }
+
+  function removeRow(rowIndex: number) {
+    setRows((current) => {
+      const next = current.filter((_, index) => index !== rowIndex);
+      return next.length > 0 ? next : [makeRow()];
     });
     setError(null);
+    const nextFocusRow = Math.max(0, rowIndex > 0 ? rowIndex - 1 : 0);
+    queueFocus(nextFocusRow, 0);
   }
 
-  function restoreAll() {
-    setRemoved(new Set());
-    setError(null);
+  function moveFocus(row: number, col: number) {
+    if (col < 0 || col >= PASTE_COL_COUNT || row < 0) return;
+
+    if (row >= rowsRef.current.length) {
+      setRows((current) => [...current, makeRow()]);
+      setVisibleLimit((limit) => Math.max(limit, rowsRef.current.length + 1));
+      queueFocus(row, col);
+      return;
+    }
+
+    if (row >= visibleLimit) {
+      setVisibleLimit((limit) =>
+        Math.min(
+          rowsRef.current.length,
+          Math.max(limit + PREVIEW_STEP, row + 1),
+        ),
+      );
+    }
+    queueFocus(row, col);
+  }
+
+  function handleCellKeyDown(
+    e: ReactKeyboardEvent<HTMLInputElement>,
+    rowIndex: number,
+    col: number,
+  ) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (col > 0) moveFocus(rowIndex, col - 1);
+        else if (rowIndex > 0) moveFocus(rowIndex - 1, PASTE_COL_COUNT - 1);
+      } else if (col < PASTE_COL_COUNT - 1) {
+        moveFocus(rowIndex, col + 1);
+      } else {
+        moveFocus(rowIndex + 1, 0);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (rowIndex > 0) moveFocus(rowIndex - 1, col);
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      moveFocus(rowIndex + 1, col);
+      return;
+    }
+
+    if (e.key === 'ArrowLeft') {
+      const input = e.currentTarget;
+      if (input.selectionStart === 0 && input.selectionEnd === 0) {
+        if (col > 0) {
+          e.preventDefault();
+          moveFocus(rowIndex, col - 1);
+        } else if (rowIndex > 0) {
+          e.preventDefault();
+          moveFocus(rowIndex - 1, PASTE_COL_COUNT - 1);
+        }
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowRight') {
+      const input = e.currentTarget;
+      const atEnd =
+        input.selectionStart === input.value.length &&
+        input.selectionEnd === input.value.length;
+      if (!atEnd) return;
+      e.preventDefault();
+      if (col < PASTE_COL_COUNT - 1) moveFocus(rowIndex, col + 1);
+      else moveFocus(rowIndex + 1, 0);
+    }
   }
 
   async function handleImport() {
     if (!canImport) return;
-    // Dismiss the soft keyboard so the first tap isn't eaten on mobile.
     (document.activeElement as HTMLElement | null)?.blur?.();
     setBusy(true);
     setError(null);
@@ -121,17 +301,18 @@ export function PasteNotesDialog({
       <div
         className={styles.dialog}
         role="dialog"
-        aria-labelledby="paste-notes-title"
+        aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.header}>
           <div>
-            <h2 id="paste-notes-title" className={styles.title}>
+            <h2 id={titleId} className={styles.title}>
               Paste notes
             </h2>
             <p className={styles.subtitle}>
-              One note per line from Excel. Columns: part number, description
-              (optional). Remove any row from the preview before importing.
+              Paste from Excel into any cell. Tabs make columns, new lines make
+              rows — spaces stay inside the cell. Edit or remove rows before
+              importing.
             </p>
           </div>
           <button
@@ -146,68 +327,76 @@ export function PasteNotesDialog({
         </div>
 
         <div className={styles.body}>
-          <label className={styles.label} htmlFor="paste-notes-input">
-            Paste here
-          </label>
-          <textarea
-            id="paste-notes-input"
-            ref={textareaRef}
-            className={styles.textarea}
-            value={text}
-            onChange={(e) => handleTextChange(e.target.value)}
-            placeholder={
-              'ABC123\nDEF456\tNeeds new cable\nGHI789\tCrack on bezel\tHold for parts'
-            }
-            rows={6}
-            disabled={busy}
-            spellCheck={false}
-          />
-
-          {parsed.length > 0 && (
-            <div className={styles.previewWrap}>
-              <div className={styles.previewHeader}>
-                <p className={styles.previewLabel}>Preview</p>
-                {removed.size > 0 && (
-                  <button
-                    type="button"
-                    className={styles.restoreBtn}
-                    onClick={restoreAll}
-                    disabled={busy}
-                  >
-                    Restore all
-                  </button>
-                )}
-              </div>
-              <ul className={styles.previewList} aria-label="Notes to import">
-                {parsed.map((draft, index) => {
-                  if (removed.has(index)) return null;
-                  const detail = secondaryLine(draft);
-                  return (
-                    <li
-                      key={`${index}-${draft.title}`}
-                      className={styles.previewItem}
-                    >
-                      <div className={styles.previewText}>
-                        <span className={styles.previewTitle}>{draft.title}</span>
-                        {detail ? (
-                          <span className={styles.previewDetail}>{detail}</span>
-                        ) : null}
-                      </div>
-                      <button
-                        type="button"
-                        className={styles.removeBtn}
-                        onClick={() => removeDraft(index)}
-                        disabled={busy}
-                        aria-label={`Remove ${draft.title}`}
-                        title="Remove from import"
-                      >
-                        <X size={14} />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+          <div
+            className={styles.grid}
+            role="grid"
+            aria-label="Notes to import"
+            aria-colcount={PASTE_COL_COUNT}
+            aria-rowcount={rows.length}
+          >
+            <div className={styles.headerRow} role="row">
+              {PASTE_NOTE_COLUMNS.map((column) => (
+                <div
+                  key={column.key}
+                  className={styles.columnHeader}
+                  role="columnheader"
+                >
+                  {column.label}
+                </div>
+              ))}
+              <span className={styles.headerSpacer} aria-hidden />
             </div>
+
+            {visibleRows.map((row, rowIndex) => (
+              <div key={row.id} className={styles.row} role="row">
+                {PASTE_NOTE_COLUMNS.map((column, col) => (
+                  <input
+                    key={column.key}
+                    ref={(el) => setCellRef(row.id, col, el)}
+                    className={styles.cell}
+                    role="gridcell"
+                    type="text"
+                    value={row.cells[col]}
+                    title={row.cells[col] || undefined}
+                    placeholder={col === 0 ? 'Part number' : undefined}
+                    disabled={busy}
+                    spellCheck={false}
+                    aria-label={`${column.label}, row ${rowIndex + 1}`}
+                    onChange={(e) => updateCell(rowIndex, col, e.target.value)}
+                    onPaste={(e) => handlePaste(e, rowIndex, col)}
+                    onKeyDown={(e) => handleCellKeyDown(e, rowIndex, col)}
+                  />
+                ))}
+                <button
+                  type="button"
+                  className={styles.removeBtn}
+                  onClick={() => removeRow(rowIndex)}
+                  disabled={
+                    busy || (rows.length === 1 && !row.cells.some(Boolean))
+                  }
+                  aria-label={`Remove row ${rowIndex + 1}`}
+                  title="Remove row"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              className={styles.moreBtn}
+              onClick={() =>
+                setVisibleLimit((limit) =>
+                  Math.min(rows.length, limit + PREVIEW_STEP),
+                )
+              }
+              disabled={busy}
+            >
+              +{Math.min(PREVIEW_STEP, hiddenCount)} more row
+              {Math.min(PREVIEW_STEP, hiddenCount) === 1 ? '' : 's'}
+            </button>
           )}
         </div>
 
@@ -219,9 +408,7 @@ export function PasteNotesDialog({
           )}
           <p className={styles.meta}>
             {drafts.length === 0
-              ? parsed.length > 0
-                ? 'All rows removed — nothing to import'
-                : 'No part numbers yet'
+              ? 'No part numbers yet'
               : `${drafts.length} note${drafts.length === 1 ? '' : 's'} will be created`}
             <span className={styles.dot}>·</span>
             {filterSummary}
