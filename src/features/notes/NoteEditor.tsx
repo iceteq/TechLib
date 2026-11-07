@@ -124,6 +124,11 @@ interface NoteEditorProps {
   canTakeOverEditLock?: boolean;
   takeOverBusy?: boolean;
   onTakeOverEditLock?: () => void | Promise<void>;
+  /**
+   * Server `updated_at` from a write this client just made (save/images).
+   * Matching iso advances are local — not "updated elsewhere".
+   */
+  localUpdatedAtIso?: string | null;
   /** Live sync: discard dirty drafts and reload server version. */
   onReloadRemoteChanges?: () => void;
 }
@@ -163,6 +168,7 @@ export function NoteEditor({
   canTakeOverEditLock = false,
   takeOverBusy = false,
   onTakeOverEditLock,
+  localUpdatedAtIso = null,
   onReloadRemoteChanges,
 }: NoteEditorProps) {
   const cartJuice = useJuiceBurst();
@@ -285,11 +291,28 @@ export function NoteEditor({
     syncedSpecialCaseRef.current = note.specialCase ?? '';
   }, [note.id]);
 
+  // Own saves / image uploads bump updated_at — advance baseline, no banner.
+  useEffect(() => {
+    if (!localUpdatedAtIso) return;
+    if (note.updatedAtIso && note.updatedAtIso !== localUpdatedAtIso) {
+      // Note props not caught up yet; wait for the matching snapshot.
+      return;
+    }
+    remoteBaselineIsoRef.current = localUpdatedAtIso;
+    setRemoteChangePending(false);
+  }, [localUpdatedAtIso, note.updatedAtIso]);
+
   // Live sync advanced the server version while local text drafts diverge.
+  // Skips versions this client just wrote (see localUpdatedAtIso above).
   useEffect(() => {
     const iso = note.updatedAtIso ?? null;
     if (!iso) return;
     if (iso === remoteBaselineIsoRef.current) {
+      setRemoteChangePending(false);
+      return;
+    }
+    if (localUpdatedAtIso && iso === localUpdatedAtIso) {
+      remoteBaselineIsoRef.current = iso;
       setRemoteChangePending(false);
       return;
     }
@@ -311,6 +334,7 @@ export function NoteEditor({
     title,
     description,
     specialCase,
+    localUpdatedAtIso,
   ]);
 
   // Adopt remote text when it changes and the field is not dirty.

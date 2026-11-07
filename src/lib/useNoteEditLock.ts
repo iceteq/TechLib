@@ -33,10 +33,10 @@ const EMPTY: NoteEditLockState = {
 };
 
 /**
- * Soft edit lease for the open note.
+ * Soft exclusive-edit lease for the open note (viewing stays allowed).
  * - `canClaim`: user may mutate this note (editor/admin authorship rules).
  * - Fail open on network errors so solo editing is never blocked.
- * - Fail closed when another member holds a live lease.
+ * - Fail closed when another member holds a live lease (caller makes editor read-only).
  */
 export function useNoteEditLock(
   noteId: string | null,

@@ -279,6 +279,13 @@ export default function App({ session }: { session: Session | null }) {
   const [saveConflictBusy, setSaveConflictBusy] = useState(false);
   /** Bumps to remount NoteEditor after Reload so drafts match server. */
   const [editorEpoch, setEditorEpoch] = useState(0);
+  /**
+   * Last `updated_at` produced by THIS client's write for the open note.
+   * NoteEditor treats matching iso advances as local (not "updated elsewhere").
+   */
+  const [editorLocalVersionIso, setEditorLocalVersionIso] = useState<
+    string | null
+  >(null);
   /** Serialize per-note saves so title+description blurs don't false-conflict. */
   const noteSaveChainRef = useRef(new Map<string, Promise<unknown>>());
   const knownUpdatedAtIsoRef = useRef(new Map<string, string>());
@@ -408,6 +415,7 @@ export default function App({ session }: { session: Session | null }) {
 
   function openNote(noteId: string) {
     setOpenedAtById((prev) => touchRecentOpen(noteId, prev));
+    setEditorLocalVersionIso(null);
     setActiveNoteId(noteId);
     // Wall hydrate may only have thumb URLs — upgrade for editor / lightbox.
     void (async () => {
@@ -606,6 +614,11 @@ export default function App({ session }: { session: Session | null }) {
             fetched = fetched.map((n) => (n.id === full.id ? full : n));
           } else {
             fetched = fetched.map((n) => (n.id === full.id ? full : n));
+            // Own write echo (images/saves) — don't show "updated elsewhere".
+            if (wasRecentLocalNoteTouch(activeId) && full.updatedAtIso) {
+              knownUpdatedAtIsoRef.current.set(full.id, full.updatedAtIso);
+              setEditorLocalVersionIso(full.updatedAtIso);
+            }
           }
         }
 
@@ -703,6 +716,9 @@ export default function App({ session }: { session: Session | null }) {
             setNotes((prev) => mergeRemoteNotesIntoWall(prev, [full]));
             if (full.updatedAtIso) {
               knownUpdatedAtIsoRef.current.set(full.id, full.updatedAtIso);
+              if (wasRecentLocalNoteTouch(activeId)) {
+                setEditorLocalVersionIso(full.updatedAtIso);
+              }
             }
           }
         }
@@ -923,7 +939,10 @@ export default function App({ session }: { session: Session | null }) {
     Boolean(activeNote && canEditActiveNote && isCloudConfigured()),
   );
   const editLockedByOther = editLock.blockedByOther;
-  /** Authorship + soft lock: may mutate the currently open note. */
+  /**
+   * Exclusive edit (not exclusive open): anyone can open/view; only the
+   * lock holder (plus authorship rules) may mutate.
+   */
   const canMutateOpenNote = canEditActiveNote && !editLockedByOther;
   const editorReadOnly = !canMutateOpenNote;
   const editLockHolderLabel =
@@ -1275,6 +1294,7 @@ export default function App({ session }: { session: Session | null }) {
     );
     setView('notes');
     openNote(note.id);
+    rememberNoteVersion(note);
     setSidebarOpen(false);
   }
 
@@ -1411,9 +1431,15 @@ export default function App({ session }: { session: Session | null }) {
     openNote(visibleNotes[activeNavIndex + 1].id);
   }
 
-  function rememberNoteVersion(note: NoteWithUrls) {
-    if (note.updatedAtIso) {
-      knownUpdatedAtIsoRef.current.set(note.id, note.updatedAtIso);
+  function rememberNoteVersion(
+    note: NoteWithUrls,
+    options?: { local?: boolean },
+  ) {
+    if (!note.updatedAtIso) return;
+    knownUpdatedAtIsoRef.current.set(note.id, note.updatedAtIso);
+    // Local writes (saves, images) — editor should not treat this iso as remote.
+    if (options?.local !== false && note.id === activeNoteIdRef.current) {
+      setEditorLocalVersionIso(note.updatedAtIso);
     }
   }
 
@@ -1614,30 +1640,35 @@ export default function App({ session }: { session: Session | null }) {
     const list = Array.from(files);
     if (list.length === 0) return;
     const noteId = activeNoteId;
+    markLocalNoteTouch(noteId);
     setImageBusyNoteId(noteId);
     setImageBusyCount(list.length);
     try {
-      for (const file of list) {
-        const updated = await store.addImage(noteId, file);
-        if (updated) {
-          markLocalNoteTouch(updated.id);
-          rememberNoteVersion(updated);
-          // Merge images only — keep any optimistic title/description already in state.
-          setNotes((prev) =>
-            prev.map((n) =>
-              n.id === updated.id
-                ? {
-                    ...n,
-                    images: updated.images,
-                    updatedAt: updated.updatedAt,
-                    updatedAtIso: updated.updatedAtIso,
-                  }
-                : n,
-            ),
-          );
+      // Share the per-note save chain with text saves so image updated_at
+      // bumps cannot race title/description blurs into false conflicts.
+      await enqueueNoteSave(noteId, async () => {
+        for (const file of list) {
+          markLocalNoteTouch(noteId);
+          const updated = await store.addImage(noteId, file);
+          if (updated) {
+            rememberNoteVersion(updated);
+            // Merge images only — keep any optimistic title/description already in state.
+            setNotes((prev) =>
+              prev.map((n) =>
+                n.id === updated.id
+                  ? {
+                      ...n,
+                      images: updated.images,
+                      updatedAt: updated.updatedAt,
+                      updatedAtIso: updated.updatedAtIso,
+                    }
+                  : n,
+              ),
+            );
+          }
+          setImageBusyCount((count) => Math.max(0, count - 1));
         }
-        setImageBusyCount((count) => Math.max(0, count - 1));
-      }
+      });
     } finally {
       setImageBusyCount(0);
       setImageBusyNoteId(null);
@@ -1653,32 +1684,39 @@ export default function App({ session }: { session: Session | null }) {
         ...createMetaFromDefaults(createDefaults),
         labelIds: [],
       });
+      markLocalNoteTouch(note.id);
       setNotes((prev) =>
         prev.some((n) => n.id === note.id) ? prev : [note, ...prev],
       );
       queueWallPulse(note.id);
       openNote(note.id);
+      rememberNoteVersion(note);
       setSidebarOpen(false);
 
       setImageBusyNoteId(note.id);
       setImageBusyCount(files.length);
-      for (const file of files) {
-        const updated = await store.addImage(note.id, file);
-        if (updated) {
-          setNotes((prev) =>
-            prev.map((n) =>
-              n.id === updated.id
-                ? {
-                    ...n,
-                    images: updated.images,
-                    updatedAt: updated.updatedAt,
-                  }
-                : n,
-            ),
-          );
+      await enqueueNoteSave(note.id, async () => {
+        for (const file of files) {
+          markLocalNoteTouch(note.id);
+          const updated = await store.addImage(note.id, file);
+          if (updated) {
+            rememberNoteVersion(updated);
+            setNotes((prev) =>
+              prev.map((n) =>
+                n.id === updated.id
+                  ? {
+                      ...n,
+                      images: updated.images,
+                      updatedAt: updated.updatedAt,
+                      updatedAtIso: updated.updatedAtIso,
+                    }
+                  : n,
+              ),
+            );
+          }
+          setImageBusyCount((count) => Math.max(0, count - 1));
         }
-        setImageBusyCount((count) => Math.max(0, count - 1));
-      }
+      });
     } finally {
       setImageBusyCount(0);
       setImageBusyNoteId(null);
@@ -1688,45 +1726,53 @@ export default function App({ session }: { session: Session | null }) {
   async function handleRemoveImage(imageId: string) {
     if (!canMutateOpenNote) return;
     if (!activeNoteId) return;
-    const updated = await store.removeImage(activeNoteId, imageId);
-    if (updated) {
-      markLocalNoteTouch(updated.id);
-      rememberNoteVersion(updated);
-      setNotes((prev) =>
-        prev.map((n) =>
-          n.id === updated.id
-            ? {
-                ...n,
-                images: updated.images,
-                updatedAt: updated.updatedAt,
-                updatedAtIso: updated.updatedAtIso,
-              }
-            : n,
-        ),
-      );
-    }
+    const noteId = activeNoteId;
+    markLocalNoteTouch(noteId);
+    await enqueueNoteSave(noteId, async () => {
+      markLocalNoteTouch(noteId);
+      const updated = await store.removeImage(noteId, imageId);
+      if (updated) {
+        rememberNoteVersion(updated);
+        setNotes((prev) =>
+          prev.map((n) =>
+            n.id === updated.id
+              ? {
+                  ...n,
+                  images: updated.images,
+                  updatedAt: updated.updatedAt,
+                  updatedAtIso: updated.updatedAtIso,
+                }
+              : n,
+          ),
+        );
+      }
+    });
   }
 
   async function handleReorderImages(orderedImageIds: string[]) {
     if (!canMutateOpenNote) return;
     if (!activeNoteId) return;
-    const updated = await store.reorderImages(activeNoteId, orderedImageIds);
-    if (updated) {
-      markLocalNoteTouch(updated.id);
-      rememberNoteVersion(updated);
-      setNotes((prev) =>
-        prev.map((n) =>
-          n.id === updated.id
-            ? {
-                ...n,
-                images: updated.images,
-                updatedAt: updated.updatedAt,
-                updatedAtIso: updated.updatedAtIso,
-              }
-            : n,
-        ),
-      );
-    }
+    const noteId = activeNoteId;
+    markLocalNoteTouch(noteId);
+    await enqueueNoteSave(noteId, async () => {
+      markLocalNoteTouch(noteId);
+      const updated = await store.reorderImages(noteId, orderedImageIds);
+      if (updated) {
+        rememberNoteVersion(updated);
+        setNotes((prev) =>
+          prev.map((n) =>
+            n.id === updated.id
+              ? {
+                  ...n,
+                  images: updated.images,
+                  updatedAt: updated.updatedAt,
+                  updatedAtIso: updated.updatedAtIso,
+                }
+              : n,
+          ),
+        );
+      }
+    });
   }
 
   async function handleDelete() {
@@ -2659,6 +2705,7 @@ export default function App({ session }: { session: Session | null }) {
           canTakeOverEditLock={canEditActiveNote && editLockedByOther}
           takeOverBusy={editLock.claiming}
           onTakeOverEditLock={() => void editLock.takeOver()}
+          localUpdatedAtIso={editorLocalVersionIso}
           onReloadRemoteChanges={() => setEditorEpoch((n) => n + 1)}
         />
       )}
