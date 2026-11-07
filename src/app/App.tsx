@@ -924,8 +924,9 @@ export default function App({ session }: { session: Session | null }) {
   );
   const editLockedByOther = editLock.blockedByOther;
   /** Authorship + soft lock: may mutate the currently open note. */
-  const canMutateOpenNote = canEditActiveNote && !editLockedByOther;
-  const editorReadOnly = !canMutateOpenNote;
+  const canMutateOpenNote =
+    canEditActiveNote && !editLockedByOther && !editLock.checking;
+  const editorReadOnly = !canMutateOpenNote || activeNoteIsBinned;
   const editLockHolderLabel =
     editLockedByOther && editLock.lock
       ? formatLockHolderLabel(editLock.lock)
@@ -1578,6 +1579,19 @@ export default function App({ session }: { session: Session | null }) {
     }
   }
 
+  function handleConflictDismiss() {
+    if (!saveConflict) return;
+    const { noteId, serverNote } = saveConflict;
+    // Cancel abandons our optimistic save — show the server note, not the
+    // half-applied local draft that made Cancel feel like "keep typing."
+    applyNoteToState(serverNote);
+    setSaveConflict(null);
+    setEditorEpoch((n) => n + 1);
+    if (activeNoteId === noteId) {
+      setNotice('Discarded your unsaved save');
+    }
+  }
+
   async function handleConflictKeepMine() {
     if (!saveConflict) return;
     const { noteId, serverNote, pendingPatch, localBefore } = saveConflict;
@@ -1605,6 +1619,24 @@ export default function App({ session }: { session: Session | null }) {
       setNotice('Could not overwrite changes');
     } finally {
       setSaveConflictBusy(false);
+    }
+  }
+
+  async function handleTakeOverEditLock() {
+    const noteId = activeNoteId;
+    if (!noteId) return;
+    const next = await editLock.takeOver();
+    if (!next?.mine) return;
+    try {
+      const fresh = await store.getNote(noteId);
+      if (fresh && activeNoteId === noteId) {
+        applyNoteToState(fresh);
+        setEditorEpoch((n) => n + 1);
+        setNotice('Took over — loaded latest version');
+      }
+    } catch (err) {
+      console.error('reload after take over failed', err);
+      setNotice('Took over — could not reload latest version');
     }
   }
 
@@ -2600,23 +2632,29 @@ export default function App({ session }: { session: Session | null }) {
       {saveConflict && (
         <SaveConflictDialog
           holderHint={
-            editLockHolderLabel ||
-            (saveConflict.serverNote.updatedAt
-              ? new Date(saveConflict.serverNote.updatedAt).toLocaleString()
-              : null)
+            editLockHolderLabel
+              ? `by ${editLockHolderLabel}`
+              : saveConflict.serverNote.updatedAt
+                ? `updated ${new Date(saveConflict.serverNote.updatedAt).toLocaleString()}`
+                : null
           }
           busy={saveConflictBusy}
           onReload={() => void handleConflictReload()}
           onKeepMine={() => void handleConflictKeepMine()}
-          onDismiss={() => setSaveConflict(null)}
+          onDismiss={handleConflictDismiss}
         />
       )}
 
       {activeNote && (
         <NoteEditor
           key={`${activeNote.id}-${editorEpoch}`}
-          readOnly={editorReadOnly || activeNoteIsBinned}
-          canManageAsk={isAdmin && !editLockedByOther && !activeNoteIsBinned}
+          readOnly={editorReadOnly}
+          canManageAsk={
+            isAdmin &&
+            !editLockedByOther &&
+            !editLock.checking &&
+            !activeNoteIsBinned
+          }
           note={activeNote}
           authorLabel={activeAuthorLabel}
           labels={labels}
@@ -2656,9 +2694,11 @@ export default function App({ session }: { session: Session | null }) {
           onRemoveRelated={!editorReadOnly ? handleRemoveRelated : undefined}
           onShowAllRelated={showRelatedForPartNumber}
           editLockHolder={editLockHolderLabel}
+          editLockChecking={editLock.checking && canEditActiveNote}
+          editLockUncertain={editLock.claimFailed && canEditActiveNote}
           canTakeOverEditLock={canEditActiveNote && editLockedByOther}
           takeOverBusy={editLock.claiming}
-          onTakeOverEditLock={() => void editLock.takeOver()}
+          onTakeOverEditLock={() => void handleTakeOverEditLock()}
           onReloadRemoteChanges={() => setEditorEpoch((n) => n + 1)}
         />
       )}

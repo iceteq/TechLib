@@ -36,9 +36,10 @@ export function SaveConflictDialog({
         </h2>
         <p id="save-conflict-body" className={styles.body}>
           {holderHint
-            ? `This note changed while you were editing (last seen: ${holderHint}). `
+            ? `This note changed while you were editing (${holderHint}). `
             : 'This note changed while you were editing. '}
-          Reload their version, or keep yours and overwrite.
+          Reload their version, or keep yours and overwrite. Cancel discards
+          your unsaved save and shows theirs.
         </p>
         <div className={styles.actions}>
           <button

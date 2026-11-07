@@ -120,6 +120,10 @@ interface NoteEditorProps {
   onShowAllRelated?: (title: string) => void;
   /** Soft lock: another member is editing this note. */
   editLockHolder?: string | null;
+  /** Claim/get still in flight — show checking banner. */
+  editLockChecking?: boolean;
+  /** Lock service unreachable — editing allowed, warn the user. */
+  editLockUncertain?: boolean;
   /** Show Take over when the current user may mutate this note. */
   canTakeOverEditLock?: boolean;
   takeOverBusy?: boolean;
@@ -160,6 +164,8 @@ export function NoteEditor({
   onRemoveRelated,
   onShowAllRelated,
   editLockHolder = null,
+  editLockChecking = false,
+  editLockUncertain = false,
   canTakeOverEditLock = false,
   takeOverBusy = false,
   onTakeOverEditLock,
@@ -183,6 +189,9 @@ export function NoteEditor({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [relatedHighlight, setRelatedHighlight] = useState(false);
   const [remoteChangePending, setRemoteChangePending] = useState(false);
+  /** We were editing, then lost the lease with dirty drafts still on screen. */
+  const [lostEditLock, setLostEditLock] = useState(false);
+  const wasEditableRef = useRef(!readOnly);
   const remoteBaselineIsoRef = useRef(note.updatedAtIso ?? null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -279,11 +288,38 @@ export function NoteEditor({
     setColorOpen(false);
     setMoreOpen(false);
     setRemoteChangePending(false);
+    setLostEditLock(false);
+    wasEditableRef.current = !readOnly;
     remoteBaselineIsoRef.current = note.updatedAtIso ?? null;
     syncedTitleRef.current = note.title;
     syncedDescriptionRef.current = note.description;
     syncedSpecialCaseRef.current = note.specialCase ?? '';
   }, [note.id]);
+
+  // Detect take-over: we were editable, then a foreign lock forced read-only
+  // while local drafts still diverge from the saved note.
+  useEffect(() => {
+    if (!readOnly) {
+      wasEditableRef.current = true;
+      setLostEditLock(false);
+      return;
+    }
+    if (!wasEditableRef.current || !editLockHolder) return;
+    const dirty =
+      title !== note.title ||
+      description !== note.description ||
+      specialCase !== (note.specialCase ?? '');
+    if (dirty) setLostEditLock(true);
+  }, [
+    readOnly,
+    editLockHolder,
+    title,
+    description,
+    specialCase,
+    note.title,
+    note.description,
+    note.specialCase,
+  ]);
 
   // Live sync advanced the server version while local text drafts diverge.
   useEffect(() => {
@@ -718,7 +754,29 @@ export function NoteEditor({
     }
   }
 
+  function draftsDirty(): boolean {
+    return (
+      title !== note.title ||
+      description !== note.description ||
+      specialCase !== (note.specialCase ?? '')
+    );
+  }
+
   function finish(options?: { fromBack?: boolean }) {
+    // Take-over left us read-only with unsaved text — don't discard silently.
+    if (lostEditLock && draftsDirty()) {
+      const leave = window.confirm(
+        'You have unsaved text that was not saved after someone else took over. Leave anyway?',
+      );
+      if (!leave) {
+        if (options?.fromBack) {
+          // Re-arm the history trap so Back can try again later.
+          trapActiveRef.current = true;
+          history.pushState({ techlibNoteEditor: true }, '');
+        }
+        return;
+      }
+    }
     // Persist in the background so Done / Back feels instant. Pass local draft
     // so close does not treat a typed-but-unsaved title as an empty note.
     void persistAll();
@@ -1205,11 +1263,36 @@ export function NoteEditor({
           </div>
         </div>
 
-        {editLockHolder && (
+        {editLockChecking && (
           <div className={styles.editLockBanner} role="status">
             <span className={styles.editLockText}>
-              Editing: <strong>{editLockHolder}</strong>
-              {readOnly ? ' — view only' : ''}
+              Checking who&apos;s editing…
+            </span>
+          </div>
+        )}
+
+        {!editLockChecking && editLockUncertain && (
+          <div className={styles.remoteChangeBanner} role="status">
+            <span className={styles.editLockText}>
+              Couldn&apos;t check who&apos;s editing — save carefully
+            </span>
+          </div>
+        )}
+
+        {!editLockChecking && editLockHolder && (
+          <div className={styles.editLockBanner} role="status">
+            <span className={styles.editLockText}>
+              {lostEditLock ? (
+                <>
+                  <strong>{editLockHolder}</strong> took over — your unsaved
+                  text isn&apos;t saved
+                </>
+              ) : (
+                <>
+                  <strong>{editLockHolder}</strong> is editing
+                  {readOnly ? ' — view only' : ''}
+                </>
+              )}
             </span>
             {canTakeOverEditLock && onTakeOverEditLock && (
               <button
@@ -1227,7 +1310,7 @@ export function NoteEditor({
         {remoteChangePending && onReloadRemoteChanges && (
           <div className={styles.remoteChangeBanner} role="status">
             <span className={styles.editLockText}>
-              Updated elsewhere — your unsaved text is kept
+              Updated elsewhere — Reload or keep typing
             </span>
             <button
               type="button"

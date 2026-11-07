@@ -18,9 +18,14 @@ export type UseNoteEditLockResult = {
   lock: NoteEditLockState | null;
   /** Claim still in flight for this note. */
   claiming: boolean;
+  /**
+   * True until the first claim/get settles for the open note.
+   * Treat as read-only so the editor does not flash editable then lock.
+   */
+  checking: boolean;
   /** Claim/network failed — editing allowed (fail open). */
   claimFailed: boolean;
-  takeOver: () => Promise<void>;
+  takeOver: () => Promise<NoteEditLockState | null>;
   refresh: () => Promise<void>;
 };
 
@@ -68,19 +73,21 @@ export function useNoteEditLock(
     }
   }, [apply, cloud, noteId]);
 
-  const takeOver = useCallback(async () => {
-    if (!cloud || !noteId || !canClaim) return;
+  const takeOver = useCallback(async (): Promise<NoteEditLockState | null> => {
+    if (!cloud || !noteId || !canClaim) return null;
     setClaiming(true);
     try {
       const next = await claimNoteEditLock(noteId, true);
-      if (noteIdRef.current !== noteId) return;
+      if (noteIdRef.current !== noteId) return null;
       apply(next);
       if (next.mine) heldNoteRef.current = noteId;
+      return next;
     } catch (err) {
       if (noteIdRef.current === noteId) {
         setClaimFailed(true);
         console.error('takeOver note edit lock failed', err);
       }
+      return null;
     } finally {
       if (noteIdRef.current === noteId) setClaiming(false);
     }
@@ -249,12 +256,16 @@ export function useNoteEditLock(
     lock?.held && !lock.mine && lock.userId && !claimFailed,
   );
   const holding = Boolean(lock?.mine);
+  // Until claim/get settles (lock still null), treat as checking — including
+  // the first render before the effect runs — so the editor stays read-only.
+  const checking = Boolean(cloud && noteId && !claimFailed && lock === null);
 
   return {
     blockedByOther,
     holding,
     lock,
     claiming,
+    checking,
     claimFailed,
     takeOver,
     refresh,
