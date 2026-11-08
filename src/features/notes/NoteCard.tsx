@@ -573,9 +573,8 @@ export const NoteCard = memo(function NoteCard({
                 if (files.length > 0) onAddImages?.(files);
               }}
             />
-            <ImagePlus size={18} strokeWidth={2.1} aria-hidden />
+            <ImagePlus size={16} strokeWidth={1.9} aria-hidden />
           </label>
-          <span className={styles.addPhotoDivider} aria-hidden />
           <label
             className={styles.addPhotoAction}
             aria-label="Take photo"
@@ -603,7 +602,7 @@ export const NoteCard = memo(function NoteCard({
                 if (files.length > 0) onAddImages?.(files);
               }}
             />
-            <Camera size={18} strokeWidth={2.1} aria-hidden />
+            <Camera size={16} strokeWidth={1.9} aria-hidden />
           </label>
         </div>
       )}
