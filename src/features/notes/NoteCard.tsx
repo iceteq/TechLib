@@ -257,16 +257,16 @@ export const NoteCard = memo(function NoteCard({
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
   const overflow = Math.max(0, note.images.length - NOTE_PREVIEW_IMAGE_LIMIT);
   const hasImages = note.images.length > 0;
-  /** Image-first composition only when there is media (or a pending upload). */
+  /** Full media band when there are photos, or a grey band while upload is pending. */
   const showMediaBand = showPhotos && (hasImages || imagePending);
+  const canAddPhoto =
+    Boolean(onAddImages) && showPhotos && !hasImages && !imagePending && !selecting;
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const stock = stockLocations.find((s) => s.id === note.stockId);
   const partNumber = note.title.trim();
   const title = partNumber || 'No part number';
   const noteType = noteTypeById(noteTypes, note.categoryId);
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
-  const canAddPhoto =
-    Boolean(onAddImages) && showPhotos && !hasImages && !imagePending && !selecting;
 
   function openAssign(field: MetaAssignField) {
     if (selecting) return;
@@ -541,6 +541,42 @@ export const NoteCard = memo(function NoteCard({
         </div>
       )}
 
+      {canAddPhoto && (
+        <div className={styles.addPhotoStrip}>
+          <label
+            className={styles.addPhotoFab}
+            aria-label="Add photo"
+            title="Add photo"
+            onClick={(e) => {
+              // Keep the card from opening; native file dialog can also
+              // synthesize a click on the card when it closes.
+              e.stopPropagation();
+              armSuppress();
+              const onFocus = () => {
+                armSuppress();
+                window.removeEventListener('focus', onFocus);
+              };
+              window.addEventListener('focus', onFocus);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                armSuppress();
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                e.target.value = '';
+                if (files.length > 0) onAddImages?.(files);
+              }}
+            />
+            <ImagePlus size={18} strokeWidth={2.25} aria-hidden />
+          </label>
+        </div>
+      )}
+
       <div
         className={`${styles.body} ${showMediaBand ? styles.bodyImageFirst : ''}`}
       >
@@ -677,39 +713,6 @@ export const NoteCard = memo(function NoteCard({
             </span>
             {note.specialCase.trim()}
           </p>
-        )}
-        {canAddPhoto && (
-          <label
-            className={styles.addPhoto}
-            aria-label="Add photo"
-            onClick={(e) => {
-              // Keep the card from opening; native file dialog can also
-              // synthesize a click on the card when it closes.
-              e.stopPropagation();
-              armSuppress();
-              const onFocus = () => {
-                armSuppress();
-                window.removeEventListener('focus', onFocus);
-              };
-              window.addEventListener('focus', onFocus);
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              onChange={(e) => {
-                armSuppress();
-                const files = e.target.files ? Array.from(e.target.files) : [];
-                e.target.value = '';
-                if (files.length > 0) onAddImages?.(files);
-              }}
-            />
-            <ImagePlus size={14} strokeWidth={2.25} aria-hidden />
-            Add photo
-          </label>
         )}
         <div className={styles.context}>
           {SHOW_GUIDELINES && (
