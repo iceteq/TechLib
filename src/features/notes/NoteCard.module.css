@@ -200,6 +200,33 @@
   opacity: 0.6;
 }
 
+/* Compact body CTA when the media band is collapsed (no photos yet). */
+.addPhoto {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.35rem;
+  margin: 0.05rem 0 0.1rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 560;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  cursor: pointer;
+}
+
+.addPhoto:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.addPhoto:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 1px;
+}
+
 .images {
   /* Fixed media band: same outer footprint for 0 / 1 / 2 photos. */
   display: grid;

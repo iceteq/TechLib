@@ -1640,12 +1640,14 @@ export default function App({ session }: { session: Session | null }) {
     }
   }
 
-  async function handleAddImages(files: FileList | File[]) {
-    if (!canMutateOpenNote) return;
-    if (!activeNoteId) return;
+  async function handleAddImagesToNote(
+    noteId: string,
+    files: FileList | File[],
+  ) {
+    const target = notes.find((n) => n.id === noteId);
+    if (!target || !noteMutable(target.createdBy)) return;
     const list = Array.from(files);
     if (list.length === 0) return;
-    const noteId = activeNoteId;
     setImageBusyNoteId(noteId);
     setImageBusyCount(list.length);
     try {
@@ -1674,6 +1676,11 @@ export default function App({ session }: { session: Session | null }) {
       setImageBusyCount(0);
       setImageBusyNoteId(null);
     }
+  }
+
+  async function handleAddImages(files: FileList | File[]) {
+    if (!canMutateOpenNote || !activeNoteId) return;
+    await handleAddImagesToNote(activeNoteId, files);
   }
 
   async function createNoteFromImages(files: File[]) {
@@ -2551,7 +2558,13 @@ export default function App({ session }: { session: Session | null }) {
             }
           }}
           onDropImages={canEdit ? (files) => void createNoteFromImages(files) : undefined}
+          onAddImagesToNote={
+            canEdit
+              ? (noteId, files) => void handleAddImagesToNote(noteId, files)
+              : undefined
+          }
           imageBusyCount={imageBusyCount}
+          imageBusyNoteId={imageBusyNoteId}
           pulseNoteIds={wallPulseNoteIds}
           remotePulseNoteIds={remotePulseNoteIds}
           onPulseEnd={clearWallPulse}

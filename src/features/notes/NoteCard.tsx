@@ -8,6 +8,7 @@ import {
 } from 'react';
 import {
   Check,
+  ImagePlus,
   Layers,
 } from 'lucide-react';
 import {
@@ -202,6 +203,13 @@ interface NoteCardProps {
   priorityImage?: boolean;
   /** Ask the store to sign this image next (viewport-visible, still waiting). */
   onRequestWallImageUrl?: (imageId: string) => void;
+  /**
+   * True while this note’s first photo(s) are uploading — keep a grey media
+   * band so the wall doesn’t flash a text-only card mid-capture.
+   */
+  imagePending?: boolean;
+  /** Pick files to attach when this note has no photos yet. */
+  onAddImages?: (files: File[]) => void;
 }
 
 export const NoteCard = memo(function NoteCard({
@@ -242,16 +250,23 @@ export const NoteCard = memo(function NoteCard({
   onPartNumberCopied,
   priorityImage = false,
   onRequestWallImageUrl,
+  imagePending = false,
+  onAddImages,
 }: NoteCardProps) {
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
   const overflow = Math.max(0, note.images.length - NOTE_PREVIEW_IMAGE_LIMIT);
+  const hasImages = note.images.length > 0;
+  /** Image-first composition only when there is media (or a pending upload). */
+  const showMediaBand = showPhotos && (hasImages || imagePending);
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const stock = stockLocations.find((s) => s.id === note.stockId);
   const partNumber = note.title.trim();
   const title = partNumber || 'No part number';
   const noteType = noteTypeById(noteTypes, note.categoryId);
   const [assignField, setAssignField] = useState<MetaAssignField | null>(null);
+  const canAddPhoto =
+    Boolean(onAddImages) && showPhotos && !hasImages && !imagePending && !selecting;
 
   function openAssign(field: MetaAssignField) {
     if (selecting) return;
@@ -492,7 +507,7 @@ export const NoteCard = memo(function NoteCard({
         </div>
       )}
 
-      {showPhotos && (
+      {showMediaBand && (
         <div
           className={`${styles.images} ${
             preview.length === 0
@@ -504,6 +519,7 @@ export const NoteCard = memo(function NoteCard({
           aria-hidden={preview.length === 0 ? true : undefined}
         >
           {preview.length === 0 ? (
+            /* Grey band = upload/signing in progress, not a permanent empty note. */
             <div className={styles.imagePlaceholder} />
           ) : (
             preview.map((img, index) => (
@@ -526,7 +542,7 @@ export const NoteCard = memo(function NoteCard({
       )}
 
       <div
-        className={`${styles.body} ${showPhotos ? styles.bodyImageFirst : ''}`}
+        className={`${styles.body} ${showMediaBand ? styles.bodyImageFirst : ''}`}
       >
         <div className={styles.identity}>
           <div className={styles.titleRow}>
@@ -662,6 +678,39 @@ export const NoteCard = memo(function NoteCard({
             {note.specialCase.trim()}
           </p>
         )}
+        {canAddPhoto && (
+          <label
+            className={styles.addPhoto}
+            aria-label="Add photo"
+            onClick={(e) => {
+              // Keep the card from opening; native file dialog can also
+              // synthesize a click on the card when it closes.
+              e.stopPropagation();
+              armSuppress();
+              const onFocus = () => {
+                armSuppress();
+                window.removeEventListener('focus', onFocus);
+              };
+              window.addEventListener('focus', onFocus);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                armSuppress();
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                e.target.value = '';
+                if (files.length > 0) onAddImages?.(files);
+              }}
+            />
+            <ImagePlus size={14} strokeWidth={2.25} aria-hidden />
+            Add photo
+          </label>
+        )}
         <div className={styles.context}>
           {SHOW_GUIDELINES && (
             <div className={styles.guidelineBlock}>
@@ -670,7 +719,7 @@ export const NoteCard = memo(function NoteCard({
                 disposition={note.disposition}
                 disabled={selecting || !onAssignDisposition}
                 expanded={assignField === 'disposition'}
-                quiet={showPhotos}
+                quiet={showMediaBand}
                 onClick={
                   selecting || !onAssignDisposition
                     ? undefined
@@ -696,7 +745,7 @@ export const NoteCard = memo(function NoteCard({
                 <LabelChip
                   name={label.name}
                   highlightQuery={searchQuery}
-                  compact={showPhotos}
+                  compact={showMediaBand}
                 />
               </button>
             ))}
