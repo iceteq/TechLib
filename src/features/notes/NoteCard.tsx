@@ -542,39 +542,37 @@ export const NoteCard = memo(function NoteCard({
       )}
 
       {canAddPhoto && (
-        <div className={styles.addPhotoStrip}>
-          <label
-            className={styles.addPhotoFab}
-            aria-label="Add photo"
-            title="Add photo"
-            onClick={(e) => {
-              // Keep the card from opening; native file dialog can also
-              // synthesize a click on the card when it closes.
-              e.stopPropagation();
+        <label
+          className={styles.addPhotoStrip}
+          aria-label="Add photo"
+          title="Add photo"
+          onClick={(e) => {
+            // Keep the card from opening; native file dialog can also
+            // synthesize a click on the card when it closes.
+            e.stopPropagation();
+            armSuppress();
+            const onFocus = () => {
               armSuppress();
-              const onFocus = () => {
-                armSuppress();
-                window.removeEventListener('focus', onFocus);
-              };
-              window.addEventListener('focus', onFocus);
+              window.removeEventListener('focus', onFocus);
+            };
+            window.addEventListener('focus', onFocus);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              armSuppress();
+              const files = e.target.files ? Array.from(e.target.files) : [];
+              e.target.value = '';
+              if (files.length > 0) onAddImages?.(files);
             }}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              onChange={(e) => {
-                armSuppress();
-                const files = e.target.files ? Array.from(e.target.files) : [];
-                e.target.value = '';
-                if (files.length > 0) onAddImages?.(files);
-              }}
-            />
-            <ImagePlus size={18} strokeWidth={2.25} aria-hidden />
-          </label>
-        </div>
+          />
+          <ImagePlus size={18} strokeWidth={2.1} aria-hidden />
+        </label>
       )}
 
       <div
