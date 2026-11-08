@@ -328,6 +328,33 @@ export function Sidebar({
     });
   }
 
+  /** Collapse after applying a type/stock filter so the wall stays the focus. */
+  function closeSection(id: SidebarSectionId) {
+    setSections((current) => {
+      if (!current[id]) return current;
+      const next: SidebarSectionState = {
+        guideline: false,
+        type: false,
+        stock: false,
+        labels: false,
+      };
+      saveSidebarSections(next);
+      return next;
+    });
+    if (editingSection === id) setEditingSection(null);
+    if (id === 'type') setCreatingSubtypeParentId(null);
+  }
+
+  function pickCategory(categoryId: string) {
+    onSelectCategoryId(categoryId);
+    closeSection('type');
+  }
+
+  function pickStock(stockId: string) {
+    onSelectStock(stockId);
+    closeSection('stock');
+  }
+
   function focusSectionSearch(id: 'type' | 'stock') {
     onEnsureVisible?.();
     pendingSearchFocus.current = id;
@@ -617,10 +644,52 @@ export function Sidebar({
     ? stockLocations.filter((stock) => matchesQuery(stock.name, stockQuery))
     : stockLocations;
 
+  /** First non-empty name match — Enter applies this; parents win over subtypes. */
+  const typeEnterId = (() => {
+    if (!typeQueryActive) return null;
+    for (const { type, subtypes } of filteredRootTypes) {
+      const parentMatch = matchesQuery(type.name, typeQuery);
+      if (parentMatch) {
+        const count = rolledTypeCount(type.id, typeCounts, noteTypes);
+        const active = view === 'notes' && activeCategoryId === type.id;
+        if (!filterEmpty(count, active)) return type.id;
+      }
+      const subtypeCandidates = parentMatch
+        ? subtypes.filter((subtype) => matchesQuery(subtype.name, typeQuery))
+        : subtypes;
+      for (const subtype of subtypeCandidates) {
+        const subCount = typeCounts[subtype.id] ?? 0;
+        const subActive = view === 'notes' && activeCategoryId === subtype.id;
+        if (!filterEmpty(subCount, subActive)) return subtype.id;
+      }
+    }
+    return null;
+  })();
+
+  const stockEnterId = (() => {
+    if (!stockQueryActive) return null;
+    for (const stock of filteredStockLocations) {
+      const active = view === 'notes' && activeStockId === stock.id;
+      const count = stockCounts[stock.id] ?? 0;
+      if (!filterEmpty(count, active)) return stock.id;
+    }
+    return null;
+  })();
+
   function handleSectionSearchKeyDown(
     e: React.KeyboardEvent<HTMLInputElement>,
     section: 'type' | 'stock',
   ) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (section === 'type') {
+        if (typeEnterId) pickCategory(typeEnterId);
+        return;
+      }
+      if (stockEnterId) pickStock(stockEnterId);
+      return;
+    }
     if (e.key !== 'Escape') return;
     e.preventDefault();
     e.stopPropagation();
@@ -805,6 +874,10 @@ export function Sidebar({
             onKeyDown={(e) => handleSectionSearchKeyDown(e, 'type')}
             placeholder="Find type…"
             aria-label="Find type (press T)"
+            aria-autocomplete="list"
+            aria-activedescendant={
+              typeEnterId ? `type-filter-${typeEnterId}` : undefined
+            }
             autoComplete="off"
             spellCheck={false}
           />
@@ -832,7 +905,7 @@ export function Sidebar({
                 }${unsetTypeEmpty ? ` ${styles.itemEmpty}` : ''}${dropClass('category:unset')}`}
                 onClick={() => {
                   if (unsetTypeEmpty) return;
-                  onSelectCategoryId(UNSET_TYPE_FILTER);
+                  pickCategory(UNSET_TYPE_FILTER);
                 }}
                 aria-pressed={unsetTypeActive}
                 aria-disabled={unsetTypeEmpty || undefined}
@@ -859,21 +932,29 @@ export function Sidebar({
             const pinned = defaultCategoryId === type.id;
             const count = rolledTypeCount(type.id, typeCounts, noteTypes);
             const empty = filterEmpty(count, active);
+            const searchHit = typeEnterId === type.id;
             return (
               <li key={type.id} className={styles.typeGroup}>
                 <div
-                  className={`${styles.row} ${active ? styles.rowActive : ''}`}
+                  className={`${styles.row} ${active ? styles.rowActive : ''}${searchHit ? ` ${styles.rowSearchHit}` : ''}`}
                 >
                   <button
                     type="button"
-                    className={`${styles.item} ${active ? styles.active : ''}${empty ? ` ${styles.itemEmpty}` : ''}${dropClass(`category:${type.id}`)}`}
+                    id={`type-filter-${type.id}`}
+                    className={`${styles.item} ${active ? styles.active : ''}${empty ? ` ${styles.itemEmpty}` : ''}${searchHit ? ` ${styles.itemSearchHit}` : ''}${dropClass(`category:${type.id}`)}`}
                     onClick={() => {
                       if (empty) return;
-                      onSelectCategoryId(type.id);
+                      pickCategory(type.id);
                     }}
                     aria-pressed={active}
                     aria-disabled={empty || undefined}
-                    title={empty ? FILTER_EMPTY_TITLE : undefined}
+                    title={
+                      empty
+                        ? FILTER_EMPTY_TITLE
+                        : searchHit
+                          ? `Enter to filter by ${type.name}`
+                          : undefined
+                    }
                     {...noteDropHandlers(`category:${type.id}`, {
                       field: 'categoryId',
                       value: type.id,
@@ -982,21 +1063,29 @@ export function Sidebar({
                       const subCount = typeCounts[subtype.id] ?? 0;
                       const subEmpty = filterEmpty(subCount, subActive);
                       const subPinned = defaultCategoryId === subtype.id;
+                      const subSearchHit = typeEnterId === subtype.id;
                       return (
                         <li
                           key={subtype.id}
-                          className={`${styles.row} ${subActive ? styles.rowActive : ''}`}
+                          className={`${styles.row} ${subActive ? styles.rowActive : ''}${subSearchHit ? ` ${styles.rowSearchHit}` : ''}`}
                         >
                           <button
                             type="button"
-                            className={`${styles.item} ${styles.subItem} ${subActive ? styles.active : ''}${subEmpty ? ` ${styles.itemEmpty}` : ''}${dropClass(`category:${subtype.id}`)}`}
+                            id={`type-filter-${subtype.id}`}
+                            className={`${styles.item} ${styles.subItem} ${subActive ? styles.active : ''}${subEmpty ? ` ${styles.itemEmpty}` : ''}${subSearchHit ? ` ${styles.itemSearchHit}` : ''}${dropClass(`category:${subtype.id}`)}`}
                             onClick={() => {
                               if (subEmpty) return;
-                              onSelectCategoryId(subtype.id);
+                              pickCategory(subtype.id);
                             }}
                             aria-pressed={subActive}
                             aria-disabled={subEmpty || undefined}
-                            title={subEmpty ? FILTER_EMPTY_TITLE : undefined}
+                            title={
+                              subEmpty
+                                ? FILTER_EMPTY_TITLE
+                                : subSearchHit
+                                  ? `Enter to filter by ${subtype.name}`
+                                  : undefined
+                            }
                             {...noteDropHandlers(`category:${subtype.id}`, {
                               field: 'categoryId',
                               value: subtype.id,
@@ -1108,6 +1197,10 @@ export function Sidebar({
             onKeyDown={(e) => handleSectionSearchKeyDown(e, 'stock')}
             placeholder="Find stock…"
             aria-label="Find stock (press S)"
+            aria-autocomplete="list"
+            aria-activedescendant={
+              stockEnterId ? `stock-filter-${stockEnterId}` : undefined
+            }
             autoComplete="off"
             spellCheck={false}
           />
@@ -1135,7 +1228,7 @@ export function Sidebar({
                 }${unsetStockEmpty ? ` ${styles.itemEmpty}` : ''}${dropClass('stock:unset')}`}
                 onClick={() => {
                   if (unsetStockEmpty) return;
-                  onSelectStock(UNSET_STOCK_FILTER);
+                  pickStock(UNSET_STOCK_FILTER);
                 }}
                 aria-pressed={unsetStockActive}
                 aria-disabled={unsetStockEmpty || undefined}
@@ -1159,21 +1252,29 @@ export function Sidebar({
             const count = stockCounts[stock.id] ?? 0;
             const empty = filterEmpty(count, active);
             const pinned = defaultStockId === stock.id;
+            const searchHit = stockEnterId === stock.id;
             return (
               <li
                 key={stock.id}
-                className={`${styles.row} ${active ? styles.rowActive : ''}`}
+                className={`${styles.row} ${active ? styles.rowActive : ''}${searchHit ? ` ${styles.rowSearchHit}` : ''}`}
               >
                 <button
                   type="button"
-                  className={`${styles.item} ${active ? styles.active : ''}${empty ? ` ${styles.itemEmpty}` : ''}${dropClass(`stock:${stock.id}`)}`}
+                  id={`stock-filter-${stock.id}`}
+                  className={`${styles.item} ${active ? styles.active : ''}${empty ? ` ${styles.itemEmpty}` : ''}${searchHit ? ` ${styles.itemSearchHit}` : ''}${dropClass(`stock:${stock.id}`)}`}
                   onClick={() => {
                     if (empty) return;
-                    onSelectStock(stock.id);
+                    pickStock(stock.id);
                   }}
                   aria-pressed={active}
                   aria-disabled={empty || undefined}
-                  title={empty ? FILTER_EMPTY_TITLE : undefined}
+                  title={
+                    empty
+                      ? FILTER_EMPTY_TITLE
+                      : searchHit
+                        ? `Enter to filter by ${stock.name}`
+                        : undefined
+                  }
                   {...noteDropHandlers(`stock:${stock.id}`, {
                     field: 'stockId',
                     value: stock.id,
