@@ -188,8 +188,12 @@ interface NoteGridProps {
   onNotesDragStart?: () => void;
   /** Drop image files onto the grid to create a note. */
   onDropImages?: (files: File[]) => void;
+  /** Attach photos to an existing wall note (no-image → compact “Add photo”). */
+  onAddImagesToNote?: (noteId: string, files: File[]) => void;
   /** > 0 while images are being saved (drop / paste create). */
   imageBusyCount?: number;
+  /** Note currently receiving uploads — keeps grey media band during capture. */
+  imageBusyNoteId?: string | null;
   /** Note ids that should play a capture highlight on the wall. */
   pulseNoteIds?: string[];
   /** Live sync: cards changed by someone else. */
@@ -255,7 +259,9 @@ export function NoteGrid({
   selectionClearNonce = 0,
   onNotesDragStart,
   onDropImages,
+  onAddImagesToNote,
   imageBusyCount = 0,
+  imageBusyNoteId = null,
   pulseNoteIds = [],
   remotePulseNoteIds = [],
   onPulseEnd,
@@ -988,6 +994,16 @@ export function NoteGrid({
                       onPartNumberCopied={onPartNumberCopied}
                       priorityImage={priorityImageIds.has(note.id)}
                       onRequestWallImageUrl={onRequestWallImageUrl}
+                      imagePending={
+                        imageBusyCount > 0 && imageBusyNoteId === note.id
+                      }
+                      onAddImages={
+                        !isBin &&
+                        mayMutate(note.id) &&
+                        onAddImagesToNote
+                          ? (files) => onAddImagesToNote(note.id, files)
+                          : undefined
+                      }
                     />
                   ))}
                 </div>
@@ -1085,6 +1101,14 @@ export function NoteGrid({
               onPartNumberCopied={onPartNumberCopied}
               priorityImage={priorityImageIds.has(note.id)}
               onRequestWallImageUrl={onRequestWallImageUrl}
+              imagePending={
+                imageBusyCount > 0 && imageBusyNoteId === note.id
+              }
+              onAddImages={
+                !isBin && mayMutate(note.id) && onAddImagesToNote
+                  ? (files) => onAddImagesToNote(note.id, files)
+                  : undefined
+              }
             />
           ))}
         </div>
