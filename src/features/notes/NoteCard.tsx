@@ -260,8 +260,10 @@ export const NoteCard = memo(function NoteCard({
   const hasImages = note.images.length > 0;
   /** Full media band when there are photos, or a grey band while upload is pending. */
   const showMediaBand = showPhotos && (hasImages || imagePending);
+  // Keep add-photo controls on imageless cards during multi-select — they
+  // belong to the note, and click handlers already stopPropagation.
   const canAddPhoto =
-    Boolean(onAddImages) && showPhotos && !hasImages && !imagePending && !selecting;
+    Boolean(onAddImages) && showPhotos && !hasImages && !imagePending;
   const noteLabels = labels.filter((l) => note.labelIds.includes(l.id));
   const stock = stockLocations.find((s) => s.id === note.stockId);
   const partNumber = note.title.trim();
