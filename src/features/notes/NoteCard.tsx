@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  Camera,
   Check,
   ImagePlus,
   Layers,
@@ -542,37 +543,69 @@ export const NoteCard = memo(function NoteCard({
       )}
 
       {canAddPhoto && (
-        <label
-          className={styles.addPhotoStrip}
-          aria-label="Add photo"
-          title="Add photo"
-          onClick={(e) => {
-            // Keep the card from opening; native file dialog can also
-            // synthesize a click on the card when it closes.
-            e.stopPropagation();
-            armSuppress();
-            const onFocus = () => {
+        <div className={styles.addPhotoStrip} role="group" aria-label="Add photo">
+          <label
+            className={styles.addPhotoAction}
+            aria-label="Upload photo"
+            title="Upload photo"
+            onClick={(e) => {
+              // Keep the card from opening; native file dialog can also
+              // synthesize a click on the card when it closes.
+              e.stopPropagation();
               armSuppress();
-              window.removeEventListener('focus', onFocus);
-            };
-            window.addEventListener('focus', onFocus);
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(e) => {
-              armSuppress();
-              const files = e.target.files ? Array.from(e.target.files) : [];
-              e.target.value = '';
-              if (files.length > 0) onAddImages?.(files);
+              const onFocus = () => {
+                armSuppress();
+                window.removeEventListener('focus', onFocus);
+              };
+              window.addEventListener('focus', onFocus);
             }}
-          />
-          <ImagePlus size={18} strokeWidth={2.1} aria-hidden />
-        </label>
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                armSuppress();
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                e.target.value = '';
+                if (files.length > 0) onAddImages?.(files);
+              }}
+            />
+            <ImagePlus size={18} strokeWidth={2.1} aria-hidden />
+          </label>
+          <span className={styles.addPhotoDivider} aria-hidden />
+          <label
+            className={styles.addPhotoAction}
+            aria-label="Take photo"
+            title="Take photo"
+            onClick={(e) => {
+              e.stopPropagation();
+              armSuppress();
+              const onFocus = () => {
+                armSuppress();
+                window.removeEventListener('focus', onFocus);
+              };
+              window.addEventListener('focus', onFocus);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={(e) => {
+                armSuppress();
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                e.target.value = '';
+                if (files.length > 0) onAddImages?.(files);
+              }}
+            />
+            <Camera size={18} strokeWidth={2.1} aria-hidden />
+          </label>
+        </div>
       )}
 
       <div
