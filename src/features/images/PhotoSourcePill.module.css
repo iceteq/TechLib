@@ -1,56 +1,110 @@
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.28rem;
-  padding: 0.18rem 0.45rem 0.18rem 0.38rem;
+  gap: 0.22rem;
+  padding: 0.2rem 0.42rem 0.2rem 0.34rem;
   border-radius: 999px;
-  border: 1px solid rgba(31, 35, 40, 0.12);
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--text-muted);
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.02em;
+  border: 1px solid color-mix(in srgb, var(--photo-fg, var(--text-muted)) 22%, transparent);
+  background: color-mix(in srgb, var(--photo-fg, var(--text-muted)) 10%, transparent);
+  color: var(--photo-fg, var(--text-muted));
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   line-height: 1;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(20, 24, 30, 0.08);
 }
 
+/* Quiet glass chip — readable at a glance, never louder than the photo. */
 .onImage {
   position: absolute;
-  left: 0.45rem;
-  bottom: 0.45rem;
+  left: 0.4rem;
+  bottom: 0.4rem;
   z-index: 2;
+  gap: 0.18rem;
+  padding: 0.14rem 0.34rem 0.14rem 0.28rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(18, 22, 28, 0.28);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.58rem;
+  font-weight: 550;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.onImage .icon {
+  color: var(--photo-on-image, rgba(255, 255, 255, 0.88));
+  opacity: 0.92;
+}
+
+.onImage .label {
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 500;
 }
 
 .unset {
-  background: rgba(255, 255, 255, 0.88);
-  color: var(--text-muted);
   border-style: dashed;
-  border-color: rgba(31, 35, 40, 0.22);
-  font-weight: 550;
-  box-shadow: none;
+  border-color: rgba(31, 35, 40, 0.18);
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.onImage.unset {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(18, 22, 28, 0.18);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.onImage.unset .label {
+  color: inherit;
 }
 
 .interactive {
   margin: 0;
   cursor: pointer;
   font: inherit;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
 }
 
-.interactive:hover:not(:disabled) {
-  filter: brightness(0.98);
+.onImage.interactive {
+  opacity: 0.78;
+}
+
+.onImage.interactive:hover:not(:disabled),
+.onImage.interactive:focus-visible {
+  opacity: 1;
+  background: rgba(18, 22, 28, 0.42);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.interactive:hover:not(:disabled):not(.onImage) {
+  background: color-mix(in srgb, var(--photo-fg, var(--text-muted)) 14%, transparent);
 }
 
 .interactive:disabled {
   cursor: default;
-  opacity: 0.85;
 }
 
-.interactive:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+.interactive:focus-visible:not(.onImage) {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
   outline-offset: 2px;
 }
 
+.onImage.interactive:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.45);
+  outline-offset: 1px;
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .label {
-  transform: translateY(0.5px);
+  transform: translateY(0.4px);
 }

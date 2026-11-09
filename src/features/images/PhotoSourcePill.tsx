@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react';
+import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { Rows3, Star, Undo2 } from 'lucide-react';
 import {
   photoSourceColorVars,
@@ -7,6 +7,13 @@ import {
 import type { PhotoSource } from '../../lib/types';
 import styles from './PhotoSourcePill.module.css';
 
+/** Soft icon tints that sit on dark glass without shouting. */
+const ON_IMAGE_ICON: Record<PhotoSource, string> = {
+  po: 'rgba(158, 220, 176, 0.95)',
+  pick: 'rgba(240, 208, 138, 0.95)',
+  return: 'rgba(240, 170, 162, 0.95)',
+};
+
 function SourceIcon({
   source,
   size = 12,
@@ -14,11 +21,11 @@ function SourceIcon({
   source: PhotoSource;
   size?: number;
 }) {
-  if (source === 'po') return <Star size={size} strokeWidth={2.4} aria-hidden />;
+  if (source === 'po') return <Star size={size} strokeWidth={2.2} aria-hidden />;
   if (source === 'pick') {
-    return <Rows3 size={size} strokeWidth={2.4} aria-hidden />;
+    return <Rows3 size={size} strokeWidth={2.2} aria-hidden />;
   }
-  return <Undo2 size={size} strokeWidth={2.4} aria-hidden />;
+  return <Undo2 size={size} strokeWidth={2.2} aria-hidden />;
 }
 
 interface PhotoSourcePillProps {
@@ -61,19 +68,21 @@ export function PhotoSourcePill({
     .filter(Boolean)
     .join(' ');
 
-  const style = colors
-    ? {
-        background: onImage
-          ? 'rgba(255, 255, 255, 0.92)'
-          : colors.bg,
-        color: colors.fg,
-        borderColor: colors.border,
-      }
-    : undefined;
+  const style: CSSProperties | undefined =
+    meta && colors
+      ? onImage
+        ? ({ ['--photo-on-image']: ON_IMAGE_ICON[meta.id] } as CSSProperties)
+        : ({ ['--photo-fg']: colors.fg } as CSSProperties)
+      : undefined;
 
+  const iconSize = onImage ? 10 : 12;
   const content: ReactNode = (
     <>
-      {meta ? <SourceIcon source={meta.id} /> : null}
+      {meta ? (
+        <span className={styles.icon}>
+          <SourceIcon source={meta.id} size={iconSize} />
+        </span>
+      ) : null}
       <span className={styles.label}>{label}</span>
     </>
   );
@@ -102,7 +111,12 @@ export function PhotoSourcePill({
   }
 
   return (
-    <span className={className} style={style} title={title} aria-label={ariaLabel}>
+    <span
+      className={className}
+      style={style}
+      title={title}
+      aria-label={ariaLabel}
+    >
       {content}
     </span>
   );
