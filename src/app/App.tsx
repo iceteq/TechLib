@@ -126,6 +126,7 @@ type NoteMetaPatch = {
   guidelineLines?: GuidelineLine[];
   categoryId?: string | null;
   stockId?: string | null;
+  photoSource?: import('../lib/types').PhotoSource | null;
   specialCase?: string;
   askItems?: import('../lib/types').NoteAskItem[];
 };
@@ -142,6 +143,7 @@ type NoteFieldPatch = {
   guidelineLines?: import('../lib/types').GuidelineLine[];
   categoryId?: string | null;
   stockId?: string | null;
+  photoSource?: import('../lib/types').PhotoSource | null;
   labelIds?: string[];
   archived?: boolean;
 };
@@ -199,6 +201,9 @@ function snapshotNotePatch(
   if ('stockId' in patch) {
     before.stockId = note.stockId;
   }
+  if ('photoSource' in patch) {
+    before.photoSource = note.photoSource ?? null;
+  }
   if (patch.labelIds !== undefined) {
     before.labelIds = [...note.labelIds];
   }
@@ -246,6 +251,18 @@ function describeBulkPatch(
     const name =
       stockLocations.find((s) => s.id === patch.stockId)?.name ?? 'Stock';
     return `Set Stock to “${name}” on ${count} ${noteWord}`;
+  }
+  if ('photoSource' in patch) {
+    if (!patch.photoSource) {
+      return `Cleared photo source on ${count} ${noteWord}`;
+    }
+    const short =
+      patch.photoSource === 'po'
+        ? 'PO'
+        : patch.photoSource === 'pick'
+          ? 'Pick'
+          : 'Return';
+    return `Set photo source to “${short}” on ${count} ${noteWord}`;
   }
   if (patch.labelIds !== undefined) {
     if (patch.labelIds.length === 0) {
@@ -1120,6 +1137,7 @@ export default function App({ session }: { session: Session | null }) {
       (note.guidelineLines?.length ?? 0) === 0 &&
       !note.categoryId &&
       !note.stockId &&
+      !note.photoSource &&
       !(note.specialCase ?? '').trim() &&
       (note.askItems?.length ?? 0) === 0
     );
@@ -1497,6 +1515,9 @@ export default function App({ session }: { session: Session | null }) {
             ? { categoryId: patch.categoryId ?? null }
             : {}),
           ...('stockId' in patch ? { stockId: patch.stockId ?? null } : {}),
+          ...('photoSource' in patch
+            ? { photoSource: patch.photoSource ?? null }
+            : {}),
           ...(patch.labelIds !== undefined
             ? { labelIds: [...patch.labelIds] }
             : {}),
@@ -1956,6 +1977,9 @@ export default function App({ session }: { session: Session | null }) {
             ? { categoryId: patch.categoryId ?? null }
             : {}),
           ...('stockId' in patch ? { stockId: patch.stockId ?? null } : {}),
+          ...('photoSource' in patch
+            ? { photoSource: patch.photoSource ?? null }
+            : {}),
           ...(patch.labelIds !== undefined
             ? { labelIds: [...patch.labelIds] }
             : {}),

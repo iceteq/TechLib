@@ -146,6 +146,60 @@
   font-size: 0.9rem;
 }
 
+.photoSourceItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.photoSourceItem:hover,
+.photoSourceItem:focus-visible,
+.photoSourceItem.itemActive {
+  background: var(--photo-bg, var(--accent-soft));
+  color: var(--photo-fg, var(--accent));
+}
+
+.photoSourceIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin-top: 0.05rem;
+  border-radius: 999px;
+  background: var(--photo-bg, var(--accent-soft));
+  color: var(--photo-fg, var(--accent));
+  border: 1px solid var(--photo-border, transparent);
+  flex-shrink: 0;
+}
+
+.photoSourceText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.photoSourceLabel {
+  font-size: 0.95rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.photoSourceHint {
+  font-size: 0.78rem;
+  font-weight: 450;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.photoSourceItem:hover .photoSourceHint,
+.photoSourceItem:focus-visible .photoSourceHint,
+.photoSourceItem.itemActive .photoSourceHint {
+  color: inherit;
+  opacity: 0.85;
+}
+
 .labelBody {
   display: flex;
   flex-direction: column;

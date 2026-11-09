@@ -1,15 +1,26 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { Rows3, Star, Undo2, X } from 'lucide-react';
 import type {
   GuidelineLine,
   Label,
   NoteDisposition,
   NoteType,
+  PhotoSource,
   StockLocation,
 } from '../../lib/types';
 import { resolveGuidelineLines } from '../../lib/guidelineLines';
 import { childNoteTypes, rootNoteTypes } from '../../lib/noteTypes';
+import {
+  PHOTO_SOURCES,
+  photoSourceColorVars,
+} from '../../lib/photoSources';
 import { LabelPicker } from '../labels/LabelPicker';
 import { GuidelineLinesEditor } from './GuidelineLinesEditor';
 import styles from './MetaAssignPopover.module.css';
@@ -18,7 +29,8 @@ export type MetaAssignField =
   | 'disposition'
   | 'categoryId'
   | 'stockId'
-  | 'labels';
+  | 'labels'
+  | 'photoSource';
 
 interface MetaAssignPopoverProps {
   field: MetaAssignField;
@@ -31,11 +43,13 @@ interface MetaAssignPopoverProps {
   currentCategoryId: string | null;
   currentStockId: string | null;
   currentLabelIds: string[];
+  currentPhotoSource?: PhotoSource | null;
   onAssignDisposition: (value: NoteDisposition) => void;
   onAssignGuidelineLines?: (lines: GuidelineLine[]) => void;
   onAssignCategory: (value: string | null) => void;
   onAssignStock: (value: string | null) => void;
   onAssignLabels: (labelIds: string[]) => void;
+  onAssignPhotoSource?: (value: PhotoSource | null) => void;
   onCreateLabel: (name: string) => Promise<Label>;
   onClose: () => void;
 }
@@ -51,11 +65,13 @@ export function MetaAssignPopover({
   currentCategoryId,
   currentStockId,
   currentLabelIds,
+  currentPhotoSource = null,
   onAssignDisposition,
   onAssignGuidelineLines,
   onAssignCategory,
   onAssignStock,
   onAssignLabels,
+  onAssignPhotoSource,
   onCreateLabel,
   onClose,
 }: MetaAssignPopoverProps) {
@@ -115,7 +131,9 @@ export function MetaAssignPopover({
         ? 'Type'
         : field === 'stockId'
           ? 'Stock'
-          : 'Labels';
+          : field === 'photoSource'
+            ? 'Photo source'
+            : 'Labels';
 
   const dialog = (
     <div
@@ -296,6 +314,73 @@ export function MetaAssignPopover({
                     </button>
                   ))
                 )}
+              </>
+            )}
+            {field === 'photoSource' && (
+              <>
+                <p className={styles.hint}>
+                  Applies to the main photo (first image). Prefer purchase-order
+                  parts — not defective ones.
+                </p>
+                <button
+                  type="button"
+                  className={`${styles.item} ${
+                    !currentPhotoSource ? styles.itemActive : ''
+                  }`}
+                  role="option"
+                  aria-selected={!currentPhotoSource}
+                  onClick={() => {
+                    onAssignPhotoSource?.(null);
+                    onClose();
+                  }}
+                >
+                  Not set
+                </button>
+                {PHOTO_SOURCES.map((option) => {
+                  const colors = photoSourceColorVars(option.id);
+                  const Icon =
+                    option.id === 'po'
+                      ? Star
+                      : option.id === 'pick'
+                        ? Rows3
+                        : Undo2;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={`${styles.item} ${styles.photoSourceItem} ${
+                        currentPhotoSource === option.id
+                          ? styles.itemActive
+                          : ''
+                      }`}
+                      role="option"
+                      aria-selected={currentPhotoSource === option.id}
+                      style={
+                        {
+                          '--photo-fg': colors.fg,
+                          '--photo-bg': colors.bg,
+                          '--photo-border': colors.border,
+                        } as CSSProperties
+                      }
+                      onClick={() => {
+                        onAssignPhotoSource?.(option.id);
+                        onClose();
+                      }}
+                    >
+                      <span className={styles.photoSourceIcon} aria-hidden>
+                        <Icon size={15} strokeWidth={2.3} />
+                      </span>
+                      <span className={styles.photoSourceText}>
+                        <span className={styles.photoSourceLabel}>
+                          {option.label}
+                        </span>
+                        <span className={styles.photoSourceHint}>
+                          {option.hint}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
               </>
             )}
           </div>

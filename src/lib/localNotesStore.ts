@@ -23,6 +23,7 @@ import {
 import { normalizeAskItems } from './noteAskItems';
 import { linkKey, meshLinkPairs, normalizeLinkPair } from './noteLinks';
 import { NoteUpdateConflictError } from './noteUpdateConflict';
+import { parsePhotoSource } from './photoSources';
 
 interface TechLibDB extends DBSchema {
   notes: {
@@ -100,6 +101,7 @@ function normalizeNote(note: Note & { category?: string }): Note {
     askItems: normalizeAskItems(note.askItems),
     categoryId,
     stockId: note.stockId ?? null,
+    photoSource: parsePhotoSource(note.photoSource),
     specialCase: note.specialCase ?? '',
     pinned: Boolean(note.pinned),
     archived: Boolean(note.archived),
@@ -312,6 +314,7 @@ export async function createNote(input?: {
   guidelineLines?: GuidelineLine[];
   categoryId?: string | null;
   stockId?: string | null;
+  photoSource?: import('./types').PhotoSource | null;
   specialCase?: string;
   labelIds?: string[];
 }): Promise<NoteWithUrls> {
@@ -333,6 +336,7 @@ export async function createNote(input?: {
     askItems: [],
     categoryId: input?.categoryId ?? null,
     stockId: input?.stockId ?? null,
+    photoSource: parsePhotoSource(input?.photoSource),
     specialCase: input?.specialCase ?? '',
     pinned: false,
     archived: false,
@@ -367,6 +371,7 @@ export async function updateNote(
       | 'guidelineLines'
       | 'categoryId'
       | 'stockId'
+      | 'photoSource'
       | 'specialCase'
       | 'askItems'
     >
@@ -405,11 +410,20 @@ export async function updateNote(
     disposition = primaryDispositionFromLines(guidelineLines);
   }
 
-  const { guidelineLines: _gl, disposition: _d, askItems, ...rest } = patch;
+  const {
+    guidelineLines: _gl,
+    disposition: _d,
+    askItems,
+    photoSource,
+    ...rest
+  } = patch;
   const next: Note = {
     ...base,
     ...rest,
     ...(askItems !== undefined ? { askItems: normalizeAskItems(askItems) } : {}),
+    ...(photoSource !== undefined
+      ? { photoSource: parsePhotoSource(photoSource) }
+      : {}),
     guidelineLines,
     disposition,
     updatedAt: Date.now(),

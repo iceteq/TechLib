@@ -155,6 +155,7 @@ interface NoteGridProps {
       guidelineLines?: import('../../lib/types').GuidelineLine[];
       categoryId?: string | null;
       stockId?: string | null;
+      photoSource?: import('../../lib/types').PhotoSource | null;
       labelIds?: string[];
       archived?: boolean;
     },
@@ -978,6 +979,14 @@ export function NoteGrid({
                               void onUpdateNotes([noteId], { labelIds })
                           : undefined
                       }
+                      onAssignPhotoSource={
+                        mayMutate(note.id)
+                          ? (noteId, value) =>
+                              void onUpdateNotes([noteId], {
+                                photoSource: value,
+                              })
+                          : undefined
+                      }
                       onCreateLabel={
                         mayMutate(note.id) ? onCreateLabel : undefined
                       }
@@ -1085,6 +1094,12 @@ export function NoteGrid({
                 mayMutate(note.id)
                   ? (noteId, labelIds) =>
                       void onUpdateNotes([noteId], { labelIds })
+                  : undefined
+              }
+              onAssignPhotoSource={
+                mayMutate(note.id)
+                  ? (noteId, value) =>
+                      void onUpdateNotes([noteId], { photoSource: value })
                   : undefined
               }
               onCreateLabel={mayMutate(note.id) ? onCreateLabel : undefined}

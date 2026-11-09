@@ -33,10 +33,12 @@ import type {
   NoteDisposition,
   NoteType,
   NoteWithUrls,
+  PhotoSource,
   StockLocation,
 } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
 import { ImageGallery } from '../images/ImageGallery';
+import { PhotoSourcePill } from '../images/PhotoSourcePill';
 import { RelatedSection, type RelatedNoteEntry } from './RelatedSection';
 import { DescriptionField } from '../labels/DescriptionField';
 import { LabelChip } from '../labels/LabelChip';
@@ -93,6 +95,7 @@ interface NoteEditorProps {
     guidelineLines?: GuidelineLine[];
     categoryId?: string | null;
     stockId?: string | null;
+    photoSource?: PhotoSource | null;
     specialCase?: string;
     askItems?: NoteAskItem[];
   }) => Promise<void>;
@@ -1331,6 +1334,20 @@ export function NoteEditor({
             onRemove={readOnly ? undefined : (id) => void onRemoveImage(id)}
             onReorder={readOnly ? undefined : (ids) => void onReorderImages(ids)}
           />
+          {note.images.length > 0 && (
+            <div className={styles.photoSourceRow}>
+              <p className={styles.sectionLabel}>Photo source</p>
+              <PhotoSourcePill
+                source={note.photoSource}
+                showUnset={!readOnly}
+                disabled={readOnly}
+                expanded={assignField === 'photoSource'}
+                onClick={
+                  readOnly ? undefined : () => setAssignField('photoSource')
+                }
+              />
+            </div>
+          )}
 
           <div className={styles.fields}>
             <input
@@ -1551,6 +1568,7 @@ export function NoteEditor({
             currentCategoryId={note.categoryId}
             currentStockId={note.stockId}
             currentLabelIds={note.labelIds}
+            currentPhotoSource={note.photoSource}
             onAssignDisposition={(value) =>
               void saveMeta({ disposition: value })
             }
@@ -1562,6 +1580,9 @@ export function NoteEditor({
             }
             onAssignStock={(value) => void saveMeta({ stockId: value })}
             onAssignLabels={(labelIds) => void saveMeta({ labelIds })}
+            onAssignPhotoSource={(value) =>
+              void saveMeta({ photoSource: value })
+            }
             onCreateLabel={onCreateLabel}
             onClose={() => setAssignField(null)}
           />

@@ -54,6 +54,8 @@ create table if not exists public.notes (
   category_id text references public.note_types (id) on delete set null,
   special_case text not null default '',
   stock_id uuid references public.stock_locations (id) on delete set null,
+  -- Main photo source: po | pick | return (null = unset). See migration 012.
+  photo_source text,
   pinned boolean not null default false,
   archived boolean not null default false,
   deleted_at timestamptz,
@@ -76,6 +78,9 @@ alter table public.notes
 
 alter table public.notes
   add column if not exists ask_items jsonb not null default '[]'::jsonb;
+
+alter table public.notes
+  add column if not exists photo_source text;
 
 -- Labels
 create table if not exists public.labels (

@@ -65,6 +65,9 @@ export const UNSET_STOCK_FILTER = '__unset_stock__';
 
 export type ReactionEmoji = '👍' | '❤️' | '🔥' | '✅';
 
+/** Where the note’s main reference photo came from. */
+export type PhotoSource = 'po' | 'pick' | 'return';
+
 export interface NoteImage {
   id: string;
   position: number;
@@ -112,6 +115,11 @@ export interface Note {
   categoryId: string | null;
   /** Single stock location (bay/shelf code), or null when unset. */
   stockId: string | null;
+  /**
+   * Source of the main (first) reference photo.
+   * Applies to the note as a whole — not per image.
+   */
+  photoSource: PhotoSource | null;
   /**
    * Extra definitions / notes for the guideline
    * (e.g. what “obsolete” means for this part).

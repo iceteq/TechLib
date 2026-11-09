@@ -35,6 +35,8 @@ import { prefetchImages } from './prefetchImages';
 import { encodeWallThumb, wallDerivativePath } from './wallThumb';
 import { NoteUpdateConflictError } from './noteUpdateConflict';
 import { aggregateReactionRows } from './aggregateReactions';
+import { parsePhotoSource } from './photoSources';
+import type { PhotoSource } from './types';
 
 const BUCKET = 'note-images';
 
@@ -66,6 +68,7 @@ type NoteRow = {
   category: string;
   category_id: string | null;
   stock_id: string | null;
+  photo_source?: string | null;
   special_case: string;
   pinned: boolean;
   archived: boolean;
@@ -130,6 +133,7 @@ function noteFromRow(
     guidelineLines,
     categoryId: row.category_id ?? legacyCategoryToTypeId(row.category),
     stockId: row.stock_id ?? null,
+    photoSource: parsePhotoSource(row.photo_source),
     specialCase: row.special_case ?? '',
     askItems: normalizeAskItems(row.ask_items),
     pinned: row.pinned,
@@ -446,6 +450,7 @@ async function hydrateRows(
       categoryId:
         row.category_id ?? legacyCategoryToTypeId(row.category),
       stockId: row.stock_id ?? null,
+      photoSource: parsePhotoSource(row.photo_source),
       specialCase: row.special_case ?? '',
       askItems: normalizeAskItems(row.ask_items),
       pinned: row.pinned,
@@ -1072,6 +1077,7 @@ export async function createNote(input?: {
   guidelineLines?: GuidelineLine[];
   categoryId?: string | null;
   stockId?: string | null;
+  photoSource?: PhotoSource | null;
   specialCase?: string;
   labelIds?: string[];
 }): Promise<NoteWithUrls> {
@@ -1096,6 +1102,7 @@ export async function createNote(input?: {
       category: 'none',
       category_id: input?.categoryId ?? null,
       stock_id: input?.stockId ?? null,
+      photo_source: parsePhotoSource(input?.photoSource),
       special_case: input?.specialCase ?? '',
       ask_items: [],
     })
@@ -1126,6 +1133,7 @@ export async function updateNote(
       | 'guidelineLines'
       | 'categoryId'
       | 'stockId'
+      | 'photoSource'
       | 'specialCase'
       | 'askItems'
     >
@@ -1138,6 +1146,7 @@ export async function updateNote(
     specialCase,
     stockId,
     categoryId,
+    photoSource,
     guidelineLines,
     disposition,
     askItems,
@@ -1153,6 +1162,9 @@ export async function updateNote(
   if (rest.archived !== undefined) update.archived = rest.archived;
   if (categoryId !== undefined) update.category_id = categoryId;
   if (stockId !== undefined) update.stock_id = stockId;
+  if (photoSource !== undefined) {
+    update.photo_source = parsePhotoSource(photoSource);
+  }
   if (specialCase !== undefined) update.special_case = specialCase;
   if (askItems !== undefined) update.ask_items = normalizeAskItems(askItems);
 

@@ -26,9 +26,11 @@ import type {
   NoteDisposition,
   NoteType,
   NoteWithUrls,
+  PhotoSource,
   StockLocation,
 } from '../../lib/types';
 import { Barcode } from '../barcodes/Barcode';
+import { PhotoSourcePill } from '../images/PhotoSourcePill';
 import { LabelChip } from '../labels/LabelChip';
 import { TypeChip } from './TypeChip';
 import { GuidelineLinesList } from './GuidelineLinesList';
@@ -184,6 +186,7 @@ interface NoteCardProps {
   onAssignCategory?: (noteId: string, value: string | null) => void;
   onAssignStock?: (noteId: string, value: string | null) => void;
   onAssignLabels?: (noteId: string, labelIds: string[]) => void;
+  onAssignPhotoSource?: (noteId: string, value: PhotoSource | null) => void;
   onCreateLabel?: (name: string) => Promise<Label>;
   /** IDs included when this card is dragged (selected set). */
   dragNoteIds?: string[];
@@ -239,6 +242,7 @@ export const NoteCard = memo(function NoteCard({
   onAssignCategory,
   onAssignStock,
   onAssignLabels,
+  onAssignPhotoSource,
   onCreateLabel,
   dragNoteIds,
   onNotesDragStart,
@@ -534,9 +538,29 @@ export const NoteCard = memo(function NoteCard({
                 priority={priorityImage}
                 onVisibleWithoutUrl={onRequestWallImageUrl}
                 badge={
-                  overflow > 0 && index === preview.length - 1 ? (
-                    <span className={styles.overflow}>+{overflow}</span>
-                  ) : null
+                  <>
+                    {index === 0 &&
+                      (note.photoSource || onAssignPhotoSource) && (
+                        <PhotoSourcePill
+                          source={note.photoSource}
+                          onImage
+                          showUnset={Boolean(onAssignPhotoSource)}
+                          disabled={selecting || !onAssignPhotoSource}
+                          expanded={assignField === 'photoSource'}
+                          onClick={
+                            selecting || !onAssignPhotoSource
+                              ? undefined
+                              : () => {
+                                  armSuppress();
+                                  openAssign('photoSource');
+                                }
+                          }
+                        />
+                      )}
+                    {overflow > 0 && index === preview.length - 1 ? (
+                      <span className={styles.overflow}>+{overflow}</span>
+                    ) : null}
+                  </>
                 }
               />
             ))
@@ -803,7 +827,8 @@ export const NoteCard = memo(function NoteCard({
       </div>
 
       {assignField &&
-        (assignField !== 'labels' || (onAssignLabels && onCreateLabel)) && (
+        (assignField !== 'labels' || (onAssignLabels && onCreateLabel)) &&
+        (assignField !== 'photoSource' || onAssignPhotoSource) && (
         <MetaAssignPopover
           field={assignField}
           noteTitle={title}
@@ -815,6 +840,7 @@ export const NoteCard = memo(function NoteCard({
           currentCategoryId={note.categoryId}
           currentStockId={note.stockId}
           currentLabelIds={note.labelIds}
+          currentPhotoSource={note.photoSource}
           onAssignDisposition={(value) =>
             onAssignDisposition?.(note.id, value)
           }
@@ -824,6 +850,9 @@ export const NoteCard = memo(function NoteCard({
           onAssignCategory={(value) => onAssignCategory?.(note.id, value)}
           onAssignStock={(value) => onAssignStock?.(note.id, value)}
           onAssignLabels={(labelIds) => onAssignLabels?.(note.id, labelIds)}
+          onAssignPhotoSource={(value) =>
+            onAssignPhotoSource?.(note.id, value)
+          }
           onCreateLabel={onCreateLabel!}
           onClose={() => setAssignField(null)}
         />
