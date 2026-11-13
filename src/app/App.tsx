@@ -2209,8 +2209,6 @@ export default function App({ session }: { session: Session | null }) {
     if (!canEdit) throw new Error('View-only access');
     const location = await store.createStockLocation(name);
     setStockLocations(await store.listStockLocations());
-    setView('notes');
-    setFilterStockId(location.id);
     return location;
   }
 
