@@ -214,6 +214,8 @@ interface NoteCardProps {
   imagePending?: boolean;
   /** Pick files to attach when this note has no photos yet. */
   onAddImages?: (files: File[]) => void;
+  /** Toggle this note in/out of the collection from the wall. */
+  onToggleCollection?: (noteId: string) => void;
 }
 
 export const NoteCard = memo(function NoteCard({
@@ -257,7 +259,9 @@ export const NoteCard = memo(function NoteCard({
   onRequestWallImageUrl,
   imagePending = false,
   onAddImages,
+  onToggleCollection,
 }: NoteCardProps) {
+  const inCollection = cartQuantity > 0;
   const bg = getBackground(note.background);
   const preview = note.images.slice(0, NOTE_PREVIEW_IMAGE_LIMIT);
   const overflow = Math.max(0, note.images.length - NOTE_PREVIEW_IMAGE_LIMIT);
@@ -476,7 +480,8 @@ export const NoteCard = memo(function NoteCard({
       )}
 
       {(note.pinned ||
-        cartQuantity > 0 ||
+        inCollection ||
+        onToggleCollection ||
         (SHOW_SORTED && sorted)) && (
         <div className={styles.badges}>
           {SHOW_SORTED && sorted && (
@@ -488,25 +493,63 @@ export const NoteCard = memo(function NoteCard({
               ✅
             </span>
           )}
-          {cartQuantity > 0 && (
-            <span
-              key={cartQuantity} className={styles.cartBadge}
+          {onToggleCollection ? (
+            <button
+              type="button"
+              key={cartQuantity}
+              className={`${styles.cartBadge} ${
+                inCollection ? styles.cartOn : ''
+              }`}
               title={
-                cartQuantity === 1
-                  ? 'In collection'
-                  : `In collection ×${cartQuantity}`
+                inCollection
+                  ? cartQuantity === 1
+                    ? 'In collection — click to remove'
+                    : `In collection ×${cartQuantity} — click to remove`
+                  : 'Add to collection'
               }
               aria-label={
-                cartQuantity === 1
-                  ? 'In collection'
-                  : `In collection, quantity ${cartQuantity}`
+                inCollection
+                  ? cartQuantity === 1
+                    ? 'Remove from collection'
+                    : `Remove from collection (quantity ${cartQuantity})`
+                  : 'Add to collection'
               }
+              aria-pressed={inCollection}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                armSuppress();
+                onToggleCollection(note.id);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
             >
               <Layers size={12} strokeWidth={2.4} aria-hidden />
               {cartQuantity > 1 && (
                 <span className={styles.cartQty}>{cartQuantity}</span>
               )}
-            </span>
+            </button>
+          ) : (
+            inCollection && (
+              <span
+                key={cartQuantity}
+                className={`${styles.cartBadge} ${styles.cartOn}`}
+                title={
+                  cartQuantity === 1
+                    ? 'In collection'
+                    : `In collection ×${cartQuantity}`
+                }
+                aria-label={
+                  cartQuantity === 1
+                    ? 'In collection'
+                    : `In collection, quantity ${cartQuantity}`
+                }
+              >
+                <Layers size={12} strokeWidth={2.4} aria-hidden />
+                {cartQuantity > 1 && (
+                  <span className={styles.cartQty}>{cartQuantity}</span>
+                )}
+              </span>
+            )
           )}
           {note.pinned && (
             <span className={styles.pinDot} title="Pinned" aria-label="Pinned" />

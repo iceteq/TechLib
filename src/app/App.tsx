@@ -1880,6 +1880,18 @@ export default function App({ session }: { session: Session | null }) {
     );
   }
 
+  async function handleToggleCollection(noteId: string) {
+    if (!noteId) return;
+    const qty = cartQuantities[noteId] ?? 0;
+    if (qty > 0) {
+      setCartItems(await store.removeFromCart(noteId));
+      await replaceUndoAction(null);
+      setNotice('Removed from collection');
+      return;
+    }
+    await handleAddToCart([noteId]);
+  }
+
   async function handleAddActiveToCart() {
     if (!activeNoteId) return;
     await handleAddToCart([activeNoteId]);
@@ -2548,6 +2560,9 @@ export default function App({ session }: { session: Session | null }) {
             isAdmin && view === 'bin' ? requestEmptyBin : undefined
           }
           onAddToCart={handleAddToCart}
+          onToggleCollection={
+            view !== 'bin' ? handleToggleCollection : undefined
+          }
           onLinkNotes={canEdit && view !== 'bin' ? handleLinkNotes : undefined}
           onUpdateNotes={handleUpdateNotes}
           onApplyGuidelineBulk={handleApplyGuidelineBulk}

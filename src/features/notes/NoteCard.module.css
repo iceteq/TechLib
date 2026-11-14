@@ -80,15 +80,65 @@
 .cartBadge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.12rem;
-  padding: 0.15rem 0.32rem;
+  margin: 0;
+  padding: 0.2rem 0.34rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.72);
   color: var(--text-muted);
   border: 1px solid rgba(31, 35, 40, 0.1);
   box-shadow: none;
   line-height: 1;
+  font: inherit;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.cartBadge:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.cartOn {
+  opacity: 1;
+  pointer-events: auto;
+  background: rgba(255, 248, 220, 0.94);
+  color: #b8860b;
+  border-color: rgba(184, 134, 11, 0.35);
   animation: juice-bump var(--juice-duration, 280ms) var(--juice-ease, ease);
+}
+
+.cartOn .cartQty {
+  color: #9a7209;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover .cartBadge,
+  .card:focus-within .cartBadge {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* Touch / coarse pointers: keep the toggle findable without hover. */
+@media (hover: none), (pointer: coarse) {
+  .cartBadge {
+    opacity: 0.72;
+    pointer-events: auto;
+  }
+
+  .cartOn {
+    opacity: 1;
+  }
 }
 
 .sortedBadge {

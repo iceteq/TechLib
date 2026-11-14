@@ -146,6 +146,8 @@ interface NoteGridProps {
   /** Admin Bin: empty the entire bin (password gated in App). */
   onEmptyBin?: () => void;
   onAddToCart: (noteIds: string[]) => Promise<void>;
+  /** Toggle a single note in/out of the collection from the wall card. */
+  onToggleCollection?: (noteId: string) => void | Promise<void>;
   /** Link selected notes to each other (undirected full mesh). */
   onLinkNotes?: (noteIds: string[]) => Promise<void>;
   onUpdateNotes: (
@@ -239,6 +241,7 @@ export function NoteGrid({
   onPurgeNotes,
   onEmptyBin,
   onAddToCart,
+  onToggleCollection,
   onLinkNotes,
   onUpdateNotes,
   onApplyGuidelineBulk,
@@ -1013,6 +1016,11 @@ export function NoteGrid({
                           ? (files) => onAddImagesToNote(note.id, files)
                           : undefined
                       }
+                      onToggleCollection={
+                        !isBin && onToggleCollection
+                          ? (noteId) => void onToggleCollection(noteId)
+                          : undefined
+                      }
                     />
                   ))}
                 </div>
@@ -1122,6 +1130,11 @@ export function NoteGrid({
               onAddImages={
                 !isBin && mayMutate(note.id) && onAddImagesToNote
                   ? (files) => onAddImagesToNote(note.id, files)
+                  : undefined
+              }
+              onToggleCollection={
+                !isBin && onToggleCollection
+                  ? (noteId) => void onToggleCollection(noteId)
                   : undefined
               }
             />
