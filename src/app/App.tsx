@@ -62,7 +62,8 @@ import {
 } from '../lib/searchNotes';
 import { noteTypeDeleteIds, noteTypePathLabel } from '../lib/noteTypes';
 import { loadRecentOpens, touchRecentOpen } from '../lib/recentOpens';
-import { sortWallNotes } from '../lib/sortWallNotes';
+import { compareWallNotes, sortWallNotes } from '../lib/sortWallNotes';
+import { noteActivityAt, patchBumpsWallActivity } from '../lib/noteActivity';
 import { relatedIdsFromLinks, mergeRelatedIds } from '../lib/noteLinks';
 import {
   normalizePartNumber,
@@ -1232,19 +1233,19 @@ export default function App({ session }: { session: Session | null }) {
     // Merge editor draft into the active note for blank detection + wall UI
     // before background persist finishes (Done no longer awaits save).
     if (canMutateOpenNote && activeNote && draft) {
+      const now = Date.now();
+      const titleChanged = draft.title !== activeNote.title;
       const merged: NoteWithUrls = {
         ...activeNote,
         title: draft.title,
         description: draft.description,
         specialCase: draft.specialCase,
-        updatedAt: Date.now(),
+        // Keep wall position unless part number changed.
+        activityAt: titleChanged ? now : noteActivityAt(activeNote),
       };
       setNotes((prev) => {
         const next = prev.map((n) => (n.id === merged.id ? merged : n));
-        return [...next].sort((a, b) => {
-          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-          return b.updatedAt - a.updatedAt;
-        });
+        return [...next].sort(compareWallNotes);
       });
 
       const uploadingIntoThis =
@@ -1454,10 +1455,7 @@ export default function App({ session }: { session: Session | null }) {
     rememberNoteVersion(updated);
     setNotes((prev) => {
       const next = prev.map((n) => (n.id === updated.id ? updated : n));
-      return [...next].sort((a, b) => {
-        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-        return b.updatedAt - a.updatedAt;
-      });
+      return [...next].sort(compareWallNotes);
     });
   }
 
@@ -1974,6 +1972,8 @@ export default function App({ session }: { session: Session | null }) {
     }
     if (before.length === 0) return;
 
+    const now = Date.now();
+    const bumpActivity = patchBumpsWallActivity(patch);
     setNotes((prev) => {
       const next = prev.map((n) => {
         if (!previousById.has(n.id)) return n;
@@ -1998,13 +1998,10 @@ export default function App({ session }: { session: Session | null }) {
           ...(patch.archived !== undefined
             ? { archived: patch.archived }
             : {}),
-          updatedAt: Date.now(),
+          ...(bumpActivity ? { activityAt: now } : {}),
         };
       });
-      return [...next].sort((a, b) => {
-        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-        return b.updatedAt - a.updatedAt;
-      });
+      return [...next].sort(compareWallNotes);
     });
 
     try {
@@ -2015,10 +2012,7 @@ export default function App({ session }: { session: Session | null }) {
           rememberNoteVersion(updated);
           setNotes((prev) => {
             const next = prev.map((n) => (n.id === updated.id ? updated : n));
-            return [...next].sort((a, b) => {
-              if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-              return b.updatedAt - a.updatedAt;
-            });
+            return [...next].sort(compareWallNotes);
           });
         }
       }
@@ -2035,10 +2029,7 @@ export default function App({ session }: { session: Session | null }) {
     } catch {
       setNotes((prev) => {
         const next = prev.map((n) => previousById.get(n.id) ?? n);
-        return [...next].sort((a, b) => {
-          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-          return b.updatedAt - a.updatedAt;
-        });
+        return [...next].sort(compareWallNotes);
       });
       setNotice(
         'categoryId' in patch
@@ -2084,7 +2075,6 @@ export default function App({ session }: { session: Session | null }) {
           ...n,
           guidelineLines: update.guidelineLines,
           disposition: primaryDispositionFromLines(update.guidelineLines),
-          updatedAt: Date.now(),
         };
       }),
     );
@@ -2145,7 +2135,6 @@ export default function App({ session }: { session: Session | null }) {
         return {
           ...n,
           labelIds: update.labelIds,
-          updatedAt: Date.now(),
         };
       }),
     );

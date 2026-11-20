@@ -137,6 +137,12 @@ export interface Note {
    * Local mode may omit this and use `updatedAt` ms instead.
    */
   updatedAtIso?: string;
+  /**
+   * Wall order clock (ms). Advances on create and when part number (`title`)
+   * or stock (`stockId`) changes — not on other edits. Falls back to
+   * `updatedAt` when missing (pre-migration / legacy local rows).
+   */
+  activityAt: number;
   labelIds: string[];
   images: NoteImage[];
 }

@@ -1,4 +1,5 @@
 import type { NoteWithUrls } from './types';
+import { compareWallNotes } from './sortWallNotes';
 
 /** Prefer remote image slots but keep any signed URLs we already have. */
 function mergeImages(
@@ -57,10 +58,7 @@ export function mergeRemoteNotesIntoWall(
     });
   }
 
-  return [...map.values()].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return b.updatedAt - a.updatedAt;
-  });
+  return [...map.values()].sort(compareWallNotes);
 }
 
 /**
