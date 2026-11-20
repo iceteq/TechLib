@@ -24,6 +24,8 @@ import { normalizeAskItems } from './noteAskItems';
 import { linkKey, meshLinkPairs, normalizeLinkPair } from './noteLinks';
 import { NoteUpdateConflictError } from './noteUpdateConflict';
 import { parsePhotoSource } from './photoSources';
+import { noteActivityAt, patchBumpsWallActivity } from './noteActivity';
+import { compareWallNotes } from './sortWallNotes';
 
 interface TechLibDB extends DBSchema {
   notes: {
@@ -108,6 +110,7 @@ function normalizeNote(note: Note & { category?: string }): Note {
     deletedAt: note.deletedAt ?? null,
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
+    activityAt: noteActivityAt(note),
     labelIds: note.labelIds ?? [],
     images: note.images ?? [],
   };
@@ -207,10 +210,7 @@ async function hydrateNote(note: Note): Promise<NoteWithUrls> {
 }
 
 function sortNotes(notes: NoteWithUrls[]): NoteWithUrls[] {
-  return [...notes].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return b.updatedAt - a.updatedAt;
-  });
+  return [...notes].sort(compareWallNotes);
 }
 
 export async function listNotes(): Promise<NoteWithUrls[]> {
@@ -343,6 +343,7 @@ export async function createNote(input?: {
     deletedAt: null,
     createdAt: now,
     updatedAt: now,
+    activityAt: now,
     labelIds: input?.labelIds ?? [],
     images: [],
   };
@@ -417,6 +418,13 @@ export async function updateNote(
     photoSource,
     ...rest
   } = patch;
+  const now = Date.now();
+  const titleChanged =
+    patch.title !== undefined && patch.title !== base.title;
+  const stockChanged =
+    'stockId' in patch && (patch.stockId ?? null) !== base.stockId;
+  const bumpActivity =
+    patchBumpsWallActivity(patch) && (titleChanged || stockChanged);
   const next: Note = {
     ...base,
     ...rest,
@@ -426,7 +434,8 @@ export async function updateNote(
       : {}),
     guidelineLines,
     disposition,
-    updatedAt: Date.now(),
+    updatedAt: now,
+    activityAt: bumpActivity ? now : noteActivityAt(base),
   };
   await db.put('notes', next);
   return hydrateNote(next);
@@ -788,10 +797,12 @@ export async function deleteStockLocation(id: string): Promise<void> {
   for (const note of notes) {
     const normalized = normalizeNote(note);
     if (normalized.stockId !== id) continue;
+    const now = Date.now();
     await db.put('notes', {
       ...normalized,
       stockId: null,
-      updatedAt: Date.now(),
+      updatedAt: now,
+      activityAt: now,
     });
   }
 }

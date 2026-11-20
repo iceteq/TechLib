@@ -37,6 +37,8 @@ import { NoteUpdateConflictError } from './noteUpdateConflict';
 import { aggregateReactionRows } from './aggregateReactions';
 import { parsePhotoSource } from './photoSources';
 import type { PhotoSource } from './types';
+import { patchBumpsWallActivity } from './noteActivity';
+import { compareWallNotes } from './sortWallNotes';
 
 const BUCKET = 'note-images';
 
@@ -75,6 +77,7 @@ type NoteRow = {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  activity_at?: string | null;
   ask_items?: NoteAskItem[] | null;
 };
 
@@ -142,6 +145,7 @@ function noteFromRow(
     createdAt: ms(row.created_at),
     updatedAt: ms(row.updated_at),
     updatedAtIso: row.updated_at,
+    activityAt: ms(row.activity_at ?? row.updated_at),
     labelIds,
     images,
   };
@@ -459,16 +463,14 @@ async function hydrateRows(
       createdAt: ms(row.created_at),
       updatedAt: ms(row.updated_at),
       updatedAtIso: row.updated_at,
+      activityAt: ms(row.activity_at ?? row.updated_at),
       labelIds: labelsMap.get(row.id) ?? [],
       images,
     };
     return note;
   });
 
-  return notes.sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return b.updatedAt - a.updatedAt;
-  });
+  return notes.sort(compareWallNotes);
 }
 
 /**
@@ -1152,8 +1154,9 @@ export async function updateNote(
     askItems,
     ...rest
   } = patch;
+  const nowIso = new Date().toISOString();
   const update: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
   if (rest.title !== undefined) update.title = rest.title;
   if (rest.description !== undefined) update.description = rest.description;
@@ -1167,6 +1170,10 @@ export async function updateNote(
   }
   if (specialCase !== undefined) update.special_case = specialCase;
   if (askItems !== undefined) update.ask_items = normalizeAskItems(askItems);
+  // Wall order: only part number (title) and stock move the note up.
+  if (patchBumpsWallActivity({ title: rest.title, stockId })) {
+    update.activity_at = nowIso;
+  }
 
   if (guidelineLines !== undefined) {
     const lines = resolveGuidelineLines({ guidelineLines });
@@ -1588,9 +1595,15 @@ export async function createStockLocation(name: string): Promise<StockLocation> 
 export async function deleteStockLocation(id: string): Promise<void> {
   await requireUserId();
   const supabase = getSupabase();
+  const nowIso = new Date().toISOString();
   const { error: clearError } = await supabase
     .from('notes')
-    .update({ stock_id: null, updated_at: new Date().toISOString() })
+    .update({
+      stock_id: null,
+      updated_at: nowIso,
+      // Clearing stock is a stock edit — bump wall order.
+      activity_at: nowIso,
+    })
     .eq('stock_id', id);
   throwIf(clearError);
   const { error } = await supabase.from('stock_locations').delete().eq('id', id);

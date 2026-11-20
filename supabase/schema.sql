@@ -60,11 +60,16 @@ create table if not exists public.notes (
   archived boolean not null default false,
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- Wall order: bumps on part-number (title) / stock edits only (see migration 013).
+  activity_at timestamptz not null default now()
 );
 
 create index if not exists notes_owner_updated_idx
   on public.notes (owner_id, updated_at desc);
+
+create index if not exists notes_owner_activity_idx
+  on public.notes (owner_id, activity_at desc);
 
 -- For databases created before stock_id / category_id existed
 alter table public.notes

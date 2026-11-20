@@ -14,6 +14,7 @@ import {
   noteMatchesDispositionFilter,
   resolveGuidelineLines,
 } from './guidelineLines';
+import { noteActivityAt } from './noteActivity';
 
 function searchTokens(query: string): string[] {
   return query
@@ -262,7 +263,9 @@ export function filterNotes(
   const q = options.search.trim();
   const hasQuery = orTerms.length > 0 || Boolean(q);
   if (!hasQuery) {
-    return [...filtered].sort((a, b) => b.updatedAt - a.updatedAt);
+    return [...filtered].sort(
+      (a, b) => noteActivityAt(b) - noteActivityAt(a),
+    );
   }
 
   return [...filtered].sort((a, b) => {
@@ -283,7 +286,7 @@ export function filterNotes(
       orTerms,
     );
     if (rankB !== rankA) return rankB - rankA;
-    return b.updatedAt - a.updatedAt;
+    return noteActivityAt(b) - noteActivityAt(a);
   });
 }
 
