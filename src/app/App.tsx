@@ -15,6 +15,7 @@ import { authorLabelForUser } from '../lib/authorLabel';
 import { useLibraryPresence } from '../lib/useLibraryPresence';
 import {
   loadCreateDefaults,
+  resolveCreateMeta,
   saveCreateDefaults,
   type CreateDefaults,
 } from '../lib/createDefaults';
@@ -46,9 +47,7 @@ import type {
   NotesView,
   NoteWithUrls,
 } from '../lib/types';
-import {
-  DISPOSITIONS,
-} from '../lib/types';
+import { DISPOSITIONS, UNSET_STOCK_FILTER } from '../lib/types';
 import {
   categoryLabel,
   countNotesByLabel,
@@ -169,19 +168,20 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return Boolean(target.closest('[contenteditable="true"]'));
 }
 
-/** Create meta from sticky pins only — browse filters do not inherit. */
-function createMetaFromDefaults(defaults: {
-  categoryId: string | null;
-  stockId: string | null;
-}): {
+/** Create meta: sticky pins, overridden by active browse stock/type scope. */
+function createMetaFromDefaults(
+  defaults: CreateDefaults,
+  filters?: { categoryId?: string | null; stockId?: string | null },
+): {
   disposition: NoteDisposition;
   categoryId: string | null;
   stockId: string | null;
 } {
+  const resolved = resolveCreateMeta(defaults, filters);
   return {
     disposition: 'none',
-    categoryId: defaults.categoryId,
-    stockId: defaults.stockId,
+    categoryId: resolved.categoryId,
+    stockId: resolved.stockId,
   };
 }
 
@@ -1010,20 +1010,33 @@ export default function App({ session }: { session: Session | null }) {
     [cartItems, notes],
   );
 
+  const effectiveCreateMeta = useMemo(
+    () =>
+      resolveCreateMeta(createDefaults, {
+        categoryId: view === 'notes' ? filterCategoryId : null,
+        stockId: view === 'notes' ? filterStockId : null,
+      }),
+    [createDefaults, filterCategoryId, filterStockId, view],
+  );
+
   const pasteFilterSummary = useMemo(() => {
     const parts: string[] = [];
-    const type = categoryLabel(createDefaults.categoryId, noteTypes);
-    const stock = stockLabel(createDefaults.stockId, stockLocations);
+    const type = categoryLabel(effectiveCreateMeta.categoryId, noteTypes);
+    const stock = stockLabel(effectiveCreateMeta.stockId, stockLocations);
     if (type) parts.push(type);
     if (stock) parts.push(stock);
-    return parts.length > 0
-      ? `New notes → ${parts.join(' · ')}`
-      : 'No create defaults';
+    if (parts.length > 0) return `New notes → ${parts.join(' · ')}`;
+    if (view === 'notes' && filterStockId === UNSET_STOCK_FILTER) {
+      return 'New notes → No stock';
+    }
+    return 'No create defaults';
   }, [
-    createDefaults.categoryId,
-    createDefaults.stockId,
+    effectiveCreateMeta.categoryId,
+    effectiveCreateMeta.stockId,
+    filterStockId,
     noteTypes,
     stockLocations,
+    view,
   ]);
 
   /** Normalized part numbers already in the library (non-deleted). */
@@ -1037,15 +1050,26 @@ export default function App({ session }: { session: Session | null }) {
     return keys;
   }, [notes]);
 
+  /** Pin chips only — browse scope is shown as the wall place, not here. */
   const createDefaultsSummary = useMemo(() => {
-    const type = categoryLabel(createDefaults.categoryId, noteTypes);
-    const stock = stockLabel(createDefaults.stockId, stockLocations);
-    return { type, stock };
+    const typeScoped = view === 'notes' && filterCategoryId != null;
+    const stockScoped = view === 'notes' && filterStockId != null;
+    return {
+      type: typeScoped
+        ? null
+        : categoryLabel(createDefaults.categoryId, noteTypes),
+      stock: stockScoped
+        ? null
+        : stockLabel(createDefaults.stockId, stockLocations),
+    };
   }, [
     createDefaults.categoryId,
     createDefaults.stockId,
+    filterCategoryId,
+    filterStockId,
     noteTypes,
     stockLocations,
+    view,
   ]);
 
   useEffect(() => {
@@ -1073,11 +1097,19 @@ export default function App({ session }: { session: Session | null }) {
   }, [noteTypes, stockLocations]);
 
   useEffect(() => {
+    const stock = stockLabel(filterStockId, stockLocations);
     const type = categoryLabel(filterCategoryId, noteTypes);
     const status = dispositionLabel(activeDispositionFilter);
-    const parts = [type, status].filter(Boolean);
-    document.title = parts.length > 0 ? `TechLib · ${parts.join(' · ')}` : 'TechLib';
-  }, [filterCategoryId, activeDispositionFilter, noteTypes]);
+    const parts = [stock, type, status].filter(Boolean);
+    document.title =
+      parts.length > 0 ? `TechLib · ${parts.join(' · ')}` : 'TechLib';
+  }, [
+    filterStockId,
+    filterCategoryId,
+    activeDispositionFilter,
+    noteTypes,
+    stockLocations,
+  ]);
 
   function clearAllFilters() {
     setFilterLabelIds([]);
@@ -1286,7 +1318,10 @@ export default function App({ session }: { session: Session | null }) {
   async function handleCreateNote() {
     if (!canEdit) return;
     const note = await store.createNote({
-      ...createMetaFromDefaults(createDefaults),
+      ...createMetaFromDefaults(createDefaults, {
+        categoryId: filterCategoryId,
+        stockId: filterStockId,
+      }),
       labelIds: [],
     });
     markLocalNoteTouch(note.id);
@@ -1302,7 +1337,10 @@ export default function App({ session }: { session: Session | null }) {
     if (!canEdit) return;
     if (drafts.length === 0) return;
     const createdIds: string[] = [];
-    const meta = createMetaFromDefaults(createDefaults);
+    const meta = createMetaFromDefaults(createDefaults, {
+      categoryId: filterCategoryId,
+      stockId: filterStockId,
+    });
     try {
       for (const draft of drafts) {
         const note = await store.createNote({
@@ -1708,7 +1746,10 @@ export default function App({ session }: { session: Session | null }) {
     try {
       // Create + open first; uploads continue in the background with a toast.
       const note = await store.createNote({
-        ...createMetaFromDefaults(createDefaults),
+        ...createMetaFromDefaults(createDefaults, {
+          categoryId: filterCategoryId,
+          stockId: filterStockId,
+        }),
         labelIds: [],
       });
       setNotes((prev) =>

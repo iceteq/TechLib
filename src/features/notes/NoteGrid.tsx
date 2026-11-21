@@ -626,6 +626,11 @@ export function NoteGrid({
       hasSearch ||
       relatedPartKey,
   );
+  /** Stock (or type) as a place — heading names it instead of “Filtered notes”. */
+  const inStockPlace = Boolean(stockText);
+  const inTypePlace = Boolean(typeText) && !inStockPlace;
+  /** Hide per-card stock while scoped into a stock filter (redundant). */
+  const showStockOnCards = showStock && !inStockPlace;
   const sortedLabels = [...labels].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
   );
@@ -637,7 +642,9 @@ export function NoteGrid({
     heading = relatedPartLabel
       ? `Related · ${relatedPartLabel}`
       : 'Related notes';
-  } else if (hasFilters) heading = 'Filtered notes';
+  } else if (inStockPlace && stockText) heading = stockText;
+  else if (inTypePlace && typeText) heading = typeText;
+  else if (hasFilters) heading = 'Filtered notes';
 
   let emptyTitle = 'Nothing here yet';
   let emptyText = 'Capture parts with photos to build your wall.';
@@ -648,6 +655,9 @@ export function NoteGrid({
   } else if (isBin) {
     emptyTitle = 'Bin is empty';
     emptyText = 'Notes you remove will show up here until an admin empties the bin.';
+  } else if (inStockPlace) {
+    emptyTitle = 'Nothing in this stock';
+    emptyText = 'Add a part here, or clear the stock filter to see more.';
   } else if (hasFilters) {
     emptyTitle = 'No matching part numbers';
     emptyText = 'Clear filters to see more notes, or adjust search.';
@@ -721,9 +731,18 @@ export function NoteGrid({
           <p className={styles.subheading}>
             {notes.length === 0
               ? 'No results'
-              : `${notes.length} note${notes.length === 1 ? '' : 's'}${
-                  hasSearch || hasFilters ? ' found' : ''
-                }`}
+              : inStockPlace
+                ? `${notes.length} note${notes.length === 1 ? '' : 's'} in this stock${
+                    hasSearch ||
+                    filterLabelIds.length > 0 ||
+                    filterDisposition ||
+                    filterCategoryId
+                      ? ' · filtered'
+                      : ''
+                  }`
+                : `${notes.length} note${notes.length === 1 ? '' : 's'}${
+                    hasSearch || hasFilters ? ' found' : ''
+                  }`}
             {canEdit &&
               (view === 'notes' || isBin) &&
               !selecting &&
@@ -824,8 +843,9 @@ export function NoteGrid({
           {stockText && (
             <button
               type="button"
-              className={`${styles.chip} ${styles.chipMeta}`}
+              className={`${styles.chip} ${styles.chipMeta} ${styles.chipPlace}`}
               onClick={onClearStock}
+              title="Leave stock"
             >
               {stockText}
               <X size={14} />
@@ -941,7 +961,7 @@ export function NoteGrid({
                       showLabels={showLabels}
                       showAge={showAge}
                       showTypeChip={showTypeChip}
-                      showStock={showStock}
+                      showStock={showStockOnCards}
                       onOpen={onOpenNote}
                       onToggleSelect={canEdit ? toggleSelect : () => {}}
                       onEnterSelect={canEdit ? enterSelect : () => {}}
@@ -1069,7 +1089,7 @@ export function NoteGrid({
               showLabels={showLabels}
               showAge={showAge}
               showTypeChip={showTypeChip}
-              showStock={showStock}
+              showStock={showStockOnCards}
               onOpen={onOpenNote}
               onToggleSelect={canEdit ? toggleSelect : () => {}}
               onEnterSelect={canEdit ? enterSelect : () => {}}

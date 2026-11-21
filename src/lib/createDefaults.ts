@@ -1,3 +1,5 @@
+import { UNSET_STOCK_FILTER, UNSET_TYPE_FILTER } from './types';
+
 /** Sticky create defaults (pin) — independent of browse filters. */
 export type CreateDefaults = {
   /** Pinned product type id, or null when unpinned. */
@@ -10,6 +12,29 @@ export const DEFAULT_CREATE_DEFAULTS: CreateDefaults = {
   categoryId: null,
   stockId: null,
 };
+
+/**
+ * Browse scope wins over sticky pins so creating while “inside” a stock/type
+ * lands notes in that place. Unset filters clear the field.
+ */
+export function resolveCreateMeta(
+  defaults: CreateDefaults,
+  filters: {
+    categoryId?: string | null;
+    stockId?: string | null;
+  } = {},
+): CreateDefaults {
+  let categoryId = defaults.categoryId;
+  let stockId = defaults.stockId;
+
+  if (filters.categoryId === UNSET_TYPE_FILTER) categoryId = null;
+  else if (filters.categoryId) categoryId = filters.categoryId;
+
+  if (filters.stockId === UNSET_STOCK_FILTER) stockId = null;
+  else if (filters.stockId) stockId = filters.stockId;
+
+  return { categoryId, stockId };
+}
 
 const STORAGE_KEY = 'techlib.createDefaults';
 

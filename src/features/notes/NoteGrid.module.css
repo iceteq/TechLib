@@ -129,6 +129,14 @@
   font-weight: 560;
 }
 
+/** Active stock (or similar) as the place you’re in — slightly stronger than other chips. */
+.chipPlace {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 70%, rgba(255, 255, 255, 0.85));
+  color: var(--text);
+  font-weight: 650;
+}
+
 .chipTag {
   border-radius: 999px;
   background: rgba(31, 35, 40, 0.08);
